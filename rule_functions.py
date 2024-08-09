@@ -11,7 +11,7 @@ def to_emplace(t_now, t_thresh):
 
 def single_sill(T_field, x_space, height, width, thick, T_mag):
     """
-    Emplacing a simple sill
+    Emplacing a simple sill without a dike tail
     """
     T_field[int(height-(thick//2)):int(height+(thick//2)), int(x_space-(width//2)):int(x_space+(width//2))] = T_mag
     return T_field
@@ -33,7 +33,7 @@ def circle_sill(T_field, x_space, height, r, T_mag, a, b, dx, dy):
 
 def randn_heights(n_sills, l_sill, h_sill, sd, dy):
     """
-    Get random emplacement heights over a normal distribution within the specified range
+    Get random emplacement heights over a normal distribution within the specified range. Output is in nodes.
     n_sills - number of sills int
     l_sills - Depth of lowest sill emplacement range (m) int
     h_sills - Depth of shallowest depth emplacement range (m) int
@@ -49,13 +49,27 @@ def randn_heights(n_sills, l_sill, h_sill, sd, dy):
         exit()
     bean = np.mean([l_sill/dy, h_sill/dy])
     heights = np.round((sd/dy)*np.random.randn(n_sills) + bean)
+    while ((heights>l_sill/dy).any() or (heights<h_sill/dy).any()):
+        if (heights>l_sill/dy).any():
+            heights[heights>l_sill/dy] = randn_heights(np.sum(heights>l_sill/dy), l_sill, h_sill, sd, dy)
+        if (heights<h_sill/dy).any():
+            heights[heights<h_sill/dy] = randn_heights(np.sum(heights<(h_sill/dy)), l_sill, h_sill, sd, dy)
     return heights
 
 def x_spacings(n_sills, x_min, x_max, sd, dx):
     """
     Nodes for x-coordinate space chosen as a random normal distribution
+    n_sills - number of sills int
+    x_min - The lower range (left side) (m) int
+    x_max - The upper range (right side) (m) int
+    sd - Standard deviation of the distribution. For the entire distribution to fit within the range, a maximum of 10% of the distribution is recommended. 
     """
     space = np.round((sd/dx)*np.random.randn(n_sills)+ np.mean([x_min/dx, x_max/dx]))
+    while ((space>x_max/dx).any() or (space<x_min/dx).any()):
+            if (space>x_max/dx).any():
+                space[space>x_max/dx] = randn_heights(np.sum(space>x_max/dx), x_min, x_max, sd, dx)
+            if (space<x_min/dx).any():
+                space[space<x_min/dx] = randn_heights(np.sum((space<x_min/dx)), x_min, x_max, sd, dx)
     return space
 
 def uniform_heights(n_sills, l_sill, h_sill, dy):
@@ -64,6 +78,8 @@ def uniform_heights(n_sills, l_sill, h_sill, dy):
     """
     heights = np.round(np.random.uniform(l_sill, h_sill, n_sills)/dy)
     return heights
+
+
 def uniform_x(n_sills, x_min, x_max, dx):
     """
     Nodes for x-coordinate space chosen as a random normal distribution
@@ -84,9 +100,17 @@ def empirical_CDF(n_sills, xarray, cdf):
     return why
     
 
-def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills):
+def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills, dx, dy):
     """
     Linearly scaled with height (inversely) plus noise for both aspect ratio and shape
+    Returns the width and height respectively in the number of nodes
+    min_min = Minimum value for the thickness (m)
+    min_max = Maximum value for the thickness (m)
+    mar = Mean aspect ratio (Width/Thickness)
+    sar = Standard deviation for the distribution of the aspect ratios
+    n_sills = Number of sills
+    dx = Node spacing in the x-direction
+    dy = Node spacing in the y-direction
     """
     fact_min = ((min_max-min_min)/min_max)*((np.max(heights)-np.min(heights))/np.max(heights))
     major = np.zeros(n_sills)
@@ -95,20 +119,35 @@ def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills):
     for i in range(0, n_sills):
         minor[i] = min_min + fact_min*heights[i] + np.round(2*np.random.randn())
         major[i] = minor[i]*aspect_ratio[i]
-    return np.round(major), np.round(minor)
+    return np.round(major/dx), np.round(minor/dy)
 
 def randn_dims(min_min, min_max, sd_min, mar, sar, n_sills):
     """
     Random normal distribution of dims for aspect ratio and shape
+    min_min = Minimum value for the thickness (m)
+    min_max = Maximum value for the thickness (m)
+    mar = Mean aspect ratio (Width/Thickness)
+    sar = Standard deviation for the distribution of the aspect ratios
+    n_sills = Number of sills
     """
     aspect_ratio = sar*np.random.randn(n_sills) + mar
     minor = np.round(sd_min*np.random.randn(n_sills)+np.mean([min_min, min_max]))
+    while ((minor>min_max).any() or (minor<min_min).any()):
+            if (minor>min_max).any():
+                minor[(minor>min_max)] = np.round(sd_min*np.random.randn(np.sum(minor>min_max))+np.mean([min_min, min_max]))
+            if (minor<min_min).any():
+                minor[minor<min_min] = np.round(sd_min*np.random.randn(np.sum(minor<min_min))+np.mean([min_min, min_max]))
     major = np.multiply(minor, aspect_ratio)
     return major, minor
 
 def uniform_dims(min_min, min_max, min_ar, max_ar, n_sills):
     """
     Random uniform distribution of dims for aspect ratio and shape
+    min_min = Minimum value for the thickness (m)
+    min_max = Maximum value for the thickness (m)
+    min_ar = Minimum aspect ratio (Width/Thickness)
+    max_ar =  Maximum aspect ratio
+    n_sills = Number of sills
     """
     aspect_ratio = np.random.uniform(min_ar, max_ar, n_sills)
     minor = np.round(np.random.randn(min_min, min_max, n_sills))

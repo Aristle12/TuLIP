@@ -53,15 +53,35 @@ for k in range(0, len(flux_rates)):
     times = np.array([])
     emplace_window = int(tot_volume/flux_rates[k]) #years
     empl_heights = rool.randn_heights(n_sills, max_emplacement, min_emplacement, 5000, dy)
-    x_space = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
-    plt.hist(x_space)
+    n = 0
+    print('Heights')
+    while ((empl_heights>max_emplacement/dy).any() or (empl_heights<min_emplacement/dy).any()):
+        print((len(empl_heights[empl_heights>max_emplacement/dy])+len(empl_heights[empl_heights<(min_emplacement/dy)]))*100/n_sills, '%')
+        print()
+        n = int(n+1)
+        print('Cycle', n ,'reassigning')
+        if (empl_heights>max_emplacement/dy).any():
+            empl_heights[empl_heights>max_emplacement/dy] = rool.randn_heights(np.sum(empl_heights>max_emplacement/dy), max_emplacement, min_emplacement, 5000, dy)
+        if (empl_heights<min_emplacement/dy).any():
+            empl_heights[empl_heights<min_emplacement/dy] = rool.randn_heights(np.sum(empl_heights<(min_emplacement/dy)), max_emplacement, min_emplacement, 5000, dy)
+    plt.hist(empl_heights*dy)
     plt.show()
-    for ele in x_space:
-        if ele>b:
-            print('x_space is too large')
-            print(ele, b)
-            print('Reassigning')
-            x_space[x_space>ele] = rool.x_spacings(np.sum(x_space>ele), x//3, 2*x//3, x//6, dx)
+
+
+    x_space = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
+    
+    n = 0
+    while ((x_space>0.66*x/dx).any() or (x_space<(x//(3*dx))).any()):
+        print((len(x_space[x_space>0.66*x/dx])+len(x_space[x_space<(x//(3*dx))]))*100/n_sills, '%')
+        print()
+        n = int(n+1)
+        print('Cycle', n ,'reassigning')
+        if (x_space>0.66*x/dx).any():
+            x_space[x_space>0.66*x/dx] = rool.x_spacings(np.sum(x_space>0.66*x/dx), x//3, 2*x//3, x//6, dx)
+        if (x_space<(x//(3*dx))).any():
+            x_space[x_space<(x//(3*dx))] = rool.x_spacings(np.sum(x_space<(x//(3*dx))), x//3, 2*x//3, x//6, dx)
+    plt.hist(x_space*dx)
+    plt.show()
     width, thickness = rool.randn_dims(min_thickness, max_thickness, 700, mar, sar, n_sills)
     volume = (4*np.pi/3)*width*width*thickness
     n_reps = 0
