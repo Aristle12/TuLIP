@@ -471,19 +471,6 @@ def diff_solve(k, a, b, dx, dy, dt, Tnow, q, method, H, k_const=False):
         print('Error method not supported')
         exit()
 
-
-## 1 - Convolution smooth solver - Done
-## 2 - Switch for constant k - Done
-## 3 - Make sure the time stepping changes so that a sill is emplaced at exactly a time step - Done
-## 4 - Add ability to specify the SD for height, x spacing  - Done
-## 5 - Add a random uniform distribution function for height, x spacing, min, maj - Done
-## 6 - Add ability to sample from an empirical CDF for height, x spacing, min, maj - Done
-## 7 - Add normal Dist fs for Major and minor - Done
-## 8 - Add displacement of crust for magma - Done untested
-## 9 - Add external heat term - Done
-
 ## Side - Add side flux BC later
-
-
 ## New list -
 ## 1 - Add functions for temperature and lithology dependent density and diffusivity

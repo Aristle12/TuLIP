@@ -111,6 +111,7 @@ def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills, dx, dy):
     n_sills = Number of sills
     dx = Node spacing in the x-direction
     dy = Node spacing in the y-direction
+    Returns dims in length units
     """
     fact_min = ((min_max-min_min)/min_max)*((np.max(heights)-np.min(heights))/np.max(heights))
     major = np.zeros(n_sills)
@@ -119,7 +120,7 @@ def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills, dx, dy):
     for i in range(0, n_sills):
         minor[i] = min_min + fact_min*heights[i] + np.round(2*np.random.randn())
         major[i] = minor[i]*aspect_ratio[i]
-    return np.round(major/dx), np.round(minor/dy)
+    return major, minor
 
 def randn_dims(min_min, min_max, sd_min, mar, sar, n_sills):
     """
@@ -129,6 +130,7 @@ def randn_dims(min_min, min_max, sd_min, mar, sar, n_sills):
     mar = Mean aspect ratio (Width/Thickness)
     sar = Standard deviation for the distribution of the aspect ratios
     n_sills = Number of sills
+    Returns dims in length units
     """
     aspect_ratio = sar*np.random.randn(n_sills) + mar
     minor = np.round(sd_min*np.random.randn(n_sills)+np.mean([min_min, min_max]))
@@ -148,6 +150,7 @@ def uniform_dims(min_min, min_max, min_ar, max_ar, n_sills):
     min_ar = Minimum aspect ratio (Width/Thickness)
     max_ar =  Maximum aspect ratio
     n_sills = Number of sills
+    Returns dims in length units
     """
     aspect_ratio = np.random.uniform(min_ar, max_ar, n_sills)
     minor = np.round(np.random.randn(min_min, min_max, n_sills))
@@ -186,7 +189,6 @@ def mult_sill(T_field, majr, minr, height, x_space, a, b, dx, dy, dike_net, cm_a
             for j in range(0, b):
                 if i>cmb[i]:
                     cm_array.loc[i,j] = 'mantle'
-    if cmb_exists:
         return T_field, dike_net, rock, cm_array
     else:
         return T_field, dike_net, rock
@@ -210,3 +212,70 @@ def get_diffusivity(T_field, lithology):
     K = 1e-6
     return K
 
+
+def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, dike_tail = False):
+    '''
+    Function to gnenerate sills in 3D space to employ fluxes as a control for sill emplacement. Choose any 1 slice for a 2D coolong model, or multiple slices for multiple cooling models
+    x, y, z = width, height and third dimension extension of the crustal slice (m)
+    n_sills = Number of sills to be emplaced
+    dx, dy = Node spacing
+    x_coords = x coordinates for the center of the sills
+    y_coords = y coordinates for the center of the sills
+    z_coords = z coordinates for the center of the sills
+    maj_dims, minor dims = dimensions of the 2D sills. Implicit assumption of circularity in the z-direction is present in the code (m)
+    '''
+    sillcube = np.zeros([z,y, x])
+    x_len = np.arange(0,x, dx)
+    y_len = np.arange(0,y, dy)
+    z_len = np.arange(0, z, dx)
+    for l in range(0, n_sills):
+        for i in range(0,x):
+            for j in range(0, y):
+                for q in range(0,z):
+                    x_dist = ((x_len[i] - x_coords[l])**2)/((0.5*maj_dims[l])**2)
+                    y_dist = ((y_len[j] - y_coords[l])**2)/((0.5*min_dims[l])**2)
+                    z_dist = ((z_len[q] - z_coords[l])**2)/((0.5*maj_dims[l])**2)
+                    if (x_dist+y_dist+z_dist)<=1:
+                        if sillcube[q,j,i]!=0:
+                            print('Sill intersection detected')
+                        sillcube[q,j,i] = l
+                    if dike_tail:
+                        sillcube[int(z_coords), int(y_coords[l]):-1, int(x_coords)] = l
+    return sillcube
+
+def emplace_3Dsill(T_field, sillcube, n_rep, T_mag, z_index):
+    '''
+    Function to empalce a sill into the 2D slice
+    T_field = 2D temperature array
+    sillcube = 3D sill array
+    n_rep = the number of the sill being emplaced
+    z_index = The 2D slice from the 3D sill array being considered
+    '''
+    sillcube[sillcube==n_rep] = T_mag
+    sillcube[sillcube!=T_mag] = 0
+    T_field = T_field + sillcube[z_index,:,:]
+
+def lithology_3Dsill(rock, sillcube, nrep, z_index, rock_type = 'basalt'):
+    '''
+    Function to keep track of lithology changes in the 2D array
+    rock = 2D lithology array
+    sillcube = 3D sill array
+    nrep = number of the sill being emplaced
+    z_index = The 2D slice from the 3D sill array being considered
+    rock_type = the type of rock formed by the magma
+    '''
+    sillcube[sillcube==nrep] = rock_type
+    rock_2d = sillcube[z_index,:,:]
+    rock[rock_2d==rock_type]==rock_type
+    return rock
+
+def cmb_3Dsill(cm_array, cmb, sillcube, nrep, z_index):
+    new_sill = sillcube==nrep
+    new_sill = new_sill[z_index,:,:]
+    cm_mov = np.sum(new_sill, axis = 0)
+    cmb = cmb+cm_mov
+    for i in range(0, cm_array[:,0]):
+            for j in range(0, cm_array[0,:]):
+                if i>cmb[i]:
+                    cm_array.loc[i,j] = 'mantle'
+    return cm_array
