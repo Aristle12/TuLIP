@@ -100,8 +100,7 @@ def GSIt(Ab, dee, a, b):
     a = number of rows - M int
     b = number of columns N int
     """
-    #sc.linalg.use_solver(useUmfpack=True)
-    D = sc.diags(Ab.diagonal(),0)#np.diag(np.diag(Ab))
+    D = sc.diags(Ab.diagonal(),0)
     E = -(sc.tril(Ab, k=-1))
     F = -(sc.triu(Ab, k=1))
     tre = sc.csc_matrix(D - E)
@@ -213,8 +212,6 @@ def perm_smoothed_solve(k, a, b, dx, dy, dt, Tnow, q, Af, H):
         m1_diag = np.zeros(a*b-1)
         pa_diag = np.zeros(a*b-a)
         ma_diag = np.zeros(a*b-a)
-        #p2_diag = np.zeros(a*b-(2))
-        #m2_diag = np.zeros(a*b-(2))
         index = 0
 
 
@@ -230,15 +227,10 @@ def perm_smoothed_solve(k, a, b, dx, dy, dt, Tnow, q, Af, H):
                 if i==0 or i==a-1:
                     main_diag[index] = 1
                 if j==0 and i!=0 and i!=a-1:
-                    main_diag[index] = 1#((2*k[i,j]*dt)/(dy**2))+1
-                    #pa_diag[index] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))-(k[i,j]/(dy**2)))*dt #won't work because no ghost points
-                    #ma_diag[index-a] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))+(k[i,j]/(dy**2)))*dt #won't work because no ghost points
+                    main_diag[index] = 1
                 if j==b-1 and i!=0 and i!=a-1:
-                    main_diag[index] = 1#((2*k[i,j]*dt)/(dy**2))+1
-                    #pa_diag[index] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))-(k[i,j]/(dy**2)))*dt #won't work because no ghost points
-                    #ma_diag[index-a] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))+(k[i,j]/(dy**2)))*dt #won't work because no ghost points
+                    main_diag[index] = 1
                 index = index+1
-        #Af = sc.spdiags([main_diag, p1_diag, m1_diag, pb_diag, mb_diag], [0,1,-1,a,-a])
         Af = sc.lil_matrix((a*b,a*b))
         Af.setdiag(main_diag, k=0)
         Af.setdiag(p1_diag, k=1)
@@ -290,7 +282,6 @@ def perm_chain_solve(k, a, b, dx, dy, dt, Tnow, q, Af, H):
                     if j==b-1 and i!=0 and i!=a-1:
                         main_diag[index] = 1
                     index = index+1
-            #Af = sc.spdiags([main_diag, p1_diag, m1_diag, pb_diag, mb_diag], [0,1,-1,a,-a])
             Af = sc.lil_matrix((a*b,a*b))
             Af.setdiag(main_diag, k=0)
             Af.setdiag(p1_diag, k=1)
@@ -394,8 +385,6 @@ def diff_solve(k, a, b, dx, dy, dt, Tnow, q, method, H, k_const=False):
             m1_diag = np.zeros(a*b-1)
             pa_diag = np.zeros(a*b-a)
             ma_diag = np.zeros(a*b-a)
-            #p2_diag = np.zeros(a*b-(2))
-            #m2_diag = np.zeros(a*b-(2))
             index = 0
 
 
@@ -411,21 +400,15 @@ def diff_solve(k, a, b, dx, dy, dt, Tnow, q, method, H, k_const=False):
                     if i==0 or i==a-1:
                         main_diag[index] = 1
                     if j==0 and i!=0 and i!=a-1:
-                        main_diag[index] = 1#((2*k[i,j]*dt)/(dy**2))+1
-                        #pa_diag[index] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))-(k[i,j]/(dy**2)))*dt #won't work because no ghost points
-                        #ma_diag[index-a] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))+(k[i,j]/(dy**2)))*dt #won't work because no ghost points
+                        main_diag[index] = 1
                     if j==b-1 and i!=0 and i!=a-1:
-                        main_diag[index] = 1#((2*k[i,j]*dt)/(dy**2))+1
-                        #pa_diag[index] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))-(k[i,j]/(dy**2)))*dt #won't work because no ghost points
-                        #ma_diag[index-a] = (-((k[i+1,j]-k[i-1,j])/(2*(dy**2)))+(k[i,j]/(dy**2)))*dt #won't work because no ghost points
+                        main_diag[index] = 1
                     index = index+1
-            #Af = sc.spdiags([main_diag, p1_diag, m1_diag, pb_diag, mb_diag], [0,1,-1,a,-a])
+
             Af = sc.lil_matrix((a*b,a*b))
             Af.setdiag(main_diag, k=0)
             Af.setdiag(p1_diag, k=1)
             Af.setdiag(m1_diag,k=-1)
-            #Af.setdiag(p2_diag,k=2)
-            #Af.setdiag(m2_diag,k=-2)
             Af.setdiag(pa_diag, k=a)
             Af.setdiag(ma_diag, k=-a)
         else:
