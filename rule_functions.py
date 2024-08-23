@@ -193,17 +193,22 @@ def mult_sill(T_field, majr, minr, height, x_space, a, b, dx, dy, dike_net, cm_a
     else:
         return T_field, dike_net, rock
 
-def get_H(T_field, rho, CU, CTh, CK):
+def get_H(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
     """
     Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation
     T_field = Temp field, int
     rho = Density kg/m3
-    CU, CTh = U, Th concentrations in ppm
-    CK = K conc in wt %"""
+    CU, CTh = U, Th concentrations in ppm, array
+    CK = K conc in wt %, array
+    T_sol = Solidus temperature
+    """
     J = 0.25 #J/kg latent heat of crystallization
     Cp = 1450 #J/kgK specific heat capacity
     H = np.zeros_like(T_field)
-    H = J/(rho*Cp)
+    for i in range(0,a):
+        for j in range(0, b):
+            if T_field[i,j]>T_sol and dike_net[i,j]!=0:
+                H[i,j] = J/(rho*Cp)
     A = rho*1e-5*(9.52*CU + 2.56*CTh + 3.48*CK) #Formula from Rybach and Cermack 1982 - Radioactive heat generation in rocks
     H = H+A
     return H
