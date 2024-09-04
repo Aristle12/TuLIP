@@ -101,9 +101,6 @@ print(T_field)
 - `lithology_3Dsill`: Tracks lithology changes in a 2D array due to sill emplacement.
 - `cmb_3Dsill`: Updates the crust-mantle boundary due to sill emplacement.
 
-## Contributing
-
-Contributions are welcome! Please read the [contributing guidelines](CONTRIBUTING.md) before submitting a pull request.
 
 ## License
 
