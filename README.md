@@ -1,6 +1,6 @@
 # Project Name
 
-Heat Transfer Solvers with Sill Emplacement
+Thermally understanding Large Igneous Provinces (TuLIP)
 
 ## Description
 
@@ -20,7 +20,7 @@ This project combines heat transfer solvers with functions for emplacing sills i
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/yourusername/heat-transfer-solvers.git
+   git clone https://github.com/Aristle12/TuLIP.git
    ```
 2. Install required packages
    ```sh
@@ -113,4 +113,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Your Name - [@yourusername](https://github.com/yourusername) - your.email@example.com
 
-Project Link: [https://github.com/yourusername/heat-transfer-solvers](https://github.com/yourusername/heat-transfer-solvers)
+Project Link: [https://github.com/Aristle12/TuLIP.git](https://github.com/Aristle12/TuLIP.git)
