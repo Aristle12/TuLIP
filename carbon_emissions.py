@@ -1,5 +1,4 @@
 import numpy as np
-from numba import jit
 
 def SILLi_emissions(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo):
     '''
