@@ -1,6 +1,6 @@
 import numpy as np
 
-def SILLi_emissions(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo):
+def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOCo, W):
     '''
     Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
     T_field - temperature field (array)
@@ -9,18 +9,29 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, I_prev, TOC_prev,
     lithology - Lithology array
     porosity - porosity array
     '''
-    a = len(T_field[:,0])
-    b = len(T_field[0,:])
     calc_parser = lithology[lithology=='shale' or lithology=='sandstone']
     A = 1e13
-    a1 = 2.334733
-    a2 = 0.250621
-    b1 = 3.330657
-    b2 = 1.681534
-    R = 1.9872036e-3 #kcal/K/mol
-    E = [34, 36, 38, 40, 72] #kcal/m
-    f = [0.03, 0.03, 0.04, 0.01]
-    total = 1 - np.sum(f)
+    R = 8.314 #J/K/mol
+    E = [34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72]*4184 #J/mole
+    f = [0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01]
+    dW = np.empty_like(W)
+    fl = np.empty_like(W)
+    for l in range(0, E):
+        dW[l,:,:] = np.max([W[l,:,:]*A*np.exp(-E[l]*dt/(R*T_field)),0]) # preventing more than existing component to be used up
+        fl[l,:,:] = f[l]*dW[l,:,:]
+    fl_sum = np.sum(fl, axis = 0)
+    Frac = 1 - fl_sum
+    percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
+    TOC = TOCo*Frac*calc_parser
+    if (W==1).all():
+        dTOC = (TOC-TOC_prev)/dt
+        Rom = (1-porosity)*density*dTOC
+        RCO2 = Rom*3.67
+    else:
+        Rom = 0
+        RCO2 = Rom*3.67
+    return RCO2, Rom, percRo, TOC, W
+'''
     I_curr = np.empty_like(I_prev)
     del_I = np.empty_like(I_prev)
     w_ratio = np.empty_like(E)
@@ -29,8 +40,8 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, I_prev, TOC_prev,
         Ert = E[l]/(R*T_field)
         I_curr[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
         del_I[l] = (I_curr[l]-I_prev[l])/dT
-        w_ratio[l] = 1 - np.exp(-del_I[l])
-        fl[l] = w_ratio[l]*f[l]
+        w_ratio[l] = np.max(np.exp(-del_I[l]),0)
+        fl[l] = (1 - w_ratio[l])*f[l]
     Frac = 1 - np.sum(fl)
     percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
     TOC = TOCo*Frac*calc_parser
@@ -40,9 +51,8 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, I_prev, TOC_prev,
     return RCO2, Rom, percRo, I_curr, TOC
 
 def SILLi_I(T_field):
-    '''
     Initialization of I for the carbon model
-    '''
+
     a = len(T_field[:,0])
     b = len(T_field[0,:])
     A = 1e13
@@ -58,3 +68,4 @@ def SILLi_I(T_field):
         Ert = E[l]/(R*T_field)
         I[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
     return I
+'''
