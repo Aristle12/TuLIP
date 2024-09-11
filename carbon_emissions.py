@@ -31,7 +31,20 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOC
         Rom = 0
         RCO2 = Rom*3.67
     return RCO2, Rom, percRo, TOC, W
-'''
+
+
+
+
+def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
+    calc_parser = lithology[lithology=='shale' or lithology=='sandstone']
+    a1 = 2.334733
+    a2 = 0.250621
+    b1 = 3.330657
+    b2 = 1.681534
+    A = 1e13
+    R = 8.314 #J/K/mol
+    E = [34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72]*4184 #J/mole
+    f = [0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01]
     I_curr = np.empty_like(I_prev)
     del_I = np.empty_like(I_prev)
     w_ratio = np.empty_like(E)
@@ -50,8 +63,10 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOC
     RCO2 = Rom*3.67
     return RCO2, Rom, percRo, I_curr, TOC
 
-def SILLi_I(T_field):
+def analyticalRo_I(T_field):
+    '''
     Initialization of I for the carbon model
+    '''
 
     a = len(T_field[:,0])
     b = len(T_field[0,:])
@@ -68,4 +83,3 @@ def SILLi_I(T_field):
         Ert = E[l]/(R*T_field)
         I[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
     return I
-'''
