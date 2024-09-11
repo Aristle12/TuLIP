@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.special import erf, erfinv
 
 def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOCo, W):
     '''
@@ -16,6 +17,7 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOC
     f = [0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01]
     dW = np.empty_like(W)
     fl = np.empty_like(W)
+    T_field = T_field + 273.15
     for l in range(0, E):
         dW[l,:,:] = np.max([W[l,:,:]*A*np.exp(-E[l]*dt/(R*T_field)),0]) # preventing more than existing component to be used up
         fl[l,:,:] = f[l]*dW[l,:,:]
@@ -31,8 +33,6 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOC
         Rom = 0
         RCO2 = Rom*3.67
     return RCO2, Rom, percRo, TOC, W
-
-
 
 
 def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
@@ -53,7 +53,7 @@ def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, d
         Ert = E[l]/(R*T_field)
         I_curr[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
         del_I[l] = (I_curr[l]-I_prev[l])/dT
-        w_ratio[l] = np.max(np.exp(-del_I[l]),0)
+        w_ratio[l] = np.maximum(np.exp(-del_I[l]),0)
         fl[l] = (1 - w_ratio[l])*f[l]
     Frac = 1 - np.sum(fl)
     percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
@@ -78,8 +78,85 @@ def analyticalRo_I(T_field):
     R = 1.9872036e-3 #kcal/K/mol
     E = [34, 36, 38, 40, 72] #kcal/m
     f = [0.03, 0.03, 0.04, 0.01]
-    I = np.empty_like(len(E),a,b)
+    I = np.empty(len(E),a,b)
     for l in range(len(E)):
         Ert = E[l]/(R*T_field)
         I[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
     return I
+
+def sillburp(T_field, TOC, density, lithology, dt, P = np.nan):
+    a = len(T_field[:,0])
+    b = len(T_field[0,:])
+    calc_parser = lithology[lithology=='shale' or lithology=='sandstone']
+    sqrt_2pi = np.sqrt(2*np.pi)
+    n_reactions = 4
+    reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
+    OIL = reactants.index('OIL')
+    As = [1.58e13, 1.83e18, 4e10, 1e13] #pre-exponential constants for the different reactions
+    mean_E = [208e3, 279e3, 242e3, 230e3] #mean activation energies for the reactions
+    sd_E = [5e3, 13e3, 41e3, 5e3] #Standard deviation of the  normal distributions of the activation energies
+    no_reactions = [7, 21, 55, 7] #Number of reactions for each kerogen type
+    reaction_energies = np.zeros((n_reactions, max(no_reactions)))
+    for i in range(0, n_reactions):
+        s_r2 = sd_E[i]*np.sqrt(2)
+        N = no_reactions[i]
+        fraction = 2/N
+        E_0 = 0
+        E_1 = 0
+        #Number of reaction in the middle of the series
+        n_middle = N//2
+
+        #Looping over individual reactions to get the distribution
+        for i_approx in range(n_middle, N):
+            # Central reaction: set the activation energy to the mean activation energy (EQ 4A or original sillburp code Jones et al. 2019)
+            if i_approx == n_middle:
+                reaction_energies[i][i_approx] = mean_E[i]
+                if N != 1:
+                    E_0 = mean_E[i] - s_r2 * erfinv(-1.0 / N)
+                continue
+            # Reaction on the edge of the distribution
+            if i_approx==N-1:
+                reaction_energies[i][i_approx] = N * (sd_E[i]/ sqrt_2pi*np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))+mean_E[i] / 2.0 * (1.0 + erf((mean_E[i] - E_0) / s_r2)))
+            else:
+                right_side = erf((mean_E[i] - E_0) / s_r2) - fraction
+                erf_inv = erfinv(right_side)
+                E_1 = mean_E[i] - erf_inv * s_r2
+                reaction_energies[i][i_approx] = N * (-sd_E[i] / sqrt_2pi *
+                    (np.exp(-(mean_E[i] - E_1)**2 / (2.0 * sd_E[i]**2)) - np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))) -
+                    mean_E[i] / 2.0 * (erf((mean_E[i] - E_1) / s_r2) - erf((mean_E[i] - E_0) / s_r2)))
+
+            # Probability distribution is symmetrical
+            reaction_energies[i][N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i][i_approx]
+            
+            # Remember activation energy for the next approximate reaction
+            E_0 = E_1
+    
+    if np.isnan(P):
+        P = np.zeros(n_reactions, max(no_reactions), a, b)
+        progress_of_reactions = np.zeros_like(P)
+        rate_of_reactions = np.zeros_like(P)
+    
+    do_labile_reaction = True  # Example value
+    do_refractory_reaction = True  # Example value
+    do_vitrinite_reaction = True  # Example value
+    print_vitrinite = False  # Example value
+    mass_frac_labile_to_gas = 0.5 #Example value
+    for i in range(0,a):
+        for j in range(0,b):
+            for i_reaction in range(0, n_reactions):
+                for i_approx in range(0, no_reactions[i_reaction]):
+                    initial_product_conc = progress_of_reactions[i_reaction][i_approx][a][b]
+                    activation_energy = reaction_energies[i_reaction][i_approx]
+                    reaction_rate = As[i_reaction]*np.exp(-activation_energy/8.314/(T_field[a,b]+273.15))
+                    if reactants[i_reaction]!= 'OIL':
+                        progress_of_reactions[i_reaction][i_approx][a][b] = (1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt))
+                        # Save reaction rate
+                        rate_of_reactions[i_reaction][i_approx][a][b] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) /dt
+                    #Oil cracking reaction
+                    else:
+                        # The oil production rate is spread evenly over the oil cracking reactions, hence divide by n_approx_reactions[OIL]
+                        #S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / n_approx_reactions[OIL]
+
+
+
+
