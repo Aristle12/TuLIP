@@ -10,7 +10,7 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOC
     lithology - Lithology array
     porosity - porosity array
     '''
-    calc_parser = lithology[lithology=='shale' or lithology=='sandstone']
+    calc_parser = (lithology=='shale') | (lithology=='sandstone')
     A = 1e13
     R = 8.314 #J/K/mol
     E = [34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72]*4184 #J/mole
@@ -36,7 +36,7 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOC
 
 
 def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
-    calc_parser = lithology[lithology=='shale' or lithology=='sandstone']
+    calc_parser = (lithology=='shale') | (lithology=='sandstone')
     a1 = 2.334733
     a2 = 0.250621
     b1 = 3.330657
@@ -55,7 +55,7 @@ def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, d
         del_I[l] = (I_curr[l]-I_prev[l])/dT
         w_ratio[l] = np.maximum(np.exp(-del_I[l]),0)
         fl[l] = (1 - w_ratio[l])*f[l]
-    Frac = 1 - np.sum(fl)
+    Frac = 1 - np.sum(fl, axis = 0)
     percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
     TOC = TOCo*Frac*calc_parser
     dTOC = (TOC-TOC_prev)/dt
@@ -65,7 +65,7 @@ def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, d
 
 def analyticalRo_I(T_field):
     '''
-    Initialization of I for the carbon model
+    Initialization of I for the SILLi carbon model
     '''
 
     a = len(T_field[:,0])
@@ -84,10 +84,10 @@ def analyticalRo_I(T_field):
         I[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
     return I
 
-def sillburp(T_field, TOC, density, lithology, dt, P = np.nan):
+def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo, oil_production_rate = 0, P = np.nan):
     a = len(T_field[:,0])
     b = len(T_field[0,:])
-    calc_parser = lithology[lithology=='shale' or lithology=='sandstone']
+    calc_parser = (lithology=='shale') | (lithology=='sandstone')
     sqrt_2pi = np.sqrt(2*np.pi)
     n_reactions = 4
     reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
@@ -132,30 +132,64 @@ def sillburp(T_field, TOC, density, lithology, dt, P = np.nan):
             E_0 = E_1
     
     if np.isnan(P):
-        P = np.zeros(n_reactions, max(no_reactions), a, b)
+        P = np.zeros((n_reactions, max(no_reactions), a, b))
         progress_of_reactions = np.zeros_like(P)
+        progress_of_reactions_old = np.zeros_like(P)
         rate_of_reactions = np.zeros_like(P)
+    else:
+        progress_of_reactions = P
+        progress_of_reactions_old = progress_of_reactions
     
-    do_labile_reaction = True  # Example value
-    do_refractory_reaction = True  # Example value
-    do_vitrinite_reaction = True  # Example value
-    print_vitrinite = False  # Example value
-    mass_frac_labile_to_gas = 0.5 #Example value
+    do_labile_reaction = progress_of_reactions[:,reactants.index('LABILE'),:,:]<1
+    do_refractory_reaction = progress_of_reactions[:,reactants.index('REFRACTORY'),:,:]<1  # Example value
+    do_oil_reaction = progress_of_reactions[:,reactants.index('OIL'),:,:]<1  # Example value
+    do_vitrinite_reaction = progress_of_reactions[:,reactants.index('VITRINITE'),:,:]<1
+    do_reaction = [do_labile_reaction, do_refractory_reaction, do_vitrinite_reaction, do_oil_reaction]
+    mass_frac_labile_to_gas = 0.2 #From sillburp code
     for i in range(0,a):
         for j in range(0,b):
             for i_reaction in range(0, n_reactions):
+                if do_reaction[i_reaction].all()==True:
+                    continue
                 for i_approx in range(0, no_reactions[i_reaction]):
                     initial_product_conc = progress_of_reactions[i_reaction][i_approx][a][b]
                     activation_energy = reaction_energies[i_reaction][i_approx]
                     reaction_rate = As[i_reaction]*np.exp(-activation_energy/8.314/(T_field[a,b]+273.15))
                     if reactants[i_reaction]!= 'OIL':
-                        progress_of_reactions[i_reaction][i_approx][a][b] = (1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt))
+                        progress_of_reactions[i_reaction][i_approx][i][j] = min((1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt)), 1)
                         # Save reaction rate
-                        rate_of_reactions[i_reaction][i_approx][a][b] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) /dt
+                        rate_of_reactions[i_reaction][i_approx][i][j] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) /dt
                     #Oil cracking reaction
                     else:
                         # The oil production rate is spread evenly over the oil cracking reactions, hence divide by n_approx_reactions[OIL]
-                        #S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / n_approx_reactions[OIL]
+                        S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / no_reactions[OIL]
+                        # Take reaction step using equation [5] above
+                        progress_of_reactions[i_reaction][i_approx][i][j] = min(1.0 - S_over_k - (1.0 - initial_product_conc - S_over_k) * np.exp(-reaction_rate * dt), 1)
+
+                        # Save average reaction rate in time step
+                        rate_of_reactions[i_reaction][i_approx][i][j] = (1.0 - initial_product_conc - S_over_k) * (1.0 - np.exp(-reaction_rate * dt)) / dt
+
+                    # Store average oil production rate over the time step for use in oil cracking calculation
+                    if i_reaction==reactants.index('LABILE'):
+                        if i_approx == 0:
+                            oil_production_rate = 0.0
+
+                        oil_production_rate += -reaction_rate * (1.0 - progress_of_reactions[i_reaction][i_approx][i][j]) / no_reactions[reactants.index('LABILE')]
+                        if i_approx == no_reactions[reactants.index('LABILE')] - 1:
+                            oil_production_rate *= (1.0 - mass_frac_labile_to_gas)
+    time_step_progress = progress_of_reactions - progress_of_reactions_old
+    products_progress = np.mean(progress_of_reactions, axis = 0)
+    products_progress = np.mean(products_progress, axis = 0)
+    time_step_summarized = np.mean(time_step_progress, axis = 0)
+    time_step_summarized = np.mean(time_step_progress, axis = 0)
+    TOC = TOCo*(1-products_progress)*calc_parser
+    dTOC = (TOC_prev - TOC)/dt
+    Rom = (1-porosity)*density*dTOC
+    RCO2 = Rom*3.67
+    return RCO2, Rom, progress_of_reactions, oil_production_rate
+
+
+
 
 
 
