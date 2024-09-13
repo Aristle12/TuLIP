@@ -218,7 +218,7 @@ def get_diffusivity(T_field, lithology):
     return K
 
 
-def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, dike_tail = False):
+def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, dike_tail = False):
     '''
     Function to gnenerate sills in 3D space to employ fluxes as a control for sill emplacement. Choose any 1 slice for a 2D coolong model, or multiple slices for multiple cooling models
     x, y, z = width, height and third dimension extension of the crustal slice (m)
@@ -229,7 +229,8 @@ def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims
     z_coords = z coordinates for the center of the sills
     maj_dims, minor dims = dimensions of the 2D sills. Implicit assumption of circularity in the z-direction is present in the code (m)
     '''
-    sillcube = np.zeros([z,y, x])
+    sillcube = np.empty([z,y, x])
+    sillcube[:,:,:] = ''
     x_len = np.arange(0,x, dx)
     y_len = np.arange(0,y, dy)
     z_len = np.arange(0, z, dx)
@@ -243,22 +244,25 @@ def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims
                     if (x_dist+y_dist+z_dist)<=1:
                         if sillcube[q,j,i]!=0:
                             print('Sill intersection detected')
-                        sillcube[q,j,i] = l
+                        sillcube[q,j,i] = sillcube[q,j,i]+'_'+str(l)+'s'+str(empl_times[l])
                     if dike_tail:
-                        sillcube[int(z_coords), int(y_coords[l]):-1, int(x_coords)] = l
+                        sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] = l
     return sillcube
 
-def emplace_3Dsill(T_field, sillcube, n_rep, T_mag, z_index):
+def emplace_3Dsill(T_field, sillcube, n_rep, T_mag, z_index, curr_empl_time):
     '''
-    Function to empalce a sill into the 2D slice
+    Function to empalce a sill into the 2D slice T_field
     T_field = 2D temperature array
     sillcube = 3D sill array
     n_rep = the number of the sill being emplaced
     z_index = The 2D slice from the 3D sill array being considered
     '''
-    sillcube[sillcube==n_rep] = T_mag
-    sillcube[sillcube!=T_mag] = 0
-    T_field = T_field + sillcube[z_index,:,:]
+    string_finder = str(n_rep)+'s'+str(curr_empl_time)
+    if len(sillcube.shape)!=3 or T_field.size==0:
+        print('Please enter valid arrays as input')
+        exit()
+    T_field[string_finder in sillcube[z_index]] = T_mag
+    return T_field
 
 def lithology_3Dsill(rock, sillcube, nrep, z_index, rock_type = 'basalt'):
     '''
@@ -284,3 +288,14 @@ def cmb_3Dsill(cm_array, cmb, sillcube, nrep, z_index):
                 if i>cmb[i]:
                     cm_array.loc[i,j] = 'mantle'
     return cm_array
+
+def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
+    string_finder = str(n_rep)+'s'+str(curr_empl_time)
+    y_shifts = np.sum(np.array([string_finder in sillcube_z]).astype(int), axis = 0)
+    for i in range(0, len(array_new[:,0])):
+        if y_shifts[i]!=0:
+            for j in range(0, len(array_new[0,:])):
+                if array_old[i,j]!= array_new[i,j]:
+                    array_new[i,j+y_shifts::-1] = array_old[i,::-y_shifts]
+                    continue
+    return array_new
