@@ -5,7 +5,7 @@ import functions as cool
 import rule_functions as rool
 from tqdm import trange
 import h5py
-print('Updated')
+
 x = 300000 #m
 y = 35000 #m
 

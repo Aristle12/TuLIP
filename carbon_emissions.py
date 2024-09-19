@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import erf, erfinv
 
-def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOCo, W):
+def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan):
     '''
     Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
     T_field - temperature field (array)
@@ -13,19 +13,24 @@ def SILLi_emissions(T_field, dT, density, lithology, porosity, TOC_prev, dt, TOC
     calc_parser = (lithology=='shale') | (lithology=='sandstone')
     A = 1e13
     R = 8.314 #J/K/mol
-    E = [34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72]*4184 #J/mole
-    f = [0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01]
+    E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72])*4184 #J/mole
+    f = np.array([0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01])
+    T_field = T_field + 273.15
+    if np.isnan(W).all():
+        W = np.ones((len(E),len(T_field[:,0]),len(T_field[0,:])))
+        TOCo = TOC_prev
     dW = np.empty_like(W)
     fl = np.empty_like(W)
-    T_field = T_field + 273.15
-    for l in range(0, E):
-        dW[l,:,:] = np.max([W[l,:,:]*A*np.exp(-E[l]*dt/(R*T_field)),0]) # preventing more than existing component to be used up
+    for l in range(0, len(E)):
+        exp_term = np.exp(-E[l]*dt/(R*T_field))
+        dW[l,:,:] = -W[l,:,:]*A*exp_term
         fl[l,:,:] = f[l]*dW[l,:,:]
+        W[l,:,:] = W[l,:,:] + dW[l,:,:]
     fl_sum = np.sum(fl, axis = 0)
     Frac = 1 - fl_sum
     percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
     TOC = TOCo*Frac*calc_parser
-    if (W==1).all():
+    if (W!=0).all():
         dTOC = (TOC-TOC_prev)/dt
         Rom = (1-porosity)*density*dTOC
         RCO2 = Rom*3.67
@@ -84,7 +89,9 @@ def analyticalRo_I(T_field):
         I[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
     return I
 
-def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo, oil_production_rate = 0, P = np.nan):
+def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo = np.nan, oil_production_rate = 0, progress_of_reactions = np.nan):
+    if np.isnan(TOCo).all():
+        TOCo = TOC_prev
     a = len(T_field[:,0])
     b = len(T_field[0,:])
     calc_parser = (lithology=='shale') | (lithology=='sandstone')
@@ -131,14 +138,12 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo, oil_prod
             # Remember activation energy for the next approximate reaction
             E_0 = E_1
     
-    if np.isnan(P):
-        P = np.zeros((n_reactions, max(no_reactions), a, b))
-        progress_of_reactions = np.zeros_like(P)
-        progress_of_reactions_old = np.zeros_like(P)
-        rate_of_reactions = np.zeros_like(P)
-    else:
-        progress_of_reactions = P
-        progress_of_reactions_old = progress_of_reactions
+    if np.isnan(progress_of_reactions).all():
+        progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
+        progress_of_reactions_old = np.zeros_like(progress_of_reactions)
+        rate_of_reactions = np.zeros_like(progress_of_reactions)
+
+    progress_of_reactions_old = progress_of_reactions
     
     do_labile_reaction = progress_of_reactions[:,reactants.index('LABILE'),:,:]<1
     do_refractory_reaction = progress_of_reactions[:,reactants.index('REFRACTORY'),:,:]<1  # Example value
@@ -186,11 +191,4 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo, oil_prod
     dTOC = (TOC_prev - TOC)/dt
     Rom = (1-porosity)*density*dTOC
     RCO2 = Rom*3.67
-    return RCO2, Rom, progress_of_reactions, oil_production_rate
-
-
-
-
-
-
-
+    return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC
