@@ -88,7 +88,7 @@ def analyticalRo_I(T_field):
         Ert = E[l]/(R*T_field)
         I[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
     return I
-
+'''
 def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo = np.nan, oil_production_rate = 0, progress_of_reactions = np.nan):
     if np.isnan(TOCo).all():
         TOCo = TOC_prev
@@ -192,3 +192,97 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo = np.nan,
     Rom = (1-porosity)*density*dTOC
     RCO2 = Rom*3.67
     return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC
+'''
+def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan):
+    if np.isnan(TOCo).all():
+        TOCo = TOC_prev
+    
+    a, b = T_field.shape
+    calc_parser = (lithology == 'shale') | (lithology == 'sandstone')
+    sqrt_2pi = np.sqrt(2 * np.pi)
+    n_reactions = 4
+    reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
+    OIL = reactants.index('OIL')
+    As = [1.58e13, 1.83e18, 4e10, 1e13]  # pre-exponential constants for the different reactions
+    mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
+    sd_E = [5e3, 13e3, 41e3, 5e3]  # Standard deviation of the normal distributions of the activation energies
+    no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
+    reaction_energies = np.zeros((n_reactions, max(no_reactions)))
+    
+    for i in range(n_reactions):
+        s_r2 = sd_E[i] * np.sqrt(2)
+        N = no_reactions[i]
+        fraction = 2 / N
+        E_0 = 0
+        E_1 = 0
+        n_middle = N // 2
+        
+        for i_approx in range(n_middle, N):
+            if i_approx == n_middle:
+                reaction_energies[i, i_approx] = mean_E[i]
+                if N != 1:
+                    E_0 = mean_E[i] - s_r2 * erfinv(-1.0 / N)
+                continue
+            if i_approx == N - 1:
+                reaction_energies[i, i_approx] = N * (sd_E[i] / sqrt_2pi * np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2)) + mean_E[i] / 2.0 * (1.0 + erf((mean_E[i] - E_0) / s_r2)))
+            else:
+                right_side = erf((mean_E[i] - E_0) / s_r2) - fraction
+                erf_inv = erfinv(right_side)
+                E_1 = mean_E[i] - erf_inv * s_r2
+                reaction_energies[i, i_approx] = N * (-sd_E[i] / sqrt_2pi *
+                    (np.exp(-(mean_E[i] - E_1)**2 / (2.0 * sd_E[i]**2)) - np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))) -
+                    mean_E[i] / 2.0 * (erf((mean_E[i] - E_1) / s_r2) - erf((mean_E[i] - E_0) / s_r2)))
+            
+            reaction_energies[i, N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i, i_approx]
+            E_0 = E_1
+    
+    if np.isnan(progress_of_reactions).all():
+        progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
+        progress_of_reactions_old = np.zeros_like(progress_of_reactions)
+        rate_of_reactions = np.zeros_like(progress_of_reactions)
+    else:
+        progress_of_reactions_old = progress_of_reactions.copy()
+    
+    do_labile_reaction = [True]#progress_of_reactions[:, reactants.index('LABILE'), :, :] < 1
+    do_refractory_reaction = [True]#progress_of_reactions[:, reactants.index('REFRACTORY'), :, :] < 1
+    do_oil_reaction = [True]#progress_of_reactions[:, reactants.index('OIL'), :, :] < 1
+    do_vitrinite_reaction = [True]#progress_of_reactions[:, reactants.index('VITRINITE'), :, :] < 1
+    do_reaction = np.array([do_labile_reaction, do_refractory_reaction, do_vitrinite_reaction, do_oil_reaction])
+    mass_frac_labile_to_gas = 0.2
+    
+    for i in range(a):
+        for j in range(b):
+            for i_reaction in range(n_reactions):
+                if ~do_reaction[i_reaction]:#.all():
+                    continue
+                for i_approx in range(no_reactions[i_reaction]):
+                    initial_product_conc = progress_of_reactions[i_reaction, i_approx, i, j]
+                    activation_energy = reaction_energies[i_reaction, i_approx]
+                    reaction_rate = As[i_reaction] * np.exp(-activation_energy / 8.314 / (T_field[i, j] + 273.15))
+                    
+                    if reactants[i_reaction] != 'OIL':
+                        progress_of_reactions[i_reaction, i_approx, i, j] = min((1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt)), 1)
+                        rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) / dt
+                    else:
+                        S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / no_reactions[OIL]
+                        progress_of_reactions[i_reaction, i_approx, i, j] = min(1.0 - S_over_k - (1.0 - initial_product_conc - S_over_k) * np.exp(-reaction_rate * dt), 1)
+                        rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc - S_over_k) * (1.0 - np.exp(-reaction_rate * dt)) / dt
+                    
+                    if i_reaction == reactants.index('LABILE'):
+                        if i_approx == 0:
+                            oil_production_rate = 0.0
+                        oil_production_rate += -reaction_rate * (1.0 - progress_of_reactions[i_reaction, i_approx, i, j]) / no_reactions[reactants.index('LABILE')]
+                        if i_approx == no_reactions[reactants.index('LABILE')] - 1:
+                            oil_production_rate *= (1.0 - mass_frac_labile_to_gas)
+    
+    time_step_progress = progress_of_reactions - progress_of_reactions_old
+    products_progress = np.mean(progress_of_reactions, axis=0)
+    products_progress = np.mean(products_progress, axis=0)
+    time_step_summarized = np.mean(time_step_progress, axis=0)
+    time_step_summarized = np.mean(time_step_summarized, axis=0)
+    TOC = TOCo * (1 - products_progress) * calc_parser
+    dTOC = (TOC_prev - TOC) / dt
+    Rom = (1 - porosity) * density * dTOC
+    RCO2 = Rom * 3.67
+    
+    return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC, rate_of_reactions

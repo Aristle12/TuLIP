@@ -73,14 +73,14 @@ for l in trange(0,len(t_steps)):
     ##carbon emissions calculation step
     if l==0:
         #RCO2, Rom, percRo, curr_TOC, W = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
-        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC = emit.sillburp(T_field, TOC, density, rock, porosity, dt)
+        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt)
     else:
         #RCO2, Rom, percRo, curr_TOC, W = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC, dt, TOC, W)
-        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, TOC, oil_production_rate, progress_of_reactions)
+        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions)
     if curr_time==t_empl:
         T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
     tot_RCO2[l] = sum(np.sum(RCO2))
-    print(RCO2[RCO2!=0])
+    #print(RCO2[RCO2!=0])
 print(tot_RCO2[tot_RCO2!=0])
 plt.plot(t_steps, tot_RCO2)
 plt.show()
