@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.special import erf, erfinv
+from numba import jit, njit
 
+@jit
 def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan):
     '''
     Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
@@ -16,27 +18,26 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
     E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72])*4184 #J/mole
     f = np.array([0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01])
     T_field = T_field + 273.15
+    a = len(T_field[:,0])
+    b = len(T_field[0,:])
     if np.isnan(W).all():
         W = np.ones((len(E),len(T_field[:,0]),len(T_field[0,:])))
         TOCo = TOC_prev
-    dW = np.empty_like(W)
-    fl = np.empty_like(W)
+    fl = np.zeros_like(W)
+    Fracl = np.zeros_like(W)
     for l in range(0, len(E)):
-        exp_term = np.exp(-E[l]*dt/(R*T_field))
-        dW[l,:,:] = -W[l,:,:]*A*exp_term
-        fl[l,:,:] = f[l]*dW[l,:,:]
-        W[l,:,:] = W[l,:,:] + dW[l,:,:]
-    fl_sum = np.sum(fl, axis = 0)
-    Frac = 1 - fl_sum
+        k = A*np.exp(-E[l]/(R*T_field))
+        for i in range(0,a):
+            for j in range(0,b):
+                W[l,i,j] = max(W[l,i,j]*np.exp(-k[i,j]*dt),0)
+        fl[l,:,:] = f[l]*(1-W[l,:,:])
+    Fracl = Fracl+fl
+    Frac = np.sum(Fracl, axis = 0)
     percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
     TOC = TOCo*Frac*calc_parser
-    if (W!=0).all():
-        dTOC = (TOC-TOC_prev)/dt
-        Rom = (1-porosity)*density*dTOC
-        RCO2 = Rom*3.67
-    else:
-        Rom = 0
-        RCO2 = Rom*3.67
+    dTOC = (TOC-TOC_prev)
+    Rom = (1-porosity)*density*dTOC
+    RCO2 = Rom*3.67
     return RCO2, Rom, percRo, TOC, W
 
 
@@ -193,6 +194,7 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo = np.nan,
     RCO2 = Rom*3.67
     return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC
 '''
+@jit
 def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan):
     if np.isnan(TOCo).all():
         TOCo = TOC_prev
@@ -243,10 +245,10 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, o
     else:
         progress_of_reactions_old = progress_of_reactions.copy()
     
-    do_labile_reaction = [True]#progress_of_reactions[:, reactants.index('LABILE'), :, :] < 1
-    do_refractory_reaction = [True]#progress_of_reactions[:, reactants.index('REFRACTORY'), :, :] < 1
-    do_oil_reaction = [True]#progress_of_reactions[:, reactants.index('OIL'), :, :] < 1
-    do_vitrinite_reaction = [True]#progress_of_reactions[:, reactants.index('VITRINITE'), :, :] < 1
+    do_labile_reaction = progress_of_reactions[:, reactants.index('LABILE'), :, :] < 1
+    do_refractory_reaction = progress_of_reactions[:, reactants.index('REFRACTORY'), :, :] < 1
+    do_oil_reaction = progress_of_reactions[:, reactants.index('OIL'), :, :] < 1
+    do_vitrinite_reaction = progress_of_reactions[:, reactants.index('VITRINITE'), :, :] < 1
     do_reaction = np.array([do_labile_reaction, do_refractory_reaction, do_vitrinite_reaction, do_oil_reaction])
     mass_frac_labile_to_gas = 0.2
     
@@ -276,11 +278,13 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, o
                             oil_production_rate *= (1.0 - mass_frac_labile_to_gas)
     
     time_step_progress = progress_of_reactions - progress_of_reactions_old
-    products_progress = np.mean(progress_of_reactions, axis=0)
+    products_progress = np.zeros((n_reactions, a, b))
+    for i_reaction in range(0,n_reactions):
+        products_progress[i_reaction,:, :] = np.mean(progress_of_reactions[i_reaction,0:no_reactions[i_reaction],:,:], axis  = 0)
     products_progress = np.mean(products_progress, axis=0)
     time_step_summarized = np.mean(time_step_progress, axis=0)
     time_step_summarized = np.mean(time_step_summarized, axis=0)
-    TOC = TOCo * (1 - products_progress) * calc_parser
+    TOC = TOCo * (products_progress) * calc_parser
     dTOC = (TOC_prev - TOC) / dt
     Rom = (1 - porosity) * density * dTOC
     RCO2 = Rom * 3.67

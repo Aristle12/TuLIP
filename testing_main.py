@@ -17,7 +17,7 @@ dy = 200
 #Total number of nodes in y (vertical) and x (horizontal) directions
 a = int(y//dy)
 b = int(x//dx)
-
+print(a,b)
 mu = np.ones((a,b))*31.536 #m2/yr
 
 T_surf = 0
@@ -37,8 +37,8 @@ rock.loc[int(a//2)+1:int(a),:] = 'sandstone'
 
 ##Initiating TOC
 TOC = np.zeros_like(mu)
-TOC[rock=='shale'] = 70
-TOC[rock=='sandstone'] = 50
+TOC[rock=='shale'] = 7
+TOC[rock=='sandstone'] = 5
 
 
 ##Initiating density
@@ -61,13 +61,13 @@ H = np.zeros_like(T_field)
 x_coords = int(b//2)
 y_coords = int(a//2)
 
-t_empl = 1000*dt
+t_empl = t_steps[999]
 curr_time = 0
 
 tot_RCO2 = np.zeros(len(t_steps))
 
 for l in trange(0,len(t_steps)):
-    curr_time = curr_time+dt
+    curr_time = t_steps[l]
     #print('Current time:',curr_time, t_steps[l])
     T_field = cool.diff_solve(mu,a,b,dx,dy,dt,T_field,q=np.nan,method = 'conv smooth', H=H)
     ##carbon emissions calculation step
@@ -76,11 +76,17 @@ for l in trange(0,len(t_steps)):
         RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt)
     else:
         #RCO2, Rom, percRo, curr_TOC, W = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC, dt, TOC, W)
+        #if (progress_of_reactions>=1).all():
+        #    print('Carbon is over')
+        #print(progress_of_reactions[(progress_of_reactions!=0) & (progress_of_reactions!=1)])
         RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions)
     if curr_time==t_empl:
+        print('Sill emplaced')
         T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
     tot_RCO2[l] = sum(np.sum(RCO2))
-    #print(RCO2[RCO2!=0])
 print(tot_RCO2[tot_RCO2!=0])
-plt.plot(t_steps, tot_RCO2)
+plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
+plt.colorbar()
+plt.show()
+plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]))
 plt.show()
