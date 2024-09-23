@@ -54,17 +54,18 @@ porosity[rock=='sandstone'] = 0.25
 
 
 time = 500000 #years
-dt = (dx**2)/(5*mu[0,0])
+dt = (dx**2)/(10*mu[0,0])
 t_steps = np.arange(0, time, dt)
 H = np.zeros_like(T_field)
 
 x_coords = int(b//2)
 y_coords = int(a//2)
 
-t_empl = t_steps[999]
+t_empl = t_steps[1999]
 curr_time = 0
 
 tot_RCO2 = np.zeros(len(t_steps))
+tot_RCO2_silli = np.zeros(len(t_steps))
 
 for l in trange(0,len(t_steps)):
     curr_time = t_steps[l]
@@ -72,10 +73,10 @@ for l in trange(0,len(t_steps)):
     T_field = cool.diff_solve(mu,a,b,dx,dy,dt,T_field,q=np.nan,method = 'conv smooth', H=H)
     ##carbon emissions calculation step
     if l==0:
-        #RCO2, Rom, percRo, curr_TOC, W = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
+        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
         RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt)
     else:
-        #RCO2, Rom, percRo, curr_TOC, W = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC, dt, TOC, W)
+        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
         #if (progress_of_reactions>=1).all():
         #    print('Carbon is over')
         #print(progress_of_reactions[(progress_of_reactions!=0) & (progress_of_reactions!=1)])
@@ -84,9 +85,14 @@ for l in trange(0,len(t_steps)):
         print('Sill emplaced')
         T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
     tot_RCO2[l] = sum(np.sum(RCO2))
+    tot_RCO2_silli[l] = sum(np.sum(RCO2_silli))
 print(tot_RCO2[tot_RCO2!=0])
-plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
-plt.colorbar()
-plt.show()
-plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]))
-plt.show()
+#plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
+#plt.colorbar()
+#plt.show()
+plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]), label = 'sillburp')
+plt.plot(t_steps[1:-1], np.log10(tot_RCO2_silli[1:-1]), label = 'silli')
+plt.legend()
+plt.savefig('cabon_emissions.png', format = 'png')
+
+pd.DataFrame({'Time': t_steps, 'CO2_sillburp': tot_RCO2, 'CO2_silli': tot_RCO2_silli}).to_csv('carbon.csv')

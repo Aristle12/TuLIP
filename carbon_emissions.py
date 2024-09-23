@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import erf, erfinv
 from numba import jit, njit
 
-@jit
+@jit(forceobj=True)
 def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan):
     '''
     Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
@@ -82,8 +82,8 @@ def analyticalRo_I(T_field):
     b1 = 3.330657
     b2 = 1.681534
     R = 1.9872036e-3 #kcal/K/mol
-    E = [34, 36, 38, 40, 72] #kcal/m
-    f = [0.03, 0.03, 0.04, 0.01]
+    E = [34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72]*4184 #J/mole
+    f = [0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01]
     I = np.empty(len(E),a,b)
     for l in range(len(E)):
         Ert = E[l]/(R*T_field)
@@ -194,7 +194,7 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo = np.nan,
     RCO2 = Rom*3.67
     return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC
 '''
-@jit
+@jit(forceobj=True)
 def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan):
     if np.isnan(TOCo).all():
         TOCo = TOC_prev
@@ -245,19 +245,19 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, o
     else:
         progress_of_reactions_old = progress_of_reactions.copy()
     
-    do_labile_reaction = progress_of_reactions[:, reactants.index('LABILE'), :, :] < 1
-    do_refractory_reaction = progress_of_reactions[:, reactants.index('REFRACTORY'), :, :] < 1
-    do_oil_reaction = progress_of_reactions[:, reactants.index('OIL'), :, :] < 1
-    do_vitrinite_reaction = progress_of_reactions[:, reactants.index('VITRINITE'), :, :] < 1
+    do_labile_reaction = progress_of_reactions[reactants.index('LABILE'), :, :, :] < 1
+    do_refractory_reaction = progress_of_reactions[reactants.index('REFRACTORY'), :, :, :] < 1
+    do_oil_reaction = progress_of_reactions[reactants.index('OIL'), :, :, :] < 1
+    do_vitrinite_reaction = progress_of_reactions[reactants.index('VITRINITE'), :, :, :] < 1
     do_reaction = np.array([do_labile_reaction, do_refractory_reaction, do_vitrinite_reaction, do_oil_reaction])
     mass_frac_labile_to_gas = 0.2
     
     for i in range(a):
         for j in range(b):
             for i_reaction in range(n_reactions):
-                if ~do_reaction[i_reaction]:#.all():
-                    continue
                 for i_approx in range(no_reactions[i_reaction]):
+                    if ~do_reaction[i_reaction, i_approx, i, j]:#.all():
+                        continue
                     initial_product_conc = progress_of_reactions[i_reaction, i_approx, i, j]
                     activation_energy = reaction_energies[i_reaction, i_approx]
                     reaction_rate = As[i_reaction] * np.exp(-activation_energy / 8.314 / (T_field[i, j] + 273.15))
@@ -284,7 +284,7 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, o
     products_progress = np.mean(products_progress, axis=0)
     time_step_summarized = np.mean(time_step_progress, axis=0)
     time_step_summarized = np.mean(time_step_summarized, axis=0)
-    TOC = TOCo * (products_progress) * calc_parser
+    TOC = TOCo * (1-products_progress) * calc_parser
     dTOC = (TOC_prev - TOC) / dt
     Rom = (1 - porosity) * density * dTOC
     RCO2 = Rom * 3.67
