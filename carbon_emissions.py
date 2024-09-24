@@ -28,11 +28,10 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
         k = A*np.exp(-E[l]/(R*T_field))
         W[l] = np.maximum(W[l]*np.exp(-k*dt),0)
         fl[l,:,:] = f[l]*(1-W[l,:,:])
-    Fracl = Fracl+fl
-    Frac = np.sum(Fracl, axis = 0)
+    Frac = np.sum(fl, axis = 0)
     percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
-    TOC = TOCo*Frac*calc_parser
-    dTOC = (TOC-TOC_prev)
+    TOC = TOCo*(1-Frac)*calc_parser
+    dTOC = (TOC_prev-TOC)/dt
     Rom = (1-porosity)*density*dTOC
     RCO2 = Rom*3.67
     return RCO2, Rom, percRo, TOC, W
@@ -61,7 +60,7 @@ def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, d
     Frac = 1 - np.sum(fl, axis = 0)
     percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
     TOC = TOCo*Frac*calc_parser
-    dTOC = (TOC-TOC_prev)/dt
+    dTOC = (TOC_prev-TOC)/dt
     Rom = (1-porosity)*density*dTOC
     RCO2 = Rom*3.67
     return RCO2, Rom, percRo, I_curr, TOC
@@ -191,18 +190,9 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo = np.nan,
     RCO2 = Rom*3.67
     return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC
 '''
-@jit(forceobj=True)
-def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan):
-    if np.isnan(TOCo).all():
-        TOCo = TOC_prev
-    
-    a, b = T_field.shape
-    calc_parser = (lithology == 'shale') | (lithology == 'sandstone')
+def get_sillburp_reaction_energies():
     sqrt_2pi = np.sqrt(2 * np.pi)
     n_reactions = 4
-    reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
-    OIL = reactants.index('OIL')
-    As = [1.58e13, 1.83e18, 4e10, 1e13]  # pre-exponential constants for the different reactions
     mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
     sd_E = [5e3, 13e3, 41e3, 5e3]  # Standard deviation of the normal distributions of the activation energies
     no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
@@ -234,7 +224,54 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, o
             
             reaction_energies[i, N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i, i_approx]
             E_0 = E_1
+    return reaction_energies
+@jit(forceobj=True)
+def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan):
+    if np.isnan(TOCo).all():
+        TOCo = TOC_prev
     
+    a, b = T_field.shape
+    calc_parser = (lithology == 'shale') | (lithology == 'sandstone')
+    sqrt_2pi = np.sqrt(2 * np.pi)
+    n_reactions = 4
+    reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
+    OIL = reactants.index('OIL')
+    no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
+    
+    As = [1.58e13, 1.83e18, 4e10, 1e13]  # pre-exponential constants for the different reactions
+    '''
+    mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
+    sd_E = [5e3, 13e3, 41e3, 5e3]  # Standard deviation of the normal distributions of the activation energies
+    no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
+    reaction_energies = np.zeros((n_reactions, max(no_reactions)))
+    
+    for i in range(n_reactions):
+        s_r2 = sd_E[i] * np.sqrt(2)
+        N = no_reactions[i]
+        fraction = 2 / N
+        E_0 = 0
+        E_1 = 0
+        n_middle = N // 2
+        
+        for i_approx in range(n_middle, N):
+            if i_approx == n_middle:
+                reaction_energies[i, i_approx] = mean_E[i]
+                if N != 1:
+                    E_0 = mean_E[i] - s_r2 * erfinv(-1.0 / N)
+                continue
+            if i_approx == N - 1:
+                reaction_energies[i, i_approx] = N * (sd_E[i] / sqrt_2pi * np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2)) + mean_E[i] / 2.0 * (1.0 + erf((mean_E[i] - E_0) / s_r2)))
+            else:
+                right_side = erf((mean_E[i] - E_0) / s_r2) - fraction
+                erf_inv = erfinv(right_side)
+                E_1 = mean_E[i] - erf_inv * s_r2
+                reaction_energies[i, i_approx] = N * (-sd_E[i] / sqrt_2pi *
+                    (np.exp(-(mean_E[i] - E_1)**2 / (2.0 * sd_E[i]**2)) - np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))) -
+                    mean_E[i] / 2.0 * (erf((mean_E[i] - E_1) / s_r2) - erf((mean_E[i] - E_0) / s_r2)))
+            
+            reaction_energies[i, N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i, i_approx]
+            E_0 = E_1
+    '''
     if np.isnan(progress_of_reactions).all():
         progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
         progress_of_reactions_old = np.zeros_like(progress_of_reactions)
@@ -282,7 +319,7 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo=np.nan, o
     time_step_summarized = np.mean(time_step_progress, axis=0)
     time_step_summarized = np.mean(time_step_summarized, axis=0)
     TOC = TOCo * (1-products_progress) * calc_parser
-    dTOC = (TOC_prev - TOC) / dt
+    dTOC = (TOC_prev - TOC)/dt
     Rom = (1 - porosity) * density * dTOC
     RCO2 = Rom * 3.67
     

@@ -66,7 +66,7 @@ curr_time = 0
 
 tot_RCO2 = np.zeros(len(t_steps))
 tot_RCO2_silli = np.zeros(len(t_steps))
-
+reaction_energies = emit.get_sillburp_reaction_energies()
 for l in trange(0,len(t_steps)):
     curr_time = t_steps[l]
     #print('Current time:',curr_time, t_steps[l])
@@ -74,19 +74,19 @@ for l in trange(0,len(t_steps)):
     ##carbon emissions calculation step
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
-        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt)
+        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies)
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
         #if (progress_of_reactions>=1).all():
         #    print('Carbon is over')
         #print(progress_of_reactions[(progress_of_reactions!=0) & (progress_of_reactions!=1)])
-        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions)
+        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions)
     if curr_time==t_empl:
         print('Sill emplaced')
         T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
     tot_RCO2[l] = sum(np.sum(RCO2))
     tot_RCO2_silli[l] = sum(np.sum(RCO2_silli))
-print(tot_RCO2[tot_RCO2!=0])
+#print(tot_RCO2[tot_RCO2!=0])
 #plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
 #plt.colorbar()
 #plt.show()
