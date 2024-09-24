@@ -54,14 +54,14 @@ porosity[rock=='sandstone'] = 0.25
 
 
 time = 500000 #years
-dt = (dx**2)/(10*mu[0,0])
+dt = (dx**2)/(5*mu[0,0])
 t_steps = np.arange(0, time, dt)
 H = np.zeros_like(T_field)
 
 x_coords = int(b//2)
 y_coords = int(a//2)
 
-t_empl = t_steps[1999]
+t_empl = t_steps[999]
 curr_time = 0
 
 tot_RCO2 = np.zeros(len(t_steps))
