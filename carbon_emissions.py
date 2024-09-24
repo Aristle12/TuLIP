@@ -3,7 +3,7 @@ from scipy.special import erf, erfinv
 from numba import jit, njit
 
 @jit(forceobj=True)
-def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan):
+def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan, Fracl = []):
     '''
     Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
     T_field - temperature field (array)
@@ -22,8 +22,8 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
     if np.isnan(W).all():
         W = np.ones((len(E),a, b))
         TOCo = TOC_prev
+        Fracl = np.zeros_like(W)
     fl = np.zeros_like(W)
-    Fracl = np.zeros_like(W)
     for l in range(0, len(E)):
         k = A*np.exp(-E[l]/(R*T_field))
         W[l] = np.maximum(W[l]*np.exp(-k*dt),0)
@@ -35,7 +35,7 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
     dTOC = (TOC-TOC_prev)
     Rom = (1-porosity)*density*dTOC
     RCO2 = Rom*3.67
-    return RCO2, Rom, percRo, TOC, W
+    return RCO2, Rom, percRo, TOC, W, Fracl
 
 
 def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
