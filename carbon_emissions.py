@@ -18,18 +18,15 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
     E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72])*4184 #J/mole
     f = np.array([0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01])
     T_field = T_field + 273.15
-    a = len(T_field[:,0])
-    b = len(T_field[0,:])
+    a,b = T_field.shape
     if np.isnan(W).all():
-        W = np.ones((len(E),len(T_field[:,0]),len(T_field[0,:])))
+        W = np.ones((len(E),a, b))
         TOCo = TOC_prev
     fl = np.zeros_like(W)
     Fracl = np.zeros_like(W)
     for l in range(0, len(E)):
         k = A*np.exp(-E[l]/(R*T_field))
-        for i in range(0,a):
-            for j in range(0,b):
-                W[l,i,j] = max(W[l,i,j]*np.exp(-k[i,j]*dt),0)
+        W[l] = np.maximum(W[l]*np.exp(-k*dt),0)
         fl[l,:,:] = f[l]*(1-W[l,:,:])
     Fracl = Fracl+fl
     Frac = np.sum(Fracl, axis = 0)
