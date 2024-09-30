@@ -1,9 +1,45 @@
 import numpy as np
 from scipy.special import erf, erfinv
-from numba import jit, njit
+from scipy.io import loadmat
+from scipy.interpolate import RegularGridInterpolator
+from numba import jit
+
+def get_init_CO2_percentages(T_field, lithology, density, dy):
+    a = len(lithology[:,0])
+    b = len(lithology[0,:])
+    break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
+    dolo = loadmat('dat/Dolostone.mat')
+    evap = loadmat('dat/DolostoneEvaporite.mat')
+    marl = loadmat('dat/Marl.mat')
+    T = np.array(dolo['Dolo']['T'][0][:][0])
+    P = np.array(dolo['Dolo']['P'][0][0][0])
+    T = T[:,0]
+    dolo_CO2 = np.array(dolo['Dolo']['CO2'][0][0])
+    evap_CO2 = np.array(evap['Dol_ev']['CO2'][0][0])
+    marl_CO2 = np.array(marl['Marl']['CO2'][0][0])
+
+    dolo_inter = RegularGridInterpolator((T,P), dolo_CO2)
+    evap_inter = RegularGridInterpolator((T,P), evap_CO2)
+    marl_inter = RegularGridInterpolator((T,P), marl_CO2)
+    init_CO2 = np.zeros_like(T_field)
+    for i in range(a):
+        for j in range(b):
+            if break_parser[i,j]:
+                pressure = 0
+                for l in range(0,i):
+                    pressure = pressure + (density[l,j]*9.8*dy) #Getting lithostatic pressure upto this point
+                if lithology[i,j]=='dolostone' | lithology[i,j]=='limestone':
+                    init_CO2[i,j] = dolo_inter(T_field[i,j],pressure)
+                elif lithology[i,j] == 'evaporite':
+                    init_CO2[i,j] = evap_inter(T_field[i,j],pressure)
+                elif lithology[i,j]=='marl':
+                    init_CO2[i,j]== marl_inter(T_field[i,j],pressure)
+    return init_CO2
+
+
 
 @jit(forceobj=True)
-def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan):
+def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, dy, breakdownCO2=np.nan, TOCo=np.nan, W=np.nan):
     '''
     Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
     T_field - temperature field (array)
@@ -13,12 +49,46 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
     porosity - porosity array
     '''
     calc_parser = (lithology=='shale') | (lithology=='sandstone')
+    break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
+    a,b = T_field.shape
+
+    if ~np.nan(breakdownCO2).all():
+        dolo = loadmat('dat/Dolostone.mat')
+        evap = loadmat('dat/DolostoneEvaporite.mat')
+        marl = loadmat('dat/Marl.mat')
+        T = np.array(dolo['Dolo']['T'][0][:][0])
+        P = np.array(dolo['Dolo']['P'][0][0][0])
+        T = T[:,0]
+        dolo_CO2 = np.array(dolo['Dolo']['CO2'][0][0])
+        evap_CO2 = np.array(evap['Dol_ev']['CO2'][0][0])
+        marl_CO2 = np.array(marl['Marl']['CO2'][0][0])
+
+        dolo_inter = RegularGridInterpolator((T,P), dolo_CO2)
+        evap_inter = RegularGridInterpolator((T,P), evap_CO2)
+        marl_inter = RegularGridInterpolator((T,P), marl_CO2)
+        curr_breakdown_CO2 = np.zeros_like(T_field)
+        for i in range(a):
+            for j in range(b):
+                if break_parser[i,j]:
+                    pressure = 0
+                    for l in range(0,i):
+                        pressure = pressure + (density[l,j]*9.8*dy) #Getting lithostatic pressure upto this point
+                    if lithology[i,j]=='dolostone' | lithology[i,j]=='limestone':
+                        curr_breakdown_CO2[i,j] = dolo_inter(T_field[i,j],pressure)
+                    elif lithology[i,j] == 'evaporite':
+                        curr_breakdown_CO2[i,j] = evap_inter(T_field[i,j],pressure)
+                    elif lithology[i,j]=='marl':
+                        curr_breakdown_CO2[i,j]== marl_inter(T_field[i,j],pressure)
+        max_breakdown_co2 = np.maximum(breakdownCO2, curr_breakdown_CO2)
+        for i in range(a):
+            for j in range(b):
+                curr_breakdown_CO2[i,j] = np.minimum((curr_breakdown_CO2[i,j]-breakdownCO2[i,j]),0) if curr_breakdown_CO2[i,j]>breakdownCO2[i,j] else 0
+
     A = 1e13
     R = 8.314 #J/K/mol
     E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72])*4184 #J/mole
     f = np.array([0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01])
     T_field = T_field + 273.15
-    a,b = T_field.shape
     if np.isnan(W).all():
         W = np.ones((len(E),a, b))
         TOCo = TOC_prev
@@ -33,8 +103,11 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
     TOC = TOCo*(1-Frac)*calc_parser
     dTOC = (TOC_prev-TOC)/dt
     Rom = (1-porosity)*density*dTOC
-    RCO2 = Rom*3.67
-    return RCO2, Rom, percRo, TOC, W
+    RCO2 = Rom*3.67 + np.nan_to_num(curr_breakdown_CO2)
+    if np.nan(breakdownCO2).all():
+        return RCO2, Rom, percRo, TOC, W
+    else:
+        return RCO2, Rom, percRo, TOC, W, curr_breakdown_CO2, max_breakdown_co2
 
 
 def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
@@ -85,111 +158,7 @@ def analyticalRo_I(T_field):
         Ert = E[l]/(R*T_field)
         I[l,:,:] = T_field*A*np.exp(Ert)*(1-((Ert**2+(a1*Ert)+a2)/(Ert**2+(b1*Ert)+b2)))
     return I
-'''
-def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, TOCo = np.nan, oil_production_rate = 0, progress_of_reactions = np.nan):
-    if np.isnan(TOCo).all():
-        TOCo = TOC_prev
-    a = len(T_field[:,0])
-    b = len(T_field[0,:])
-    calc_parser = (lithology=='shale') | (lithology=='sandstone')
-    sqrt_2pi = np.sqrt(2*np.pi)
-    n_reactions = 4
-    reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
-    OIL = reactants.index('OIL')
-    As = [1.58e13, 1.83e18, 4e10, 1e13] #pre-exponential constants for the different reactions
-    mean_E = [208e3, 279e3, 242e3, 230e3] #mean activation energies for the reactions
-    sd_E = [5e3, 13e3, 41e3, 5e3] #Standard deviation of the  normal distributions of the activation energies
-    no_reactions = [7, 21, 55, 7] #Number of reactions for each kerogen type
-    reaction_energies = np.zeros((n_reactions, max(no_reactions)))
-    for i in range(0, n_reactions):
-        s_r2 = sd_E[i]*np.sqrt(2)
-        N = no_reactions[i]
-        fraction = 2/N
-        E_0 = 0
-        E_1 = 0
-        #Number of reaction in the middle of the series
-        n_middle = N//2
 
-        #Looping over individual reactions to get the distribution
-        for i_approx in range(n_middle, N):
-            # Central reaction: set the activation energy to the mean activation energy (EQ 4A or original sillburp code Jones et al. 2019)
-            if i_approx == n_middle:
-                reaction_energies[i][i_approx] = mean_E[i]
-                if N != 1:
-                    E_0 = mean_E[i] - s_r2 * erfinv(-1.0 / N)
-                continue
-            # Reaction on the edge of the distribution
-            if i_approx==N-1:
-                reaction_energies[i][i_approx] = N * (sd_E[i]/ sqrt_2pi*np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))+mean_E[i] / 2.0 * (1.0 + erf((mean_E[i] - E_0) / s_r2)))
-            else:
-                right_side = erf((mean_E[i] - E_0) / s_r2) - fraction
-                erf_inv = erfinv(right_side)
-                E_1 = mean_E[i] - erf_inv * s_r2
-                reaction_energies[i][i_approx] = N * (-sd_E[i] / sqrt_2pi *
-                    (np.exp(-(mean_E[i] - E_1)**2 / (2.0 * sd_E[i]**2)) - np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))) -
-                    mean_E[i] / 2.0 * (erf((mean_E[i] - E_1) / s_r2) - erf((mean_E[i] - E_0) / s_r2)))
-
-            # Probability distribution is symmetrical
-            reaction_energies[i][N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i][i_approx]
-            
-            # Remember activation energy for the next approximate reaction
-            E_0 = E_1
-    
-    if np.isnan(progress_of_reactions).all():
-        progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
-        progress_of_reactions_old = np.zeros_like(progress_of_reactions)
-        rate_of_reactions = np.zeros_like(progress_of_reactions)
-
-    progress_of_reactions_old = progress_of_reactions
-    
-    do_labile_reaction = progress_of_reactions[:,reactants.index('LABILE'),:,:]<1
-    do_refractory_reaction = progress_of_reactions[:,reactants.index('REFRACTORY'),:,:]<1  # Example value
-    do_oil_reaction = progress_of_reactions[:,reactants.index('OIL'),:,:]<1  # Example value
-    do_vitrinite_reaction = progress_of_reactions[:,reactants.index('VITRINITE'),:,:]<1
-    do_reaction = [do_labile_reaction, do_refractory_reaction, do_vitrinite_reaction, do_oil_reaction]
-    mass_frac_labile_to_gas = 0.2 #From sillburp code
-    for i in range(0,a):
-        for j in range(0,b):
-            for i_reaction in range(0, n_reactions):
-                if do_reaction[i_reaction].all()==True:
-                    continue
-                for i_approx in range(0, no_reactions[i_reaction]):
-                    initial_product_conc = progress_of_reactions[i_reaction][i_approx][a][b]
-                    activation_energy = reaction_energies[i_reaction][i_approx]
-                    reaction_rate = As[i_reaction]*np.exp(-activation_energy/8.314/(T_field[a,b]+273.15))
-                    if reactants[i_reaction]!= 'OIL':
-                        progress_of_reactions[i_reaction][i_approx][i][j] = min((1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt)), 1)
-                        # Save reaction rate
-                        rate_of_reactions[i_reaction][i_approx][i][j] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) /dt
-                    #Oil cracking reaction
-                    else:
-                        # The oil production rate is spread evenly over the oil cracking reactions, hence divide by n_approx_reactions[OIL]
-                        S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / no_reactions[OIL]
-                        # Take reaction step using equation [5] above
-                        progress_of_reactions[i_reaction][i_approx][i][j] = min(1.0 - S_over_k - (1.0 - initial_product_conc - S_over_k) * np.exp(-reaction_rate * dt), 1)
-
-                        # Save average reaction rate in time step
-                        rate_of_reactions[i_reaction][i_approx][i][j] = (1.0 - initial_product_conc - S_over_k) * (1.0 - np.exp(-reaction_rate * dt)) / dt
-
-                    # Store average oil production rate over the time step for use in oil cracking calculation
-                    if i_reaction==reactants.index('LABILE'):
-                        if i_approx == 0:
-                            oil_production_rate = 0.0
-
-                        oil_production_rate += -reaction_rate * (1.0 - progress_of_reactions[i_reaction][i_approx][i][j]) / no_reactions[reactants.index('LABILE')]
-                        if i_approx == no_reactions[reactants.index('LABILE')] - 1:
-                            oil_production_rate *= (1.0 - mass_frac_labile_to_gas)
-    time_step_progress = progress_of_reactions - progress_of_reactions_old
-    products_progress = np.mean(progress_of_reactions, axis = 0)
-    products_progress = np.mean(products_progress, axis = 0)
-    time_step_summarized = np.mean(time_step_progress, axis = 0)
-    time_step_summarized = np.mean(time_step_progress, axis = 0)
-    TOC = TOCo*(1-products_progress)*calc_parser
-    dTOC = (TOC_prev - TOC)/dt
-    Rom = (1-porosity)*density*dTOC
-    RCO2 = Rom*3.67
-    return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC
-'''
 def get_sillburp_reaction_energies():
     sqrt_2pi = np.sqrt(2 * np.pi)
     n_reactions = 4
