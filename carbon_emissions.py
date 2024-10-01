@@ -36,6 +36,43 @@ def get_init_CO2_percentages(T_field, lithology, density, dy):
                     init_CO2[i,j]== marl_inter(T_field[i,j],pressure)
     return init_CO2
 
+def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
+    break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
+    a, b = T_field.shape
+    dolo = loadmat('dat/Dolostone.mat')
+    evap = loadmat('dat/DolostoneEvaporite.mat')
+    marl = loadmat('dat/Marl.mat')
+    T = np.array(dolo['Dolo']['T'][0][:][0])
+    P = np.array(dolo['Dolo']['P'][0][0][0])
+    T = T[:,0]
+    dolo_CO2 = np.array(dolo['Dolo']['CO2'][0][0])
+    evap_CO2 = np.array(evap['Dol_ev']['CO2'][0][0])
+    marl_CO2 = np.array(marl['Marl']['CO2'][0][0])
+
+    dolo_inter = RegularGridInterpolator((T,P), dolo_CO2)
+    evap_inter = RegularGridInterpolator((T,P), evap_CO2)
+    marl_inter = RegularGridInterpolator((T,P), marl_CO2)
+    curr_breakdown_CO2 = np.zeros_like(T_field)
+    for i in range(a):
+        for j in range(b):
+            if break_parser[i,j]:
+                pressure = 0
+                for l in range(0,i):
+                    pressure = pressure + (density[l,j]*9.8*dy) #Getting lithostatic pressure upto this point
+                if lithology[i,j]=='dolostone' | lithology[i,j]=='limestone':
+                    curr_breakdown_CO2[i,j] = dolo_inter(T_field[i,j],pressure)
+                elif lithology[i,j] == 'evaporite':
+                    curr_breakdown_CO2[i,j] = evap_inter(T_field[i,j],pressure)
+                elif lithology[i,j]=='marl':
+                    curr_breakdown_CO2[i,j]== marl_inter(T_field[i,j],pressure)
+        max_breakdown_co2 = np.maximum(breakdownCO2, curr_breakdown_CO2)
+        for i in range(a):
+            for j in range(b):
+                curr_breakdown_CO2[i,j] = np.minimum((curr_breakdown_CO2[i,j]-breakdownCO2[i,j]),0) if curr_breakdown_CO2[i,j]>breakdownCO2[i,j] else 0
+        RCO2_breakdown = (curr_breakdown_CO2-breakdownCO2)/dt
+        return RCO2_breakdown, max_breakdown_co2
+
+
 
 
 @jit(forceobj=True)
@@ -51,39 +88,7 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, dy, bre
     calc_parser = (lithology=='shale') | (lithology=='sandstone')
     break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
     a,b = T_field.shape
-
-    if ~np.nan(breakdownCO2).all():
-        dolo = loadmat('dat/Dolostone.mat')
-        evap = loadmat('dat/DolostoneEvaporite.mat')
-        marl = loadmat('dat/Marl.mat')
-        T = np.array(dolo['Dolo']['T'][0][:][0])
-        P = np.array(dolo['Dolo']['P'][0][0][0])
-        T = T[:,0]
-        dolo_CO2 = np.array(dolo['Dolo']['CO2'][0][0])
-        evap_CO2 = np.array(evap['Dol_ev']['CO2'][0][0])
-        marl_CO2 = np.array(marl['Marl']['CO2'][0][0])
-
-        dolo_inter = RegularGridInterpolator((T,P), dolo_CO2)
-        evap_inter = RegularGridInterpolator((T,P), evap_CO2)
-        marl_inter = RegularGridInterpolator((T,P), marl_CO2)
-        curr_breakdown_CO2 = np.zeros_like(T_field)
-        for i in range(a):
-            for j in range(b):
-                if break_parser[i,j]:
-                    pressure = 0
-                    for l in range(0,i):
-                        pressure = pressure + (density[l,j]*9.8*dy) #Getting lithostatic pressure upto this point
-                    if lithology[i,j]=='dolostone' | lithology[i,j]=='limestone':
-                        curr_breakdown_CO2[i,j] = dolo_inter(T_field[i,j],pressure)
-                    elif lithology[i,j] == 'evaporite':
-                        curr_breakdown_CO2[i,j] = evap_inter(T_field[i,j],pressure)
-                    elif lithology[i,j]=='marl':
-                        curr_breakdown_CO2[i,j]== marl_inter(T_field[i,j],pressure)
-        max_breakdown_co2 = np.maximum(breakdownCO2, curr_breakdown_CO2)
-        for i in range(a):
-            for j in range(b):
-                curr_breakdown_CO2[i,j] = np.minimum((curr_breakdown_CO2[i,j]-breakdownCO2[i,j]),0) if curr_breakdown_CO2[i,j]>breakdownCO2[i,j] else 0
-
+        
     A = 1e13
     R = 8.314 #J/K/mol
     E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72])*4184 #J/mole
@@ -103,12 +108,8 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, dy, bre
     TOC = TOCo*(1-Frac)*calc_parser
     dTOC = (TOC_prev-TOC)/dt
     Rom = (1-porosity)*density*dTOC
-    RCO2 = Rom*3.67 + np.nan_to_num(curr_breakdown_CO2)
-    if np.nan(breakdownCO2).all():
-        return RCO2, Rom, percRo, TOC, W
-    else:
-        return RCO2, Rom, percRo, TOC, W, curr_breakdown_CO2, max_breakdown_co2
-
+    RCO2 = Rom*3.67
+    return RCO2, Rom, percRo, TOC, W
 
 def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
     calc_parser = (lithology=='shale') | (lithology=='sandstone')
