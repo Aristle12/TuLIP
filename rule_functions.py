@@ -43,10 +43,9 @@ def randn_heights(n_sills, l_sill, h_sill, sd, dy):
     if h_sill<l_sill:
         pass
     else:
-        print('l_sill should be greater than h_sill')
         print('l_sill:', l_sill)
         print('h_sill:', h_sill)
-        exit()
+        raise ValueError('l_sill should be greater than h_sill')
     bean = np.mean([l_sill/dy, h_sill/dy])
     heights = np.round((sd/dy)*np.random.randn(n_sills) + bean)
     while ((heights>l_sill/dy).any() or (heights<h_sill/dy).any()):
@@ -67,9 +66,9 @@ def x_spacings(n_sills, x_min, x_max, sd, dx):
     space = np.round((sd/dx)*np.random.randn(n_sills)+ np.mean([x_min/dx, x_max/dx]))
     while ((space>x_max/dx).any() or (space<x_min/dx).any()):
             if (space>x_max/dx).any():
-                space[space>x_max/dx] = randn_heights(np.sum(space>x_max/dx), x_min, x_max, sd, dx)
+                space[space>x_max/dx] = x_spacings(np.sum(space>x_max/dx), x_min, x_max, sd, dx)
             if (space<x_min/dx).any():
-                space[space<x_min/dx] = randn_heights(np.sum((space<x_min/dx)), x_min, x_max, sd, dx)
+                space[space<x_min/dx] = x_spacings(np.sum((space<x_min/dx)), x_min, x_max, sd, dx)
     return space
 
 def uniform_heights(n_sills, l_sill, h_sill, dy):
