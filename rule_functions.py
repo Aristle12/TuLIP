@@ -7,7 +7,25 @@ def to_emplace(t_now, t_thresh):
     elif t_now>=t_thresh:
         return True
 
+def build_lith_dict(lithology):
+    a,b = lithology.shape
+    lith_dict = {0:str(lithology[0,0])}
+    n = 1
+    for i in range(a):
+        for j in range(b):
+            if not (lithology[i,j] in lith_dict.values()):
+                lith_dict.update({n:lithology[i,j]})
+                n = n+1
+    return lith_dict
 
+def build_prop_dict(prop, lithology):
+    a,b = lithology.shape
+    prop_dict = {lithology[0,0]: prop[0,0]}
+    for i in range(a):
+        for j in range(b):
+            if not lithology[i,j] in prop_dict:
+                prop_dict.update({lithology[i,j]:prop[i,j]})
+    return prop_dict
 
 def single_sill(T_field, x_space, height, width, thick, T_mag):
     """
@@ -156,40 +174,84 @@ def uniform_dims(min_min, min_max, min_ar, max_ar, n_sills):
     major = np.multiply(minor, aspect_ratio)
     return major, minor
 
+def value_pusher(array, new_value, push_index, push_value):
+    x,y = push_index
+    if push_value<=0:
+        raise ValueError("push_value must be greater than 0")
+    # Ensure the push operation does not exceed the array bounds
+    if x + push_value >= len(array):
+        push_value = len(array)-x-1
+    # Shift the values down
+    array[x+push_value:x-1:-1, y] = array[x:x-push_value-1:-1, y]
+    array[x:x+push_value,y] = new_value
+    return array
+
+def prop_updater(lithology, lith_dict, prop_dict):
+    '''
+    This function updates the associated rock properties once everything has shiftes. This is done to avoid thermopgenic carbon generation from popints that are now pure magma'''
+    prop = np.zeros_like(lithology)
+    for rock in lith_dict.values():
+        prop[lithology==rock] = prop_dict[rock]
+    return prop
+        
+
+
 #@jit
-def mult_sill(T_field, majr, minr, height, x_space, a, b, dx, dy, dike_net, cm_array = [], cmb = [], rock = np.array([]), T_mag = 1000, shape = 'rect', dike_empl = True, cmb_exists = False):
-    if shape == 'rect':
-        T_field[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = T_mag
-    elif shape == 'elli':
-        x = np.arange(0,b*dx, dx)
-        y = np.arange(0, a*dy, dy)
-        new_dike = np.zeros_like(T_field)
-        majr = majr*dx
-        minr = minr*dy
-        for m in range(0, len(T_field[1,:])-1):
-            for n in range(0, len(T_field[:,1])-1):
-                x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
-                y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
-                if (x_dist+y_dist)<=1:
-                    T_field[n,m]=T_mag
-                    new_dike[n,m] = 1
-                    if rock.size>0:
-                        rock.loc[n,m] = 'basalt'
-    dike_net = dike_net + new_dike
+def mult_sill(T_field, majr, minr, height, x_space, dx, dy, dike_net, cm_array = [], cmb = [], rock = np.array([]), T_mag = 1000, shape = 'rect', dike_empl = True, cmb_exists = False):
+    a,b = T_field.shape
     if dike_empl:
         T_field[int(height):-1,int(x_space)] = T_mag
         if rock.size>0:
             rock.loc[int(height):-1,int(x_space)] = 'basalt'
 
     if cmb_exists:
+        new_dike = np.zeros_like(T_field)
+        if shape == 'rect':
+            new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
+        elif shape=='elli':
+            x = np.arange(0,b*dx, dx)
+            y = np.arange(0, a*dy, dy)
+            majr = majr*dx
+            minr = minr*dy
+            for m in range(0, a):
+                for n in range(0, b):
+                    if (x_dist+y_dist)<=1:
+                        T_field[m,n]=T_mag
+                        new_dike[m,n] = 1
         cm_mov = np.sum(new_dike, axis = 0)
         cmb = cmb + cm_mov
+        for l in range(0, b):
+            if cm_mov[l]!=0:
+                for m in range(0,a):
+                    if new_dike[m,l]==1:
+                        T_field = value_pusher(T_field, T_mag,[m,l], cm_mov[l])
+                        rock = value_pusher(rock,'basalt',[m,l],cm_mov[l])
+                        continue
         for i in range(0, a):
             for j in range(0, b):
                 if i>cmb[i]:
                     cm_array.loc[i,j] = 'mantle'
         return T_field, dike_net, rock, cm_array
     else:
+        new_dike = np.zeros_like(T_field)
+        if shape == 'rect':
+            T_field[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = T_mag
+            new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
+        elif shape == 'elli':
+            x = np.arange(0,b*dx, dx)
+            y = np.arange(0, a*dy, dy)
+            majr = majr*dx
+            minr = minr*dy
+            for m in range(0, a):
+                for n in range(0, b):
+                    x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
+                    y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
+                    if (x_dist+y_dist)<=1:
+                        T_field[m,n]=T_mag
+                        new_dike[m,n] = 1
+                        if rock.size>0:
+                            rock.loc[n,m] = 'basalt'
+        dike_net = dike_net + new_dike
         return T_field, dike_net, rock
 
 def get_H(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
@@ -288,6 +350,7 @@ def cmb_3Dsill(cm_array, cmb, sillcube, nrep, z_index):
                     cm_array.loc[i,j] = 'mantle'
     return cm_array
 
+'''Broken function
 def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
     string_finder = str(n_rep)+'s'+str(curr_empl_time)
     y_shifts = np.sum(np.array([string_finder in sillcube_z]).astype(int), axis = 0)
@@ -298,3 +361,4 @@ def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
                     array_new[i,j+y_shifts::-1] = array_old[i,::-y_shifts]
                     continue
     return array_new
+    '''

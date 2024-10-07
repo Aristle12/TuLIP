@@ -57,7 +57,6 @@ for k in range(0, len(flux_rates)):
     print('Heights')
     while ((empl_heights>max_emplacement/dy).any() or (empl_heights<min_emplacement/dy).any()):
         print((len(empl_heights[empl_heights>max_emplacement/dy])+len(empl_heights[empl_heights<(min_emplacement/dy)]))*100/n_sills, '%')
-        print()
         n = int(n+1)
         print('Cycle', n ,'reassigning')
         if (empl_heights>max_emplacement/dy).any():
