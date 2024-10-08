@@ -179,8 +179,8 @@ def value_pusher(array, new_value, push_index, push_value):
     if push_value<=0:
         raise ValueError("push_value must be greater than 0")
     # Ensure the push operation does not exceed the array bounds
-    if x + push_value >= len(array):
-        push_value = len(array)-x-1
+    if x + push_value >= len(array[0,:]):
+        push_value = len(array[0,:])-x-1
     # Shift the values down
     array[x+push_value:x-1:-1, y] = array[x:x-push_value-1:-1, y]
     array[x:x+push_value,y] = new_value
@@ -193,7 +193,19 @@ def prop_updater(lithology, lith_dict, prop_dict):
     for rock in lith_dict.values():
         prop[lithology==rock] = prop_dict[rock]
     return prop
-        
+
+def value_pusher2D(array, new_value, row_index, push_amount):
+    a,b = array.shape
+    if len(row_index) != b or len(push_amount) != b:
+        raise ValueError("row_index and push_values must have the same length as the number of columns")
+    for j in range(b):
+        if row_index[j] + push_amount[j] >= a:
+                raise ValueError(f"Push value for column {j} exceeds array bounds")
+        array[row_index[j]+push_amount[j]:,j] = array[row_index[j]:a-push_amount[j], j]
+        array[row_index[j]:row_index[j]+push_amount[j],j] = new_value
+    return array
+
+
 
 
 #@jit
@@ -319,9 +331,10 @@ def emplace_3Dsill(T_field, sillcube, n_rep, T_mag, z_index, curr_empl_time):
     z_index = The 2D slice from the 3D sill array being considered
     '''
     string_finder = str(n_rep)+'s'+str(curr_empl_time)
-    if len(sillcube.shape)!=3 or T_field.size==0:
-        print('Please enter valid arrays as input')
-        exit()
+    if len(sillcube.shape)!=3:
+        raise IndexError('sillcube array must be three-dimensional')
+    if T_field.size==0:
+        raise IndexError("T_feild cannot be empty")
     T_field[string_finder in sillcube[z_index]] = T_mag
     return T_field
 
@@ -362,3 +375,28 @@ def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
                     continue
     return array_new
     '''
+
+def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props_dict, z_index, curr_empl_time):
+    string_finder = str(n_rep)+'s'+str(curr_empl_time)
+    T_field_index = props_dict['Temperature']
+    T_field = props_array[T_field_index]
+    a,b = T_field.shape
+    if len(sillcube.shape)!=3:
+        raise IndexError('sillcube array must be three-dimensional')
+    if T_field.size==0:
+        raise ValueError("Temperature values in props_array cannot be empty")
+    new_dike = np.zeros_like(T_field)
+    new_dike[string_finder in sillcube[z_index]] = 1
+    columns_pushed = np.sum(new_dike, axis =1)
+    row_push_start = np.empty(b,np.nan)
+    for n in range(b):
+        for m in range(a):
+            if new_dike==1:
+                if np.isnan(row_push_start[n]):
+                    row_push_start[n] = m
+                else:
+                    raise LookupError('Redudancy - Should not come up')
+                continue
+    for i in props_dict.values():
+        props_array[i] = value_pusher2D(props_array[i],mag_props_dict[i],row_push_start, columns_pushed)
+    return props_array
