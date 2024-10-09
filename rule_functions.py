@@ -1,5 +1,6 @@
 import numpy as np
 from numba import jit
+from tqdm import trange
 
 def to_emplace(t_now, t_thresh):
     if (t_now<t_thresh):
@@ -290,9 +291,9 @@ def get_diffusivity(T_field, lithology):
     K = 1e-6
     return K
 
-
-def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, dike_tail = False):
-    '''
+'''
+@jit(forceobj=True)
+def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape = 'elli', dike_tail = False):
     Function to gnenerate sills in 3D space to employ fluxes as a control for sill emplacement. Choose any 1 slice for a 2D coolong model, or multiple slices for multiple cooling models
     x, y, z = width, height and third dimension extension of the crustal slice (m)
     n_sills = Number of sills to be emplaced
@@ -301,25 +302,89 @@ def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims
     y_coords = y coordinates for the center of the sills
     z_coords = z coordinates for the center of the sills
     maj_dims, minor dims = dimensions of the 2D sills. Implicit assumption of circularity in the z-direction is present in the code (m)
-    '''
-    sillcube = np.empty([z,y, x])
+
+    a = int(y//dy)
+    b = int(x//dx)
+    c = int(z//dx)
+    sillcube = np.empty([c,a,b], dtype=object)
     sillcube[:,:,:] = ''
     x_len = np.arange(0,x, dx)
     y_len = np.arange(0,y, dy)
     z_len = np.arange(0, z, dx)
-    for l in range(0, n_sills):
-        for i in range(0,x):
-            for j in range(0, y):
-                for q in range(0,z):
-                    x_dist = ((x_len[i] - x_coords[l])**2)/((0.5*maj_dims[l])**2)
-                    y_dist = ((y_len[j] - y_coords[l])**2)/((0.5*min_dims[l])**2)
-                    z_dist = ((z_len[q] - z_coords[l])**2)/((0.5*maj_dims[l])**2)
-                    if (x_dist+y_dist+z_dist)<=1:
-                        if sillcube[q,j,i]!=0:
-                            print('Sill intersection detected')
-                        sillcube[q,j,i] = sillcube[q,j,i]+'_'+str(l)+'s'+str(empl_times[l])
-                    if dike_tail:
-                        sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] = l
+    if shape=='elli':
+        for l in trange(0, n_sills):
+            for i in range(0,b):
+                for j in range(0, a):
+                    for q in range(0,c):
+                        x_dist = ((x_len[i] - x_coords[l])**2)/((0.5*maj_dims[l])**2)
+                        y_dist = ((y_len[j] - y_coords[l])**2)/((0.5*min_dims[l])**2)
+                        z_dist = ((z_len[q] - z_coords[l])**2)/((0.5*maj_dims[l])**2)
+                        if (x_dist+y_dist+z_dist)<=1:
+                            if sillcube[q,j,i]!='':
+                                print('Sill intersection detected')
+                            sillcube[q,j,i] = sillcube[q,j,i]+'_'+str(l)+'s'+str(empl_times[l])
+            if dike_tail:
+                sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_'+str(l)+'s'+str(empl_times[l])
+    elif shape=='rect':
+        for l in range(0, n_sills):
+            sillcube[int(z_coords[l]-(maj_dims//2)):int(z_coords[l]+(maj_dims//2)),int(y_coords[l]-(maj_dims//2)):int(x_coords[l]+(maj_dims//2)),int(y_coords[l]-(min_dims//2)):int(y_coords[l]+(min_dims//2))]+= '_'+str(l)+'s'+str(empl_times[l])
+            if dike_tail:
+                sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_'+str(l)+'s'+str(empl_times[l])
+    return sillcube
+'''
+
+def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape='elli', dike_tail=False):
+    '''
+    Function to generate sills in 3D space to employ fluxes as a control for sill emplacement.
+    Choose any 1 slice for a 2D cooling model, or multiple slices for multiple cooling models
+    x, y, z = width, height and third dimension extension of the crustal slice (m)
+    n_sills = Number of sills to be emplaced
+    dx, dy = Node spacing
+    x_coords = x coordinates for the center of the sills
+    y_coords = y coordinates for the center of the sills
+    z_coords = z coordinates for the center of the sills
+    maj_dims, minor dims = dimensions of the 2D sills. Implicit assumption of circularity in the z-direction is present in the code (m)
+    '''
+    a = int(y // dy)
+    b = int(x // dx)
+    c = int(z // dx)
+    sillcube = np.empty([c, a, b], dtype=object)
+    sillcube[:, :, :] = ''
+    x_len = np.arange(0, x, dx)
+    y_len = np.arange(0, y, dy)
+    z_len = np.arange(0, z, dx)
+
+    if shape == 'elli':
+        for l in trange(n_sills):
+            x_dist = ((x_len[:, None] - x_coords[l]) ** 2) / ((0.5 * maj_dims[l]) ** 2)
+            y_dist = ((y_len[:, None] - y_coords[l]) ** 2) / ((0.5 * min_dims[l]) ** 2)
+            z_dist = ((z_len[:, None] - z_coords[l]) ** 2) / ((0.5 * maj_dims[l]) ** 2)
+
+            for q in range(c):
+                dist_sum = x_dist + y_dist + z_dist[q]
+                mask = dist_sum <= 1
+                for j in range(a):
+                    for i in range(b):
+                        if mask[j, i]:
+                            if sillcube[q, j, i] != '':
+                                print('Sill intersection detected')
+                            sillcube[q, j, i] += '_' + str(l) + 's' + str(empl_times[l])
+            if dike_tail:
+                sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
+
+    elif shape == 'rect':
+        for l in range(n_sills):
+            z_start = int(z_coords[l] - (maj_dims[l] // 2))
+            z_end = int(z_coords[l] + (maj_dims[l] // 2))
+            y_start = int(y_coords[l] - (maj_dims[l] // 2))
+            y_end = int(y_coords[l] + (maj_dims[l] // 2))
+            x_start = int(x_coords[l] - (min_dims[l] // 2))
+            x_end = int(x_coords[l] + (min_dims[l] // 2))
+
+            sillcube[z_start:z_end, y_start:y_end, x_start:x_end] += '_' + str(l) + 's' + str(empl_times[l])
+            if dike_tail:
+                sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
+
     return sillcube
 
 def emplace_3Dsill(T_field, sillcube, n_rep, T_mag, z_index, curr_empl_time):
