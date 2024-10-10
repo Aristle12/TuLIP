@@ -27,7 +27,7 @@ k = np.ones((a,b))*31.536 #m2/yr
 dt = (min(dx,dy)**2)/(5*np.max(k))
 
 #Shape of the sills
-shape = 'rect'
+shape = 'elli'
 
 #Initializing the temp field
 T_field = np.zeros((a,b))
@@ -144,7 +144,7 @@ sar = 0.75
 
 min_emplacement = 1500 #m
 max_emplacement = 25500 #m
-n_sills = 1000
+n_sills = 20000
 
 empl_heights = rool.randn_heights(n_sills, max_emplacement, min_emplacement, 5000, dy)
 #Checking to see if there are any assignments outside the distribution#
@@ -179,11 +179,11 @@ width, thickness = rool.randn_dims(min_thickness, max_thickness, 700, mar, sar, 
 
 ###Defining flux rate and setting time###
 flux = int(30e9) #m3/yr
-tot_volume = int(1e6*1e9)
+tot_volume = int(0.25e6*1e9) #m3
 total_empl_time = tot_volume/flux
 thermal_maturation_time = int(3e6) #yr
 
-model_time = total_empl_time+thermal_maturation_time
+model_time = total_empl_time+thermal_maturation_time+50000
 time_steps = np.arange(model_time,step=dt)
 empl_times = []
 
@@ -193,23 +193,37 @@ elif shape=='rect':
     volume = width*width*empl_heights
 
 unemplaced_volume = 0
-
+print(f'{np.sum(volume):.5e}, {float(tot_volume):.5e}, {np.sum(volume)<tot_volume}')
+print('Time steps:', len(time_steps))
+n = 0
 for l in range(len(time_steps)):
-    n = 0
+    print(l)
     if time_steps[l]<thermal_maturation_time:
         continue
     else:
         unemplaced_volume += flux*dt
         if unemplaced_volume>=volume[n]:
             empl_times.append(time_steps[l])
+            unemplaced_volume = 0
+            print(f'Emplaced sill {n} at time {time_steps[l]}')
+            print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
             n+=1
-        if n>0 and np.sum(volume[0:n])>tot_volume:
+
+        if (n>0) and (np.sum(volume[0:n])>tot_volume):
+            print('Is this happening?', n)
             n_sills = n
             empl_heights = empl_heights[0:n_sills]
             x_space = x_space[0:n_sills]
             width = width[0:n_sills]
             thickness = thickness[0:n_sills]
-
+            break
+plt.plot(empl_times, np.cumsum(volume[0:n]))
+lol = empl_times*flux
+plt.plot(empl_times, lol)
+plt.show()
+print(n)
+print(n_sills)
+print(len(empl_times))
 #Building the third dimension#
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 

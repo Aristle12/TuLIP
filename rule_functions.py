@@ -350,31 +350,18 @@ def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims
     c = int(z // dx)
     sillcube = np.empty([c, a, b], dtype=object)
     sillcube[:, :, :] = ''
-    x_len = np.arange(0, x, dx)
-    y_len = np.arange(0, y, dy)
-    z_len = np.arange(0, z, dx)
+    z_len, y_len, x_len = np.mgrid[:c, :a, :b]
+
+
+
+    maj_dims = maj_dims/dx
+    min_dims = min_dims/dy
 
     if shape == 'elli':
         for l in trange(n_sills):
-            x_dist = ((x_len[:, None] - x_coords[l]) ** 2) / ((0.5 * maj_dims[l]) ** 2)
-            y_dist = ((y_len[:, None] - y_coords[l]) ** 2) / ((0.5 * min_dims[l]) ** 2)
-            z_dist = ((z_len[:, None] - z_coords[l]) ** 2) / ((0.5 * maj_dims[l]) ** 2)
-
-            # Ensure broadcasting works correctly
-            x_dist = x_dist[:, None, None]
-            y_dist = y_dist[None, :, None]
-            z_dist = z_dist[None, None, :]
-
-            dist_sum = x_dist + y_dist + z_dist
-            mask = dist_sum <= 1
-
-            for q in range(c):
-                for j in range(a):
-                    for i in range(b):
-                        if mask[i, j, q]:
-                            if sillcube[q, j, i] != '':
-                                print('Sill intersection detected')
-                            sillcube[q, j, i] += '_' + str(l) + 's' + str(empl_times[l])
+            mask = ((((z_len-z_coords[l])**2)/maj_dims[l]**2)+(((y_len-y_coords[l])**2)/min_dims[l]**2)
+            +(((x_len-x_coords[l])**2)/maj_dims[l]**2))<=1
+            sillcube[mask] += '_' + str(l) + 's' + str(empl_times[l])
             if dike_tail:
                 sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
 
