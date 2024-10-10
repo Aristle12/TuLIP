@@ -27,7 +27,7 @@ k = np.ones((a,b))*31.536 #m2/yr
 dt = (min(dx,dy)**2)/(5*np.max(k))
 
 #Shape of the sills
-shape = 'elli'
+shape = 'rect'
 
 #Initializing the temp field
 T_field = np.zeros((a,b))
@@ -213,7 +213,7 @@ for l in range(len(time_steps)):
 #Building the third dimension#
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
-sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times)
+sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
 print('3D cube built')
 z_index = int(a//2)
 

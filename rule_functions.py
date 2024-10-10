@@ -360,12 +360,18 @@ def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims
             y_dist = ((y_len[:, None] - y_coords[l]) ** 2) / ((0.5 * min_dims[l]) ** 2)
             z_dist = ((z_len[:, None] - z_coords[l]) ** 2) / ((0.5 * maj_dims[l]) ** 2)
 
+            # Ensure broadcasting works correctly
+            x_dist = x_dist[:, None, None]
+            y_dist = y_dist[None, :, None]
+            z_dist = z_dist[None, None, :]
+
+            dist_sum = x_dist + y_dist + z_dist
+            mask = dist_sum <= 1
+
             for q in range(c):
-                dist_sum = x_dist + y_dist + z_dist[q]
-                mask = dist_sum <= 1
                 for j in range(a):
                     for i in range(b):
-                        if mask[j, i]:
+                        if mask[i, j, q]:
                             if sillcube[q, j, i] != '':
                                 print('Sill intersection detected')
                             sillcube[q, j, i] += '_' + str(l) + 's' + str(empl_times[l])
@@ -373,7 +379,7 @@ def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims
                 sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
 
     elif shape == 'rect':
-        for l in range(n_sills):
+        for l in trange(n_sills):
             z_start = int(z_coords[l] - (maj_dims[l] // 2))
             z_end = int(z_coords[l] + (maj_dims[l] // 2))
             y_start = int(y_coords[l] - (maj_dims[l] // 2))
@@ -386,7 +392,6 @@ def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims
                 sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
 
     return sillcube
-
 def emplace_3Dsill(T_field, sillcube, n_rep, T_mag, z_index, curr_empl_time):
     '''
     Function to empalce a sill into the 2D slice T_field
