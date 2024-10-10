@@ -139,8 +139,8 @@ props_array[TOC_index] = TOC
 min_thickness = 900 #m
 max_thickness = 3500 #m
 
-mar = 3.33
-sar = 0.75
+mar = 7
+sar = 2.5
 
 min_emplacement = 1500 #m
 max_emplacement = 25500 #m
@@ -188,9 +188,9 @@ time_steps = np.arange(model_time,step=dt)
 empl_times = []
 
 if shape == 'elli':
-    volume = (4*np.pi/3)*width*width*empl_heights
+    volume = (4*np.pi/3)*width*width*thickness
 elif shape=='rect':
-    volume = width*width*empl_heights
+    volume = width*width*thickness
 
 unemplaced_volume = 0
 print(f'{np.sum(volume):.5e}, {float(tot_volume):.5e}, {np.sum(volume)<tot_volume}')
@@ -217,8 +217,8 @@ for l in range(len(time_steps)):
             width = width[0:n_sills]
             thickness = thickness[0:n_sills]
             break
-plt.plot(empl_times, np.cumsum(volume[0:n]))
-lol = empl_times*flux
+plt.plot(empl_times, np.log10(np.cumsum(volume[0:n])))
+lol = np.log10(empl_times)+np.log10(flux)
 plt.plot(empl_times, lol)
 plt.show()
 print(n)
