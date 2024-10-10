@@ -179,7 +179,7 @@ width, thickness = rool.randn_dims(min_thickness, max_thickness, 700, mar, sar, 
 
 ###Defining flux rate and setting time###
 flux = int(30e9) #m3/yr
-tot_volume = int(0.25e6*1e9) #m3
+tot_volume = int(0.05e6*1e9) #m3
 total_empl_time = tot_volume/flux
 thermal_maturation_time = int(3e6) #yr
 
@@ -241,13 +241,14 @@ for l in trange(len(time_steps)):
     curr_time = time_steps[l]
     T_field = cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
     TOC = props_array[TOC_index]
+    print(TOC.shape)
     props_array[Temp_index] = T_field
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
     props_array[TOC_index] = TOC
-    if time_steps==empl_times[curr_sill] and curr_sill<=n_sills:
+    if time_steps[l]==empl_times[curr_sill] and curr_sill<=n_sills:
         props_array = rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[l])
         curr_sill +=1
     tot_RCO2[l] = sum(np.sum(RCO2_silli))
