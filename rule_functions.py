@@ -202,6 +202,7 @@ def value_pusher2D(array, new_value, row_index, push_amount):
     for j in range(b):
         if row_index[j] + push_amount[j] >= a:
                 raise ValueError(f"Push value for column {j} exceeds array bounds")
+        print(row_index, push_amount)
         array[row_index[j]+push_amount[j]:,j] = array[row_index[j]:a-push_amount[j], j]
         array[row_index[j]:row_index[j]+push_amount[j],j] = new_value
     return array
@@ -443,17 +444,24 @@ def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props
     if T_field.size==0:
         raise ValueError("Temperature values in props_array cannot be empty")
     new_dike = np.zeros_like(T_field)
+    print(f'Nodes that have magma:{np.sum(string_finder in sillcube[z_index])}')
     new_dike[string_finder in sillcube[z_index]] = 1
-    columns_pushed = np.sum(new_dike, axis =1)
-    row_push_start = np.empty(b,np.nan)
+    columns_pushed = np.sum(new_dike, axis =0)
+    try:
+        row_push_start = np.empty(b)
+    except:
+        print(b)
     for n in range(b):
         for m in range(a):
-            if new_dike==1:
+            if new_dike[m,n]==1:
+                print('It is')
                 if np.isnan(row_push_start[n]):
                     row_push_start[n] = m
                 else:
                     raise LookupError('Redudancy - Should not come up')
                 continue
-    for i in props_dict.values():
-        props_array[i] = value_pusher2D(props_array[i],mag_props_dict[i],row_push_start, columns_pushed)
-    return props_array
+    print(len(row_push_start), len(columns_pushed))
+    reverse_prop_dict = {value: key for key, value in props_dict.items()}
+    for i in [listy for listy in props_dict.values()]:
+        props_array[i] = value_pusher2D(props_array[i],mag_props_dict[reverse_prop_dict[i]],row_push_start, columns_pushed)
+    return props_array, row_push_start, columns_pushed

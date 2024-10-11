@@ -4,6 +4,7 @@ import functions as cool
 from tqdm import trange
 import matplotlib.pyplot as plt
 import carbon_emissions as emit
+import h5py
 
 #Dimensions of the 2D grid
 x = 300000 #m - Horizontal extent of the crust
@@ -135,6 +136,9 @@ props_array[rock_index] = rock
 props_array[poros_index] = porosity
 props_array[dense_index] = density
 props_array[TOC_index] = TOC
+
+print('KEYS')
+print([i for i in prop_dict.values()])
 ###Setting up sill dimensions and locations###
 min_thickness = 900 #m
 max_thickness = 3500 #m
@@ -181,7 +185,7 @@ width, thickness = rool.randn_dims(min_thickness, max_thickness, 700, mar, sar, 
 flux = int(30e9) #m3/yr
 tot_volume = int(0.05e6*1e9) #m3
 total_empl_time = tot_volume/flux
-thermal_maturation_time = int(3e6) #yr
+thermal_maturation_time = int(0.25e6) #yr
 
 model_time = total_empl_time+thermal_maturation_time+50000
 time_steps = np.arange(model_time,step=dt)
@@ -208,8 +212,8 @@ for l in range(len(time_steps)):
             print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
             n+=1
 
-        if (n>0) and (np.sum(volume[0:n])>tot_volume):
-            print('Is this happening?', n)
+        if (n>0) and (np.sum(volume[0:n-1])>tot_volume):
+            print('Total sills emplaced:', n)
             n_sills = n
             empl_heights = empl_heights[0:n_sills]
             x_space = x_space[0:n_sills]
@@ -220,17 +224,23 @@ plt.plot(empl_times, np.log10(np.cumsum(volume[0:n])))
 lol = np.log10(empl_times)+np.log10(flux)
 plt.plot(empl_times, lol)
 plt.show()
-print(n)
-print(n_sills)
-print(len(empl_times))
+
 #Building the third dimension#
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
 sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
+print(sillcube[sillcube!=''])
 print('3D cube built')
 print(f'Shape of cube:{sillcube.shape}')
 z_index = int(a//2)
 
+#Initializing the hdf5 datafile to store the generated data
+
+shape_indices = [len(time_steps)] + list(props_array.shape)
+print(shape_indices)
+props_h5 = h5py.File('PropertyEvolution.hdf5', 'w')
+
+props_total_array = np.zeros(shape_indices)
 
 #Emplacing sills and running the 2D model
 method = 'conv smooth'
@@ -242,20 +252,25 @@ for l in trange(len(time_steps)):
     T_field = cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
     TOC = props_array[TOC_index]
     props_array[Temp_index] = T_field
-    print(f'T_field:{T_field.shape}')
-    print(f'rock:{rock.shape}')
-    print(f'porosity:{porosity.shape}')
-    print(f'density:{density.shape}')
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
     props_array[TOC_index] = TOC
     if time_steps[l]==empl_times[curr_sill] and curr_sill<=n_sills:
-        props_array = rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[l])
+        props_array, row_start, col_pushed = rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[curr_sill])
+        RCO2_silli = rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
+        Rom_silli = rool.value_pusher2D(Rom_silli,0, row_start, col_pushed)
+        percRo_silli = rool.value_pusher2D(percRo_silli, 0, row_start, col_pushed)
+        curr_TOC_silli = rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
+        for m in W_silli.shape[0]:
+            W_silli[m] = rool.value_pusher2D(W_silli[m],0, row_start, col_pushed) 
         curr_sill +=1
-    print(RCO2_silli.shape)
     tot_RCO2[l] = np.sum(RCO2_silli)
+    props_total_array[l] = props_array
+
+props_h5.create_dataset('props_array', data = props_total_array)
+props_h5.create_dataset('props_dict', data = prop_dict)
 
 plt.plot(time_steps, np.log10(tot_RCO2))
 plt.legend()
