@@ -197,7 +197,6 @@ print(f'{np.sum(volume):.5e}, {float(tot_volume):.5e}, {np.sum(volume)<tot_volum
 print('Time steps:', len(time_steps))
 n = 0
 for l in range(len(time_steps)):
-    print(l)
     if time_steps[l]<thermal_maturation_time:
         continue
     else:
@@ -229,6 +228,7 @@ z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
 sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
 print('3D cube built')
+print(f'Shape of cube:{sillcube.shape}')
 z_index = int(a//2)
 
 
@@ -241,8 +241,11 @@ for l in trange(len(time_steps)):
     curr_time = time_steps[l]
     T_field = cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
     TOC = props_array[TOC_index]
-    print(TOC.shape)
     props_array[Temp_index] = T_field
+    print(f'T_field:{T_field.shape}')
+    print(f'rock:{rock.shape}')
+    print(f'porosity:{porosity.shape}')
+    print(f'density:{density.shape}')
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
     else:
@@ -251,7 +254,8 @@ for l in trange(len(time_steps)):
     if time_steps[l]==empl_times[curr_sill] and curr_sill<=n_sills:
         props_array = rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[l])
         curr_sill +=1
-    tot_RCO2[l] = sum(np.sum(RCO2_silli))
+    print(RCO2_silli.shape)
+    tot_RCO2[l] = np.sum(RCO2_silli)
 
 plt.plot(time_steps, np.log10(tot_RCO2))
 plt.legend()
