@@ -211,20 +211,23 @@ for l in range(len(time_steps)):
         else:
             mean_flux = 0
         unemplaced_volume += flux*dt
-        if unemplaced_volume>=volume[n] and mean_flux<0.5*flux:
+        if unemplaced_volume>=volume[n] and mean_flux<0.95*flux:
             empl_times.append(time_steps[l])
             plot_time.append(time_steps[l])
             cum_volume.append(volume[n])
             unemplaced_volume -= volume[n]
             print(f'Emplaced sill {n} at time {time_steps[l]}')
             print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
+            mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
             n+=1
-            while unemplaced_volume>0 and mean_flux<(0.5*flux if np.sum(volume[0:n+1])<=tot_volume else flux) and np.sum(volume[0:n])<=tot_volume:
+            
+            while unemplaced_volume>volume[n] and mean_flux<(0.95*flux if np.sum(volume[0:n+1])<=tot_volume else 1.05*flux) and np.sum(volume[0:n])<=tot_volume:
                 empl_times.append(time_steps[l])
                 unemplaced_volume -= volume[n]
                 cum_volume[-1]+=volume[n]
                 print(f'Emplaced sill {n} at time {time_steps[l]}')
                 print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
+                mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
                 n+=1
 
         if (n>0) and (np.sum(volume[0:n-1])>tot_volume):
@@ -240,7 +243,7 @@ plt.plot(plot_time, cum_volume)
 lol = (np.array(empl_times)-thermal_maturation_time)*flux
 plt.plot(empl_times, lol)
 plt.show()
-exit()
+
 #Building the third dimension#
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
