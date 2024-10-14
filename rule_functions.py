@@ -208,6 +208,16 @@ def value_pusher2D(array, new_value, row_index, push_amount):
     return array
 
 
+def index_finder(array, string):
+    a,b = array.shape
+    string_index = np.empty((a,b), dtype=bool)
+    for i in range(a):
+        for j in range(b):
+            if string in array[i,j]:
+                string_index[i,j] = True
+            else:
+                string_index[i,j] = False
+    return string_index
 
 
 #@jit
@@ -435,7 +445,7 @@ def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
     '''
 
 def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props_dict, z_index, curr_empl_time):
-    string_finder = str(n_rep)+'s'#+str(curr_empl_time)
+    string_finder = str(n_rep)+'s'+str(curr_empl_time)
     print(string_finder)
     T_field_index = props_dict['Temperature']
     T_field = props_array[T_field_index]
@@ -445,20 +455,19 @@ def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props
     if T_field.size==0:
         raise ValueError("Temperature values in props_array cannot be empty")
     new_dike = np.zeros_like(T_field)
-    new_dike[string_finder in sillcube[z_index]] = 1
-    print(f'Nodes that have magma: {np.sum(new_dike), np.sum(string_finder in sillcube[z_index])}')
-    print(f'The actual nodes{string_finder in sillcube[z_index]}')
+    new_dike[index_finder(sillcube[z_index], string_finder)] = 1
+    print(f'Nodes that have magma: {np.sum(new_dike), np.sum(index_finder(sillcube[z_index], string_finder))}')
+    print(f'The actual nodes{index_finder(sillcube[z_index], string_finder)}')
     columns_pushed = np.sum(new_dike, axis =0)
-    row_push_start = np.empty(b)
+    row_push_start = np.full(b,np.nan)
     for n in range(b):
         for m in range(a):
             if new_dike[m,n]==1:
                 print('It is')
                 if np.isnan(row_push_start[n]):
                     row_push_start[n] = m
-                else:
-                    raise LookupError('Redudancy - Should not come up')
-                continue
+                    continue
+    row_push_start[row_push_start==np.nan] = 0
     print(len(row_push_start), len(columns_pushed))
     if np.sum(string_finder in sillcube[z_index])==0:
         print(f'Sill {n_rep} was NOT emplaced in this slice')
