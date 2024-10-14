@@ -206,8 +206,12 @@ for l in range(len(time_steps)):
     if time_steps[l]<thermal_maturation_time:
         continue
     else:
+        if n>0:
+            mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
+        else:
+            mean_flux = 0
         unemplaced_volume += flux*dt
-        if unemplaced_volume>=volume[n]:
+        if unemplaced_volume>=volume[n] and mean_flux<flux:
             empl_times.append(time_steps[l])
             plot_time.append(time_steps[l])
             cum_volume.append(volume[n])
@@ -215,7 +219,7 @@ for l in range(len(time_steps)):
             print(f'Emplaced sill {n} at time {time_steps[l]}')
             print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
             n+=1
-            while unemplaced_volume>0:
+            while unemplaced_volume>0 and mean_flux<flux and np.sum(volume[0:n])<=tot_volume:
                 empl_times.append(time_steps[l])
                 unemplaced_volume -= volume[n]
                 cum_volume[-1]+=volume[n]
@@ -250,7 +254,8 @@ while np.sum(sillcube[z_index]!='')==0:
     z_index = np.random.randint(int(b//3), int(2*b//3))
 sillslice = sillcube[z_index]
 print(f'z_index is {z_index}')
-print(f'Non-empty nodes:{sillslice[sillslice!='']}')
+unempty = sillslice[sillslice!='']
+print(f'Non-empty nodes:{unempty}')
 
 #Initializing the hdf5 datafile to store the generated data
 
@@ -291,10 +296,17 @@ for l in trange(len(time_steps)):
             break
     tot_RCO2[l] = np.sum(RCO2_silli)
     props_total_array[l] = props_array
+try:
+    plt.plot(time_steps, np.log10(tot_RCO2+1e-5))
+except RuntimeWarning:
+    print("Warning: Divide by zero error encountered. Some values in tot_RCO2 are zero.")
+    plt.plot(time_steps, tot_RCO2)
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
 
-plt.plot(time_steps, tot_RCO2)
 plt.show()
 
+
 props_h5.create_dataset('props_array', data = props_total_array)
-props_h5.create_dataset('props_dict', data = prop_dict)
+#props_h5.create_dataset('props_dict', data = prop_dict)
 
