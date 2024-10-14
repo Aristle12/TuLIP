@@ -183,13 +183,15 @@ width, thickness = rool.randn_dims(min_thickness, max_thickness, 700, mar, sar, 
 
 ###Defining flux rate and setting time###
 flux = int(30e9) #m3/yr
-tot_volume = int(0.05e6*1e9) #m3
+tot_volume = int(0.25e6*1e9) #m3
 total_empl_time = tot_volume/flux
 thermal_maturation_time = int(0.25e6) #yr
 
 model_time = total_empl_time+thermal_maturation_time+50000
 time_steps = np.arange(model_time,step=dt)
 empl_times = []
+plot_time = []
+cum_volume = []
 
 if shape == 'elli':
     volume = (4*np.pi/3)*width*width*thickness
@@ -197,7 +199,7 @@ elif shape=='rect':
     volume = width*width*thickness
 
 unemplaced_volume = 0
-print(f'{np.sum(volume):.5e}, {float(tot_volume):.5e}, {np.sum(volume)<tot_volume}')
+#print(f'{np.sum(volume):.5e}, {float(tot_volume):.5e}, {np.sum(volume)<tot_volume}')
 print('Time steps:', len(time_steps))
 n = 0
 for l in range(len(time_steps)):
@@ -207,10 +209,19 @@ for l in range(len(time_steps)):
         unemplaced_volume += flux*dt
         if unemplaced_volume>=volume[n]:
             empl_times.append(time_steps[l])
-            unemplaced_volume = 0
+            plot_time.append(time_steps[l])
+            cum_volume.append(volume[n])
+            unemplaced_volume -= volume[n]
             print(f'Emplaced sill {n} at time {time_steps[l]}')
             print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
             n+=1
+            while unemplaced_volume>0:
+                empl_times.append(time_steps[l])
+                unemplaced_volume -= volume[n]
+                cum_volume[-1]+=volume[n]
+                print(f'Emplaced sill {n} at time {time_steps[l]}')
+                print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
+                n+=1
 
         if (n>0) and (np.sum(volume[0:n-1])>tot_volume):
             print('Total sills emplaced:', n)
@@ -220,8 +231,9 @@ for l in range(len(time_steps)):
             width = width[0:n_sills]
             thickness = thickness[0:n_sills]
             break
-plt.plot(empl_times, np.log10(np.cumsum(volume[0:n])))
-lol = np.log10(empl_times)+np.log10(flux)
+cum_volume = np.cumsum(cum_volume)
+plt.plot(plot_time, cum_volume)
+lol = (np.array(empl_times)-thermal_maturation_time)*flux
 plt.plot(empl_times, lol)
 plt.show()
 
@@ -229,10 +241,16 @@ plt.show()
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
 sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
-print(sillcube[sillcube!=''])
+
 print('3D cube built')
 print(f'Shape of cube:{sillcube.shape}')
-z_index = int(a//2)
+z_index = int(b//2)
+print(z_index)
+while np.sum(sillcube[z_index]!='')==0:
+    z_index = np.random.randint(int(b//3), int(2*b//3))
+sillslice = sillcube[z_index]
+print(f'z_index is {z_index}')
+print(f'Non-empty nodes:{sillslice[sillslice!='']}')
 
 #Initializing the hdf5 datafile to store the generated data
 
@@ -246,8 +264,8 @@ props_total_array = np.zeros(shape_indices)
 method = 'conv smooth'
 H = np.zeros_like(T_field)
 tot_RCO2 = np.zeros(len(time_steps))
+curr_sill = 0
 for l in trange(len(time_steps)):
-    curr_sill = 0
     curr_time = time_steps[l]
     T_field = cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
     TOC = props_array[TOC_index]
@@ -257,21 +275,26 @@ for l in trange(len(time_steps)):
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
     props_array[TOC_index] = TOC
-    if time_steps[l]==empl_times[curr_sill] and curr_sill<=n_sills:
+    while time_steps[l]==empl_times[curr_sill] and curr_sill<n_sills:
+        print(f'Now emplacing sill {curr_sill}')
         props_array, row_start, col_pushed = rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[curr_sill])
-        RCO2_silli = rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
-        Rom_silli = rool.value_pusher2D(Rom_silli,0, row_start, col_pushed)
-        percRo_silli = rool.value_pusher2D(percRo_silli, 0, row_start, col_pushed)
-        curr_TOC_silli = rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
-        for m in W_silli.shape[0]:
-            W_silli[m] = rool.value_pusher2D(W_silli[m],0, row_start, col_pushed) 
-        curr_sill +=1
+        if (col_pushed!=0).all():
+            RCO2_silli = rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
+            Rom_silli = rool.value_pusher2D(Rom_silli,0, row_start, col_pushed)
+            percRo_silli = rool.value_pusher2D(percRo_silli, 0, row_start, col_pushed)
+            curr_TOC_silli = rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
+            for m in range(W_silli.shape[0]):
+                W_silli[m] = rool.value_pusher2D(W_silli[m],0, row_start, col_pushed)
+        if (curr_sill+1)<n_sills:
+            curr_sill +=1
+        else:
+            break
     tot_RCO2[l] = np.sum(RCO2_silli)
     props_total_array[l] = props_array
+
+plt.plot(time_steps, tot_RCO2)
+plt.show()
 
 props_h5.create_dataset('props_array', data = props_total_array)
 props_h5.create_dataset('props_dict', data = prop_dict)
 
-plt.plot(time_steps, np.log10(tot_RCO2))
-plt.legend()
-plt.show()

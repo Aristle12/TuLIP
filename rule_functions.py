@@ -435,7 +435,8 @@ def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
     '''
 
 def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props_dict, z_index, curr_empl_time):
-    string_finder = str(n_rep)+'s'+str(curr_empl_time)
+    string_finder = str(n_rep)+'s'#+str(curr_empl_time)
+    print(string_finder)
     T_field_index = props_dict['Temperature']
     T_field = props_array[T_field_index]
     a,b = T_field.shape
@@ -444,13 +445,11 @@ def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props
     if T_field.size==0:
         raise ValueError("Temperature values in props_array cannot be empty")
     new_dike = np.zeros_like(T_field)
-    print(f'Nodes that have magma:{np.sum(string_finder in sillcube[z_index])}')
     new_dike[string_finder in sillcube[z_index]] = 1
+    print(f'Nodes that have magma: {np.sum(new_dike), np.sum(string_finder in sillcube[z_index])}')
+    print(f'The actual nodes{string_finder in sillcube[z_index]}')
     columns_pushed = np.sum(new_dike, axis =0)
-    try:
-        row_push_start = np.empty(b)
-    except:
-        print(b)
+    row_push_start = np.empty(b)
     for n in range(b):
         for m in range(a):
             if new_dike[m,n]==1:
@@ -461,7 +460,11 @@ def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props
                     raise LookupError('Redudancy - Should not come up')
                 continue
     print(len(row_push_start), len(columns_pushed))
-    reverse_prop_dict = {value: key for key, value in props_dict.items()}
-    for i in [listy for listy in props_dict.values()]:
-        props_array[i] = value_pusher2D(props_array[i],mag_props_dict[reverse_prop_dict[i]],row_push_start, columns_pushed)
+    if np.sum(string_finder in sillcube[z_index])==0:
+        print(f'Sill {n_rep} was NOT emplaced in this slice')
+    else:
+        print(f'Sill {n_rep} was emplaced in this slice')
+        reverse_prop_dict = {value: key for key, value in props_dict.items()}
+        for i in [listy for listy in props_dict.values()]:
+            props_array[i] = value_pusher2D(props_array[i],mag_props_dict[reverse_prop_dict[i]],row_push_start, columns_pushed)
     return props_array, row_push_start, columns_pushed
