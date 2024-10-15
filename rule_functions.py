@@ -299,50 +299,9 @@ def get_H(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
     return H
 
 def get_diffusivity(T_field, lithology):
-    K = 1e-6
+    K = 31.536*np.ones_like(T_field)
     return K
 
-'''
-@jit(forceobj=True)
-def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape = 'elli', dike_tail = False):
-    Function to gnenerate sills in 3D space to employ fluxes as a control for sill emplacement. Choose any 1 slice for a 2D coolong model, or multiple slices for multiple cooling models
-    x, y, z = width, height and third dimension extension of the crustal slice (m)
-    n_sills = Number of sills to be emplaced
-    dx, dy = Node spacing
-    x_coords = x coordinates for the center of the sills
-    y_coords = y coordinates for the center of the sills
-    z_coords = z coordinates for the center of the sills
-    maj_dims, minor dims = dimensions of the 2D sills. Implicit assumption of circularity in the z-direction is present in the code (m)
-
-    a = int(y//dy)
-    b = int(x//dx)
-    c = int(z//dx)
-    sillcube = np.empty([c,a,b], dtype=object)
-    sillcube[:,:,:] = ''
-    x_len = np.arange(0,x, dx)
-    y_len = np.arange(0,y, dy)
-    z_len = np.arange(0, z, dx)
-    if shape=='elli':
-        for l in trange(0, n_sills):
-            for i in range(0,b):
-                for j in range(0, a):
-                    for q in range(0,c):
-                        x_dist = ((x_len[i] - x_coords[l])**2)/((0.5*maj_dims[l])**2)
-                        y_dist = ((y_len[j] - y_coords[l])**2)/((0.5*min_dims[l])**2)
-                        z_dist = ((z_len[q] - z_coords[l])**2)/((0.5*maj_dims[l])**2)
-                        if (x_dist+y_dist+z_dist)<=1:
-                            if sillcube[q,j,i]!='':
-                                print('Sill intersection detected')
-                            sillcube[q,j,i] = sillcube[q,j,i]+'_'+str(l)+'s'+str(empl_times[l])
-            if dike_tail:
-                sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_'+str(l)+'s'+str(empl_times[l])
-    elif shape=='rect':
-        for l in range(0, n_sills):
-            sillcube[int(z_coords[l]-(maj_dims//2)):int(z_coords[l]+(maj_dims//2)),int(y_coords[l]-(maj_dims//2)):int(x_coords[l]+(maj_dims//2)),int(y_coords[l]-(min_dims//2)):int(y_coords[l]+(min_dims//2))]+= '_'+str(l)+'s'+str(empl_times[l])
-            if dike_tail:
-                sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_'+str(l)+'s'+str(empl_times[l])
-    return sillcube
-'''
 
 def sill_3Dcube(x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape='elli', dike_tail=False):
     '''
@@ -403,7 +362,7 @@ def emplace_3Dsill(T_field, sillcube, n_rep, T_mag, z_index, curr_empl_time):
         raise IndexError('sillcube array must be three-dimensional')
     if T_field.size==0:
         raise IndexError("T_feild cannot be empty")
-    T_field[string_finder in sillcube[z_index]] = T_mag
+    T_field[index_finder(sillcube[z_index], string_finder)] = T_mag
     return T_field
 
 def lithology_3Dsill(rock, sillcube, nrep, z_index, rock_type = 'basalt'):
@@ -446,7 +405,6 @@ def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
 
 def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props_dict, z_index, curr_empl_time):
     string_finder = str(n_rep)+'s'+str(curr_empl_time)
-    print(string_finder)
     T_field_index = props_dict['Temperature']
     T_field = props_array[T_field_index]
     a,b = T_field.shape
@@ -456,14 +414,11 @@ def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props
         raise ValueError("Temperature values in props_array cannot be empty")
     new_dike = np.zeros_like(T_field)
     new_dike[index_finder(sillcube[z_index], string_finder)] = 1
-    print(f'Nodes that have magma: {np.sum(new_dike), np.sum(index_finder(sillcube[z_index], string_finder))}')
-    print(f'The actual nodes{index_finder(sillcube[z_index], string_finder)}')
     columns_pushed = np.sum(new_dike, axis =0)
     row_push_start = np.full(b,np.nan)
     for n in range(b):
         for m in range(a):
             if new_dike[m,n]==1:
-                print('It is')
                 if np.isnan(row_push_start[n]):
                     row_push_start[n] = m
                     continue

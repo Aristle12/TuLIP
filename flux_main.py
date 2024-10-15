@@ -101,7 +101,7 @@ lith_plot_dict = {'granite':0,
 
 rock[:] = lith_plot_dict['granite']
 rock[0:int(5000/dy),:] = lith_plot_dict['shale']
-rock[int((5000/dy)+1):int(10000/dy),:] = lith_plot_dict['sandstone']
+rock[int((5000/dy)+1):int(15000/dy),:] = lith_plot_dict['sandstone']
 rock[int((30000/dy)+1):,:] = lith_plot_dict['peridotite']
 
 labels = [key for key in lith_plot_dict]
