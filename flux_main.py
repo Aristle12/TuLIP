@@ -43,6 +43,14 @@ prop_dict = {'Temperature':0,
              'Density':3,
              'TOC':4}
 
+#Lithology dictionary to translate rock types into numerical codes for numpy arrays
+lith_plot_dict = {'granite':0,
+                  'shale':1,
+                  'sandstone':2,
+                  'peridotite':3,
+                  'basalt':4}
+
+
 Temp_index = prop_dict['Temperature']
 rock_index = prop_dict['Lithology']
 poros_index = prop_dict['Porosity']
@@ -91,23 +99,25 @@ rock_prop_dict = {
 
 
 ###Constructing bedrock###
-rock = np.empty((a,b))
-#Lithology dictionary to translate rock types into numerical codes for numpy arrays
-lith_plot_dict = {'granite':0,
-                  'shale':1,
-                  'sandstone':2,
-                  'peridotite':3,
-                  'basalt':4}
+rock = np.empty((a,b), dtype = object)
 
-rock[:] = lith_plot_dict['granite']
-rock[0:int(5000/dy),:] = lith_plot_dict['shale']
-rock[int((5000/dy)+1):int(15000/dy),:] = lith_plot_dict['sandstone']
-rock[int((30000/dy)+1):,:] = lith_plot_dict['peridotite']
+rock[:] = 'granite'
+rock[0:int(5000/dy),:] = 'shale'
+rock[int((5000/dy)+1):int(15000/dy),:] = 'sandstone'
+rock[int((30000/dy)+1):,:] = 'peridotite'
+
+
+plot_rock = np.zeros((a,b), dtype = int)
+
+for i in range(a):
+    for j in range(b):
+        plot_rock[i,j] = lith_plot_dict[rock[i,j]]
+
 
 labels = [key for key in lith_plot_dict]
 
 # Visualize the rock array
-plt.imshow(rock, cmap='viridis')
+plt.imshow(plot_rock, cmap='viridis')
 cbar = plt.colorbar(ticks=list(lith_plot_dict.values()))
 cbar.set_ticklabels(list(labels))
 cbar.set_label('Rock Type')
@@ -121,15 +131,13 @@ TOC = np.zeros_like(rock)
 
 for i in range(a):
     for j in range(b):
-        this_rock = [key for key, value in lith_plot_dict.items() if value == rock[i,j]]
-        this_rock = this_rock[0]
-        porosity[i,j] = rock_prop_dict[this_rock]['Porosity']
-        density[i,j] = rock_prop_dict[this_rock]['Density']
-        TOC[i,j] = rock_prop_dict[this_rock]['TOC']
+        porosity[i,j] = rock_prop_dict[rock[i,j]]['Porosity']
+        density[i,j] = rock_prop_dict[rock[i,j]]['Density']
+        TOC[i,j] = rock_prop_dict[rock[i,j]]['TOC']
 
 
 ###Building the 3d properties array###
-props_array = np.empty((len((prop_dict.keys())),a,b))
+props_array = np.empty((len((prop_dict.keys())),a,b), dtype = object)
 
 props_array[Temp_index] = T_field
 props_array[rock_index] = rock
@@ -183,9 +191,9 @@ width, thickness = rool.randn_dims(min_thickness, max_thickness, 700, mar, sar, 
 
 ###Defining flux rate and setting time###
 flux = int(30e9) #m3/yr
-tot_volume = int(0.25e6*1e9) #m3
+tot_volume = int(0.15e6*1e9) #m3
 total_empl_time = tot_volume/flux
-thermal_maturation_time = int(0.25e6) #yr
+thermal_maturation_time = int(3e6) #yr
 
 model_time = total_empl_time+thermal_maturation_time+50000
 time_steps = np.arange(model_time,step=dt)
@@ -284,7 +292,7 @@ for l in trange(len(time_steps)):
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
     props_array[TOC_index] = TOC
     while time_steps[l]==empl_times[curr_sill] and curr_sill<n_sills:
-        print(f'Now emplacing sill {curr_sill}')
+        #print(f'Now emplacing sill {curr_sill}')
         props_array, row_start, col_pushed = rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[curr_sill])
         if (col_pushed!=0).all():
             RCO2_silli = rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
@@ -300,16 +308,44 @@ for l in trange(len(time_steps)):
     tot_RCO2[l] = np.sum(RCO2_silli)
     props_total_array[l] = props_array
 try:
-    plt.plot(time_steps, np.log10(tot_RCO2+1e-5))
+    plt.plot(time_steps[1:], np.log10(tot_RCO2[1:]+1e-5))
 except RuntimeWarning:
     print("Warning: Divide by zero error encountered. Some values in tot_RCO2 are zero.")
-    plt.plot(time_steps, tot_RCO2)
+    plt.plot(time_steps[1:], tot_RCO2[1:])
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
-
+plt.plot(time_steps[1:], tot_RCO2[1:])
 plt.show()
 
+reverse_lith_dict = {value: key for key, value in lith_plot_dict.items()}
+
+for l in range(shape_indices[0]):
+    for i in range(a):
+        for j in range(b):
+            props_total_array[l][rock_index][i,j] = lith_plot_dict[rock[i,j]]
 
 props_h5.create_dataset('props_array', data = props_total_array)
-#props_h5.create_dataset('props_dict', data = prop_dict)
+props_h5.create_dataset('RCO2', data = tot_RCO2)
+with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
+    group = hdf.require('prop_dict')
+
+    for key, value in prop_dict.items():
+        if isinstance(value, dict):
+            sub_group = group.require_group(key)
+            for sub_key, sub_value in value.items():
+                sub_group.create_dataset(sub_key, data=sub_value)
+        else:
+            group.create_dataset(key, data = value)
+
+with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
+    group = hdf.require('lith_dict')
+
+    for key, value in reverse_lith_dict.items():
+        if isinstance(value, dict):
+            sub_group = group.require_group(key)
+            for sub_key, sub_value in value.items():
+                sub_group.create_dataset(sub_key, data=sub_value)
+        else:
+            group.create_dataset(key, data = value)
+
 

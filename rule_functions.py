@@ -202,12 +202,12 @@ def value_pusher2D(array, new_value, row_index, push_amount):
     for j in range(b):
         if row_index[j] + push_amount[j] >= a:
                 raise ValueError(f"Push value for column {j} exceeds array bounds")
-        print(row_index, push_amount)
         array[row_index[j]+push_amount[j]:,j] = array[row_index[j]:a-push_amount[j], j]
         array[row_index[j]:row_index[j]+push_amount[j],j] = new_value
     return array
 
 
+'''
 def index_finder(array, string):
     a,b = array.shape
     string_index = np.empty((a,b), dtype=bool)
@@ -217,6 +217,16 @@ def index_finder(array, string):
                 string_index[i,j] = True
             else:
                 string_index[i,j] = False
+    return string_index
+    '''
+def index_finder(array, string):
+    if not np.issubdtype(array.dtype, np.str_):
+        array = array.astype(str)
+    
+    def contains_string(element):
+        return string in element
+    
+    string_index = np.vectorize(contains_string)(array)
     return string_index
 
 
@@ -414,18 +424,20 @@ def sill3D_pushy_emplacement(props_array, props_dict, sillcube, n_rep, mag_props
         raise ValueError("Temperature values in props_array cannot be empty")
     new_dike = np.zeros_like(T_field)
     new_dike[index_finder(sillcube[z_index], string_finder)] = 1
-    columns_pushed = np.sum(new_dike, axis =0)
-    row_push_start = np.full(b,np.nan)
+    columns_pushed = np.sum(new_dike, axis =0, dtype=int)
+    #columns_pushed  = columns_pushed.astype(int)
+    row_push_start = np.zeros(b, dtype = int)
     for n in range(b):
         for m in range(a):
             if new_dike[m,n]==1:
-                if np.isnan(row_push_start[n]):
-                    row_push_start[n] = m
-                    continue
-    row_push_start[row_push_start==np.nan] = 0
-    print(len(row_push_start), len(columns_pushed))
-    if np.sum(string_finder in sillcube[z_index])==0:
-        print(f'Sill {n_rep} was NOT emplaced in this slice')
+                #if row_push_start[n]==0:
+                row_push_start[n] = m
+                break
+    #row_push_start = np.array(row_push_start, dtype=int)
+    #row_push_start[row_push_start==np.nan] = 0
+    if np.sum(index_finder(sillcube[z_index], string_finder))==0:
+        #print(f'Sill {n_rep} was NOT emplaced in this slice')
+        pass
     else:
         print(f'Sill {n_rep} was emplaced in this slice')
         reverse_prop_dict = {value: key for key, value in props_dict.items()}
