@@ -154,8 +154,8 @@ max_thickness = 3500 #m
 mar = 7
 sar = 2.5
 
-min_emplacement = 1500 #m
-max_emplacement = 25500 #m
+min_emplacement = 1000 #m
+max_emplacement = 15500 #m
 n_sills = 20000
 
 empl_heights = rool.randn_heights(n_sills, max_emplacement, min_emplacement, 5000, dy)
