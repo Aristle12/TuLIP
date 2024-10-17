@@ -5,6 +5,8 @@ from tqdm import trange
 import matplotlib.pyplot as plt
 import carbon_emissions as emit
 import h5py
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
 
 #Dimensions of the 2D grid
 x = 300000 #m - Horizontal extent of the crust
@@ -197,6 +199,7 @@ thermal_maturation_time = int(3e6) #yr
 
 model_time = total_empl_time+thermal_maturation_time+50000
 time_steps = np.arange(model_time,step=dt)
+saving_time_step_index = np.min(np.where(time_steps[time_steps>=thermal_maturation_time])[0])
 empl_times = []
 plot_time = []
 cum_volume = []
@@ -256,9 +259,36 @@ plt.show()
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
 sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
+plot_cube = np.where(sillcube!='',1,0)
 
 print('3D cube built')
 print(f'Shape of cube:{sillcube.shape}')
+
+plot_x, plot_y, plot_z = np.meshgrid(np.arange(0,x, dx),
+                            np.arange(0,y, dy),
+                            np.arange(0,x, dx),
+                            indexing = 'ij')
+
+x_flat = plot_x.flatten()
+y_flat = plot_y.flatten()
+z_flat = plot_z.flatten()
+c_flat = plot_cube.flatten()
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+scatter = ax.scatter(x_flat, y_flat, z_flat, c=c_flat, cmap=cm.viridis)
+
+# Add a color bar which maps values to colors
+fig.colorbar(scatter, ax=ax, label='Value')
+
+# Set labels for the axes
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+
+# Show the plot
+plt.show()
+
 z_index = int(b//2)
 print(z_index)
 while np.sum(sillcube[z_index]!='')==0:
@@ -270,7 +300,7 @@ print(f'Non-empty nodes:{unempty}')
 
 #Initializing the hdf5 datafile to store the generated data
 
-shape_indices = [len(time_steps)] + list(props_array.shape)
+shape_indices = [len(time_steps[saving_time_step_index:])] + list(props_array.shape)
 print(shape_indices)
 props_h5 = h5py.File('PropertyEvolution.hdf5', 'w')
 
@@ -306,7 +336,8 @@ for l in trange(len(time_steps)):
         else:
             break
     tot_RCO2[l] = np.sum(RCO2_silli)
-    props_total_array[l] = props_array
+    if l>=saving_time_step_index:
+        props_total_array[l-saving_time_step_index] = props_array
 try:
     plt.plot(time_steps[1:], np.log10(tot_RCO2[1:]+1e-5))
 except RuntimeWarning:
