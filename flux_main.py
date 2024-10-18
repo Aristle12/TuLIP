@@ -261,6 +261,7 @@ z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
 sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
 plot_cube = np.where(sillcube!='',1,0)
+plot_cube = np.where(sillcube!='',1,0)
 
 print('3D cube built')
 print(f'Shape of cube:{sillcube.shape}')
@@ -303,6 +304,7 @@ print(f'Non-empty nodes:{unempty}')
 #Initializing the hdf5 datafile to store the generated data
 
 shape_indices = [len(time_steps[saving_time_step_index:])] + list(props_array.shape)
+shape_indices = [len(time_steps[saving_time_step_index:])] + list(props_array.shape)
 print(shape_indices)
 props_h5 = h5py.File('PropertyEvolution.hdf5', 'w')
 
@@ -341,6 +343,8 @@ for l in trange(len(time_steps)):
         else:
             break
     tot_RCO2[l] = np.sum(RCO2_silli)
+    if l>=saving_time_step_index:
+        props_total_array[l-saving_time_step_index] = props_array
     if l>=saving_time_step_index:
         props_total_array[l-saving_time_step_index] = props_array
 try:
