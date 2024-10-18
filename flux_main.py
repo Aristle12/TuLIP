@@ -5,13 +5,16 @@ from tqdm import trange
 import matplotlib.pyplot as plt
 import carbon_emissions as emit
 import h5py
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+import pickle
 
 #Dimensions of the 2D grid
 x = 300000 #m - Horizontal extent of the crust
 y = 35000 #m - Vertical thickness of the crust
 
-dx = 200 #m node spacing in x-direction
-dy = 200 #m node spacing in y-direction
+dx = 250 #m node spacing in x-direction
+dy = 250 #m node spacing in y-direction
 
 a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
@@ -145,8 +148,7 @@ props_array[poros_index] = porosity
 props_array[dense_index] = density
 props_array[TOC_index] = TOC
 
-print('KEYS')
-print([i for i in prop_dict.values()])
+
 ###Setting up sill dimensions and locations###
 min_thickness = 900 #m
 max_thickness = 3500 #m
@@ -197,6 +199,8 @@ thermal_maturation_time = int(3e6) #yr
 
 model_time = total_empl_time+thermal_maturation_time+50000
 time_steps = np.arange(model_time,step=dt)
+saving_time_step_index = np.min(np.where(time_steps>=thermal_maturation_time)[0])
+print(saving_time_step_index, time_steps[saving_time_step_index])
 empl_times = []
 plot_time = []
 cum_volume = []
@@ -256,9 +260,37 @@ plt.show()
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
 
 sillcube = rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
+plot_cube = np.where(sillcube!='',1,0)
 
 print('3D cube built')
 print(f'Shape of cube:{sillcube.shape}')
+'''
+plot_x, plot_y, plot_z = np.meshgrid(np.arange(0,x, dx),
+                            np.arange(0,y, dy),
+                            np.arange(0,x, dx),
+                            indexing = 'ij')
+
+x_flat = plot_x.flatten()
+y_flat = plot_y.flatten()
+z_flat = plot_z.flatten()
+c_flat = plot_cube.flatten()
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+scatter = ax.scatter(x_flat, y_flat, z_flat, c=c_flat, cmap=cm.viridis)
+
+# Add a color bar which maps values to colors
+fig.colorbar(scatter, ax=ax, label='Value')
+
+# Set labels for the axes
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+
+# Show the plot
+plt.show()
+'''
+np.save('sillcube', sillcube)
 z_index = int(b//2)
 print(z_index)
 while np.sum(sillcube[z_index]!='')==0:
@@ -270,11 +302,11 @@ print(f'Non-empty nodes:{unempty}')
 
 #Initializing the hdf5 datafile to store the generated data
 
-shape_indices = [len(time_steps)] + list(props_array.shape)
+shape_indices = [len(time_steps[saving_time_step_index:])] + list(props_array.shape)
 print(shape_indices)
 props_h5 = h5py.File('PropertyEvolution.hdf5', 'w')
 
-props_total_array = np.zeros(shape_indices)
+props_total_array = np.zeros(shape_indices, dtype = object)
 
 #Emplacing sills and running the 2D model
 method = 'conv smooth'
@@ -284,13 +316,16 @@ curr_sill = 0
 for l in trange(len(time_steps)):
     curr_time = time_steps[l]
     T_field = cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
-    TOC = props_array[TOC_index]
     props_array[Temp_index] = T_field
+    curr_TOC_silli = props_array[TOC_index]
+    for i in range(a):
+        for j in range(b):
+            TOC[i,j] = rock_prop_dict[props_array[rock_index][i][j]]['TOC']
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
-    props_array[TOC_index] = TOC
+    props_array[TOC_index] = curr_TOC_silli
     while time_steps[l]==empl_times[curr_sill] and curr_sill<n_sills:
         #print(f'Now emplacing sill {curr_sill}')
         props_array, row_start, col_pushed = rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[curr_sill])
@@ -306,7 +341,8 @@ for l in trange(len(time_steps)):
         else:
             break
     tot_RCO2[l] = np.sum(RCO2_silli)
-    props_total_array[l] = props_array
+    if l>=saving_time_step_index:
+        props_total_array[l-saving_time_step_index] = props_array
 try:
     plt.plot(time_steps[1:], np.log10(tot_RCO2[1:]+1e-5))
 except RuntimeWarning:
@@ -314,7 +350,7 @@ except RuntimeWarning:
     plt.plot(time_steps[1:], tot_RCO2[1:])
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
-plt.plot(time_steps[1:], tot_RCO2[1:])
+#plt.plot(time_steps[1:], tot_RCO2[1:])
 plt.show()
 
 reverse_lith_dict = {value: key for key, value in lith_plot_dict.items()}
@@ -324,8 +360,13 @@ for l in range(shape_indices[0]):
         for j in range(b):
             props_total_array[l][rock_index][i,j] = lith_plot_dict[rock[i,j]]
 
-props_h5.create_dataset('props_array', data = props_total_array)
-props_h5.create_dataset('RCO2', data = tot_RCO2)
+#props_h5.create_dataset('props_array', data = props_total_array)
+
+
+pickled_props = pickle.dumps(props_total_array)
+
+with h5py.File('PropertyEvolution.hdf5', 'w') as hf:
+    hf.create_dataset('props_total_array', data=pickled_props, chunks = True, compression = 'gzip')
 with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
     group = hdf.require('prop_dict')
 
@@ -348,4 +389,5 @@ with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
         else:
             group.create_dataset(key, data = value)
 
+props_h5.create_dataset('RCO2', data = tot_RCO2)
 

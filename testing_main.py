@@ -23,6 +23,57 @@ mu = np.ones((a,b))*31.536 #m2/yr
 T_surf = 0
 T_bot = 1200
 
+prop_dict = {'Temperature':0,
+             'Lithology':1,
+             'Porosity':2,
+             'Density':3,
+             'TOC':4}
+
+emp_index = prop_dict['Temperature']
+rock_index = prop_dict['Lithology']
+poros_index = prop_dict['Porosity']
+dense_index = prop_dict['Porosity']
+TOC_index = prop_dict['TOC']
+
+magma_prop_dict = {'Temperature': T_bot,
+             'Lithology': 'basalt',
+             'Porosity': 0.2,
+             'Density': 2850, #kg/m3
+             'TOC':0} #wt%
+
+rock_prop_dict = {
+    "shale":{
+        'Porosity':0.1,
+        'Density':2500,
+        'TOC':7
+    },
+    "sandstone":{
+        'Porosity':0.2,
+        'Density':2600,
+        'TOC':2.5
+    },
+    "limestone":{
+        'Porosity':0.2,
+        'Density':2600,
+        'TOC':2.5
+    },
+    "granite":{
+        'Porosity':0.05,
+        'Density':2700,
+        'TOC':0
+    },
+    "basalt":{
+        'Porosity': 0.2,
+        'Density': 2850, #kg/m3
+        'TOC':0
+    },
+    "peridotite":{
+        'Porosity': 0.05,
+        'Density': 3100, #kg/m3
+        'TOC':0
+    }
+
+}
 ###Setting the initial temperature grid###
 T_field = np.zeros_like(mu)
 T_field[-1,:] = T_bot
@@ -64,6 +115,25 @@ y_coords = int(a//2)
 t_empl = t_steps[999]
 curr_time = 0
 
+props_array = np.empty((len((prop_dict.keys())),a,b), dtype = object)
+#shape_indices = [len(t_steps)]+ list(props_array.shape)
+#tot_prop_array = np.empty(shape_indices, dtype = object)
+Temp_index = prop_dict['Temperature']
+rock_index = prop_dict['Lithology']
+poros_index = prop_dict['Porosity']
+dense_index = prop_dict['Porosity']
+TOC_index = prop_dict['TOC']
+
+cm_array = np.empty((a,b), dtype = object)
+cm_array[0:-10,:] = 'crust'
+cm_array[-10:,:] = 'mantle'
+
+props_array[Temp_index] = T_field
+props_array[rock_index] = rock
+props_array[poros_index] = porosity
+props_array[dense_index] = density
+props_array[TOC_index] = TOC
+
 tot_RCO2 = np.zeros(len(t_steps))
 tot_RCO2_silli = np.zeros(len(t_steps))
 reaction_energies = emit.get_sillburp_reaction_energies()
@@ -84,6 +154,7 @@ for l in trange(0,len(t_steps)):
     if curr_time==t_empl:
         print('Sill emplaced')
         T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
+        #T_field = rool.mult_sill(T_field, 5000//dx, 3000/dy, y_coords, x_coords, dx, dy, np.zeros(a,b), rock=rock, dike_empl=False, cmb_exists=True, cm_array=cm_array)
     tot_RCO2[l] = sum(np.sum(RCO2))
     tot_RCO2_silli[l] = sum(np.sum(RCO2_silli))
 #print(tot_RCO2[tot_RCO2!=0])
