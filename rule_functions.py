@@ -187,12 +187,12 @@ def value_pusher(array, new_value, push_index, push_value):
     array[x:x+push_value,y] = new_value
     return array
 
-def prop_updater(lithology, lith_dict, prop_dict):
+def prop_updater(lithology, lith_dict: dict, prop_dict: dict, property: str):
     '''
     This function updates the associated rock properties once everything has shiftes. This is done to avoid thermopgenic carbon generation from popints that are now pure magma'''
     prop = np.zeros_like(lithology)
-    for rock in lith_dict.values():
-        prop[lithology==rock] = prop_dict[rock]
+    for rock in lith_dict.keys():
+        prop[lithology==rock] = prop_dict[rock][property]
     return prop
 
 def value_pusher2D(array, new_value, row_index, push_amount):
@@ -230,6 +230,74 @@ def index_finder(array, string):
     return string_index
 
 
+def mult_sill(T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
+    a,b = T_field.shape
+    new_dike = np.zeros_like(T_field)
+    if not push:
+        if shape == 'rect':
+            height = height//dy
+            x_space= x_space//dx
+            majr = majr//dx
+            minr = minr//dy
+            T_field[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = T_mag
+            new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
+            if rock.size>0:
+                rock[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = emplace_rock
+        elif shape == 'elli':
+            x = np.arange(0,b*dx, dx)
+            y = np.arange(0, a*dy, dy)
+            for m in range(0, a):
+                for n in range(0, b):
+                    x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
+                    y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
+                    if (x_dist+y_dist)<=1:
+                        T_field[m,n]=T_mag
+                        new_dike[m,n] = 1
+                        if rock.size>0:
+                            rock[m,n] = emplace_rock
+        if dike_empl:
+            T_field[int(height):-1,int(x_space)] = T_mag
+            new_dike[int(height):-1,int(x_space)] = 1
+            if rock.size>0:
+                rock.loc[int(height):-1,int(x_space)] = 'basalt'
+    elif push:
+        if shape == 'rect':
+            height = height//dy
+            x_space= x_space//dx
+            majr = majr//dx
+            minr = minr//dy
+            new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
+            if dike_empl:
+                new_dike[int(height):-1,int(x_space)] = 1
+        elif shape=='elli':
+            x = np.arange(0,b*dx, dx)
+            y = np.arange(0, a*dy, dy)
+            for m in range(0, a):
+                for n in range(0, b):
+                    x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
+                    y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
+                    if (x_dist+y_dist)<=1:
+                        new_dike[m,n] = 1
+            if dike_empl:
+                new_dike[int(height):-1,int(x_space)] = 1
+        columns_push = np.sum(new_dike, axis = 0)
+        row_push_start = np.zeros(b, dtype = int)
+        for n in range(b):
+            for m in range(a):
+                if new_dike[m,n]==1:
+                    row_push_start[n] = m
+                    break
+        T_field = value_pusher2D(T_field, T_mag, row_push_start, columns_push)
+        if rock.size>0:
+            rock = value_pusher2D(rock, emplace_rock, row_push_start, columns_push)
+            return T_field, rock, new_dike
+        else:
+            return T_field, new_dike
+
+
+
+
+'''
 #@jit
 def mult_sill(T_field, majr, minr, height, x_space, dx, dy, dike_net, cm_array = [], cmb = [], rock = np.array([]), T_mag = 1000, shape = 'rect', dike_empl = True, cmb_exists = False):
     a,b = T_field.shape
@@ -287,7 +355,7 @@ def mult_sill(T_field, majr, minr, height, x_space, dx, dy, dike_net, cm_array =
                             rock.loc[n,m] = 'basalt'
         dike_net = dike_net + new_dike
         return T_field, dike_net, rock
-
+'''
 def get_H(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
     """
     Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation
