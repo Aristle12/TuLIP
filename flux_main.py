@@ -320,7 +320,7 @@ for l in trange(len(time_steps)):
     T_field = cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
     props_array[Temp_index] = T_field
     curr_TOC_silli = props_array[TOC_index]
-    TOC = rool.prop_updater(rock, lith_plot_dict, prop_dict, 'TOC')
+    TOC = rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
     else:
