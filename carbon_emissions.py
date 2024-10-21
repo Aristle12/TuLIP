@@ -5,8 +5,7 @@ from scipy.interpolate import RegularGridInterpolator
 from numba import jit
 
 def get_init_CO2_percentages(T_field, lithology, density, dy):
-    a = len(lithology[:,0])
-    b = len(lithology[0,:])
+    a,b = lithology.shape
     break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
     dolo = loadmat('dat/Dolostone.mat')
     evap = loadmat('dat/DolostoneEvaporite.mat')
@@ -28,12 +27,19 @@ def get_init_CO2_percentages(T_field, lithology, density, dy):
                 pressure = 0
                 for l in range(0,i):
                     pressure = pressure + (density[l,j]*9.8*dy) #Getting lithostatic pressure upto this point
-                if lithology[i,j]=='dolostone' | lithology[i,j]=='limestone':
-                    init_CO2[i,j] = dolo_inter(T_field[i,j],pressure)
+                pressure = pressure*1e-5 #conversion from Pa to bar
+                pressure = 1 if pressure==0 else pressure
+                if lithology[i,j]=='dolostone' or lithology[i,j]=='limestone':
+                    try:
+                        init_CO2[i,j] = dolo_inter([T_field[i,j],pressure])
+                    except ValueError:
+                        init_CO2[i,j] = 0
+                        print('Warning: Limestone pressure out of bounds. Skipping')
+
                 elif lithology[i,j] == 'evaporite':
-                    init_CO2[i,j] = evap_inter(T_field[i,j],pressure)
+                    init_CO2[i,j] = evap_inter([T_field[i,j],pressure])
                 elif lithology[i,j]=='marl':
-                    init_CO2[i,j]== marl_inter(T_field[i,j],pressure)
+                    init_CO2[i,j]== marl_inter([T_field[i,j],pressure])
     return init_CO2
 
 def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
@@ -59,18 +65,29 @@ def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
                 pressure = 0
                 for l in range(0,i):
                     pressure = pressure + (density[l,j]*9.8*dy) #Getting lithostatic pressure upto this point
-                if lithology[i,j]=='dolostone' | lithology[i,j]=='limestone':
-                    curr_breakdown_CO2[i,j] = dolo_inter(T_field[i,j],pressure)
+                pressure = pressure*1e-5 #conversion from Pa to bar
+                pressure = 1 if pressure==0 else pressure
+                if lithology[i,j]=='dolostone' or lithology[i,j]=='limestone':
+                    try:
+                        curr_breakdown_CO2[i,j] = dolo_inter([T_field[i,j],pressure])
+                    except ValueError:
+                        curr_breakdown_CO2[i,j] = 0
+                        print('Warning: Limestone pressure out of bounds. Skipping')
+
                 elif lithology[i,j] == 'evaporite':
-                    curr_breakdown_CO2[i,j] = evap_inter(T_field[i,j],pressure)
+                    curr_breakdown_CO2[i,j] = evap_inter([T_field[i,j],pressure])
                 elif lithology[i,j]=='marl':
-                    curr_breakdown_CO2[i,j]== marl_inter(T_field[i,j],pressure)
-        max_breakdown_co2 = np.maximum(breakdownCO2, curr_breakdown_CO2)
+                    curr_breakdown_CO2[i,j]== marl_inter([T_field[i,j],pressure])
+    max_breakdown_co2 = np.maximum(breakdownCO2, curr_breakdown_CO2)
+    try:
         for i in range(a):
             for j in range(b):
-                curr_breakdown_CO2[i,j] = np.minimum((curr_breakdown_CO2[i,j]-breakdownCO2[i,j]),0) if curr_breakdown_CO2[i,j]>breakdownCO2[i,j] else 0
-        RCO2_breakdown = (curr_breakdown_CO2-breakdownCO2)/dt
-        return RCO2_breakdown, max_breakdown_co2
+                curr_breakdown_CO2[i, j] = np.minimum((curr_breakdown_CO2[i, j] - breakdownCO2[i, j]), 0) if curr_breakdown_CO2[i, j] > breakdownCO2[i, j] else 0
+    except TypeError as e:
+        print(e)
+        print('Function outputs two arrays')
+    RCO2_breakdown = (curr_breakdown_CO2-breakdownCO2)/dt
+    return RCO2_breakdown, max_breakdown_co2
 
 
 

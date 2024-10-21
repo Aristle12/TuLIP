@@ -80,28 +80,32 @@ T_field[-1,:] = T_bot
 T_field = cool.heat_flux(mu, a, b, dx, dy, T_field, 'straight')
 
 ##Initiating lithology
-rock = pd.DataFrame( data = [], index = range(a), columns = range(b))
+rock = np.zeros((a,b), dtype=object)#pd.DataFrame( data = [], index = range(a), columns = range(b))
 rock[:] = 'granite' 
-rock.loc[0:int(a//2),:] = 'shale'
-rock.loc[int(a//2)+1:int(a),:] = 'sandstone'
+rock[0:int(a//3),:] = 'limestone'
+rock[int(a//3)+1:int(2*a//3),:] = 'shale'
+rock[int(2*a//3)+1:a,:] = 'sandstone'
 
 
 ##Initiating TOC
 TOC = np.zeros_like(mu)
 TOC[rock=='shale'] = 7
 TOC[rock=='sandstone'] = 5
+TOC[rock=='limestone'] = rock_prop_dict['limestone']['TOC']
 
 
 ##Initiating density
 density = np.zeros_like(mu)
 density[rock=='shale'] = 2400 #kg/m3
 density[rock=='sandstone'] = 2600 #kg/m3
+density[rock=='limestone'] = rock_prop_dict['limestone']['Density']
 
 ##Initiating porosity
 
 porosity = np.zeros_like(mu)
 porosity[rock=='shale'] = 0.1
 porosity[rock=='sandstone'] = 0.25
+porosity[rock=='limestone'] = rock_prop_dict['limestone']['Porosity']
 
 
 time = 500000 #years
@@ -145,8 +149,10 @@ for l in trange(0,len(t_steps)):
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
         RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies)
+        breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
+        breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
         #if (progress_of_reactions>=1).all():
         #    print('Carbon is over')
         #print(progress_of_reactions[(progress_of_reactions!=0) & (progress_of_reactions!=1)])
@@ -155,8 +161,8 @@ for l in trange(0,len(t_steps)):
         print('Sill emplaced')
         #T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
         T_field, _ = rool.mult_sill(T_field,5000, 3000, y_coords*dy, x_coords*dx, dx, dy, push = False)
-    tot_RCO2[l] = sum(np.sum(RCO2))
-    tot_RCO2_silli[l] = sum(np.sum(RCO2_silli))
+    tot_RCO2[l] = np.sum(RCO2)+np.sum(breakdown_CO2)
+    tot_RCO2_silli[l] = np.sum(RCO2_silli)+np.sum(breakdown_CO2)
 #print(tot_RCO2[tot_RCO2!=0])
 #plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
 #plt.colorbar()

@@ -323,8 +323,12 @@ for l in trange(len(time_steps)):
     TOC = rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
+        if (rock=='limestone').any():
+            breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
+        if (rock=='limestone').any():    
+            breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
     props_array[TOC_index] = curr_TOC_silli
     while time_steps[l]==empl_times[curr_sill] and curr_sill<n_sills:
         #print(f'Now emplacing sill {curr_sill}')

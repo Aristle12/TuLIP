@@ -22,7 +22,8 @@ evap_co2 = np.array(evap['Dol_ev']['CO2'][0][0])
 marl_CO2 = np.array(marl['Marl']['CO2'][0][0])
 
 dolo_inter = RegularGridInterpolator((T,P), marl_CO2)
-
+a = dolo_inter([752.6400000000001, 30])
+print(a)
 Tg, Pg = np.meshgrid(T, P, indexing = 'ij')
 points = np.vstack([Tg.ravel(), Pg.ravel()]).T
 co2_array = dolo_inter(points)
