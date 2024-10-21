@@ -120,9 +120,10 @@ for eye in range(len(total_volume)):
     
 mean_no_sills = np.mean(sills_emplaced, axis = 1)
 stdev_sills = np.std(sills_emplaced, axis = 1)
+#plt.rcParams['text.usetex'] = True
 print(len(total_volume), len(mean_no_sills))
 plt.errorbar(total_volume, mean_no_sills, yerr = stdev_sills, fmt='ro-', capsize=5, label='Number of sills')
 plt.fill_between(total_volume,np.min(sills_emplaced, axis = 1), np.max(sills_emplaced, axis=1), alpha = 0.5, color = '#b3d9ff')
-plt.xlabel(r'Volume of sills 10$^6 km$^3$')
+plt.xlabel(r'Volume of sills $10^6 km^3$')
 plt.ylabel('Number of sills')
 plt.show()
