@@ -153,8 +153,8 @@ for l in trange(0,len(t_steps)):
         RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions)
     if curr_time==t_empl:
         print('Sill emplaced')
-        T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
-        #T_field = rool.mult_sill(T_field, 5000//dx, 3000/dy, y_coords, x_coords, dx, dy, np.zeros(a,b), rock=rock, dike_empl=False, cmb_exists=True, cm_array=cm_array)
+        #T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
+        T_field, _ = rool.mult_sill(T_field,5000, 3000, y_coords*dy, x_coords*dx, dx, dy, push = False)
     tot_RCO2[l] = sum(np.sum(RCO2))
     tot_RCO2_silli[l] = sum(np.sum(RCO2_silli))
 #print(tot_RCO2[tot_RCO2!=0])
@@ -162,7 +162,9 @@ for l in trange(0,len(t_steps)):
 #plt.colorbar()
 #plt.show()
 plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]), label = 'sillburp')
-plt.plot(t_steps[1:-1], np.log10(tot_RCO2_silli[1:-1]), label = 'silli')
+plt.plot(t_steps[1:-1], np.log10(tot_RCO2_silli[1:-1]), label = 'SILLi')
+plt.xlabel(r'Time (yr)')
+plt.ylabel(r'Carbon emissions log kg/yr')
 plt.legend()
 plt.savefig('cabon_emissions.png', format = 'png')
 

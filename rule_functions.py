@@ -233,23 +233,23 @@ def index_finder(array, string):
 def mult_sill(T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
     a,b = T_field.shape
     new_dike = np.zeros_like(T_field)
+    height = height//dy
+    x_space= x_space//dx
+    majr = majr//dx
+    minr = minr//dy
     if not push:
         if shape == 'rect':
-            height = height//dy
-            x_space= x_space//dx
-            majr = majr//dx
-            minr = minr//dy
             T_field[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = T_mag
             new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
             if rock.size>0:
                 rock[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = emplace_rock
         elif shape == 'elli':
-            x = np.arange(0,b*dx, dx)
-            y = np.arange(0, a*dy, dy)
+            x = np.arange(0,b)
+            y = np.arange(0, a)
             for m in range(0, a):
                 for n in range(0, b):
-                    x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
-                    y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
+                    x_dist = ((x[n]-x[int(x_space)])**2)/(((majr)//2)**2)
+                    y_dist = ((y[m]-y[int(height)])**2)/(((minr)//2)**2)
                     if (x_dist+y_dist)<=1:
                         T_field[m,n]=T_mag
                         new_dike[m,n] = 1
@@ -262,25 +262,21 @@ def mult_sill(T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([])
                 rock.loc[int(height):-1,int(x_space)] = 'basalt'
     elif push:
         if shape == 'rect':
-            height = height//dy
-            x_space= x_space//dx
-            majr = majr//dx
-            minr = minr//dy
             new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
             if dike_empl:
                 new_dike[int(height):-1,int(x_space)] = 1
         elif shape=='elli':
-            x = np.arange(0,b*dx, dx)
-            y = np.arange(0, a*dy, dy)
+            x = np.arange(0,b)
+            y = np.arange(0, a)
             for m in range(0, a):
                 for n in range(0, b):
-                    x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
-                    y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
+                    x_dist = ((x[n]-x[int(x_space)])**2)/(((majr)//2)**2)
+                    y_dist = ((y[m]-y[int(height)])**2)/(((minr)//2)**2)
                     if (x_dist+y_dist)<=1:
                         new_dike[m,n] = 1
             if dike_empl:
                 new_dike[int(height):-1,int(x_space)] = 1
-        columns_push = np.sum(new_dike, axis = 0)
+        columns_push = np.sum(new_dike, axis = 0, dtype=int)
         row_push_start = np.zeros(b, dtype = int)
         for n in range(b):
             for m in range(a):
@@ -290,14 +286,16 @@ def mult_sill(T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([])
         T_field = value_pusher2D(T_field, T_mag, row_push_start, columns_push)
         if rock.size>0:
             rock = value_pusher2D(rock, emplace_rock, row_push_start, columns_push)
-            return T_field, rock, new_dike
-        else:
-            return T_field, new_dike
+    if rock.size>0:
+        return T_field, rock, new_dike
+    else:
+        return T_field, new_dike
 
 
 
 
 '''
+Broken function
 #@jit
 def mult_sill(T_field, majr, minr, height, x_space, dx, dy, dike_net, cm_array = [], cmb = [], rock = np.array([]), T_mag = 1000, shape = 'rect', dike_empl = True, cmb_exists = False):
     a,b = T_field.shape
