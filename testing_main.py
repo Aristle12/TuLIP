@@ -141,6 +141,7 @@ props_array[TOC_index] = TOC
 tot_RCO2 = np.zeros(len(t_steps))
 tot_RCO2_silli = np.zeros(len(t_steps))
 reaction_energies = emit.get_sillburp_reaction_energies()
+push = True
 for l in trange(0,len(t_steps)):
     curr_time = t_steps[l]
     #print('Current time:',curr_time, t_steps[l])
@@ -160,14 +161,36 @@ for l in trange(0,len(t_steps)):
     if curr_time==t_empl:
         print('Sill emplaced')
         #T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
-        T_field, _ = rool.mult_sill(T_field,5000, 3000, y_coords*dy, x_coords*dx, dx, dy, push = False)
+        T_field, new_dike = rool.mult_sill(T_field,5000, 3000, y_coords*dy, x_coords*dx, dx, dy, push=push)
+        if push == True:
+            columns_pushed = np.sum(new_dike, axis =0, dtype=int)
+            row_push_start = np.zeros(b, dtype = int)
+            for n in range(b):
+                for m in range(a):
+                    if new_dike[m,n]==1:
+                        #if row_push_start[n]==0:
+                        row_push_start[n] = m
+                        break
+            RCO2_silli = rool.value_pusher2D(RCO2_silli,0, row_push_start, columns_pushed)
+            Rom_silli = rool.value_pusher2D(Rom_silli,0, row_push_start, columns_pushed)
+            percRo_silli = rool.value_pusher2D(percRo_silli,0, row_push_start, columns_pushed)
+            curr_TOC_silli = rool.value_pusher2D(curr_TOC_silli,0, row_push_start, columns_pushed)
+            W_silli = rool.value_pusher2D(W_silli,0, row_push_start, columns_pushed)
+
+            RCO2 = rool.value_pusher2D(RCO2,0, row_push_start, columns_pushed)
+            Rom = rool.value_pusher2D(Rom,0, row_push_start, columns_pushed)
+            percRo = rool.value_pusher2D(percRo,0, row_push_start, columns_pushed)
+            curr_TOC = rool.value_pusher2D(curr_TOC,0, row_push_start, columns_pushed)
+            W = rool.value_pusher2D(W,0, row_push_start, columns_pushed)
+
+
     tot_RCO2[l] = np.sum(RCO2)+np.sum(breakdown_CO2)
     tot_RCO2_silli[l] = np.sum(RCO2_silli)+np.sum(breakdown_CO2)
 #print(tot_RCO2[tot_RCO2!=0])
 #plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
 #plt.colorbar()
 #plt.show()
-plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]), label = 'sillburp')
+#plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]), label = 'sillburp')
 plt.plot(t_steps[1:-1], np.log10(tot_RCO2_silli[1:-1]), label = 'SILLi')
 plt.xlabel(r'Time (yr)')
 plt.ylabel(r'Carbon emissions log kg/yr')
