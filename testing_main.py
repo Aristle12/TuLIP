@@ -108,7 +108,7 @@ porosity[rock=='sandstone'] = 0.25
 porosity[rock=='limestone'] = rock_prop_dict['limestone']['Porosity']
 
 
-time = 500000 #years
+time = int(4e5) #years
 dt = (dx**2)/(5*mu[0,0])
 t_steps = np.arange(0, time, dt)
 H = np.zeros_like(T_field)
@@ -116,7 +116,7 @@ H = np.zeros_like(T_field)
 x_coords = int(b//2)
 y_coords = int(a//2)
 
-t_empl = t_steps[999]
+t_empl = t_steps[np.min(np.where(t_steps>int(3e5))[0])]
 curr_time = 0
 
 props_array = np.empty((len((prop_dict.keys())),a,b), dtype = object)
@@ -185,7 +185,7 @@ for l in trange(0,len(t_steps)):
 
 
     tot_RCO2[l] = np.sum(RCO2)+np.sum(breakdown_CO2)
-    tot_RCO2_silli[l] = np.sum(RCO2_silli)+np.sum(breakdown_CO2)
+    tot_RCO2_silli[l] = np.sum(RCO2_silli)#+np.sum(breakdown_CO2)
 #print(tot_RCO2[tot_RCO2!=0])
 #plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
 #plt.colorbar()
@@ -195,6 +195,7 @@ plt.plot(t_steps[1:-1], np.log10(tot_RCO2_silli[1:-1]), label = 'SILLi')
 plt.xlabel(r'Time (yr)')
 plt.ylabel(r'Carbon emissions log kg/yr')
 plt.legend()
-plt.savefig('cabon_emissions.png', format = 'png')
+plt.show()
+#plt.savefig('cabon_emissions.png', format = 'png')
 
 pd.DataFrame({'Time': t_steps, 'CO2_sillburp': tot_RCO2, 'CO2_silli': tot_RCO2_silli}).to_csv('carbon.csv')

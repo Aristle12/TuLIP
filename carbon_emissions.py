@@ -86,7 +86,7 @@ def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
     except TypeError as e:
         print(e)
         print('Function outputs two arrays')
-    RCO2_breakdown = (curr_breakdown_CO2-breakdownCO2)/dt
+    RCO2_breakdown = (curr_breakdown_CO2)/dt
     return RCO2_breakdown, max_breakdown_co2
 
 
