@@ -93,7 +93,7 @@ def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
 
 
 @jit(forceobj=True)
-def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, dy, breakdownCO2=np.nan, TOCo=np.nan, W=np.nan):
+def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan):
     '''
     Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
     T_field - temperature field (array)
@@ -104,6 +104,7 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, dy, bre
     '''
     calc_parser = (lithology=='shale') | (lithology=='sandstone')
     break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
+    calc_parser = calc_parser | break_parser
     a,b = T_field.shape
         
     A = 1e13
@@ -114,7 +115,8 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, dy, bre
     if np.isnan(W).all():
         W = np.ones((len(E),a, b))
         TOCo = TOC_prev
-    Fracl = np.zeros_like(W)
+    if np.isnan(TOCo).any():
+        raise ValueError('TOCo cannot be NaN after the first time step')
     fl = np.zeros_like(W)
     for l in range(0, len(E)):
         k = A*np.exp(-E[l]/(R*T_field))
