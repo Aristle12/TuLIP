@@ -2,3 +2,4 @@ PropertyEvolution.hdf5
 .vscode
 __pycache__
 sillcube.npy
+*.pyc
