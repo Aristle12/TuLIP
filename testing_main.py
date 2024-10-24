@@ -149,6 +149,7 @@ for l in trange(0,len(t_steps)):
     ##carbon emissions calculation step
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
+
         RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies)
         breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
     else:
@@ -175,13 +176,18 @@ for l in trange(0,len(t_steps)):
             Rom_silli = rool.value_pusher2D(Rom_silli,0, row_push_start, columns_pushed)
             percRo_silli = rool.value_pusher2D(percRo_silli,0, row_push_start, columns_pushed)
             curr_TOC_silli = rool.value_pusher2D(curr_TOC_silli,0, row_push_start, columns_pushed)
-            W_silli = rool.value_pusher2D(W_silli,0, row_push_start, columns_pushed)
+            for huh in range(W_silli.shape[0]):
+                W_silli[huh] = rool.value_pusher2D(W_silli[huh],0, row_push_start, columns_pushed)
 
             RCO2 = rool.value_pusher2D(RCO2,0, row_push_start, columns_pushed)
             Rom = rool.value_pusher2D(Rom,0, row_push_start, columns_pushed)
-            percRo = rool.value_pusher2D(percRo,0, row_push_start, columns_pushed)
+            #oil_production_rate = rool.value_pusher2D(oil_production_rate,0, row_push_start, columns_pushed)
             curr_TOC = rool.value_pusher2D(curr_TOC,0, row_push_start, columns_pushed)
-            W = rool.value_pusher2D(W,0, row_push_start, columns_pushed)
+            for huh in range(progress_of_reactions.shape[0]):
+                for bruh in range(progress_of_reactions.shape[1]):
+                    progress_of_reactions[huh][bruh] = rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_push_start, columns_pushed)
+                    progress_of_reactions[huh][bruh] = rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_push_start, columns_pushed)
+
 
 
     tot_RCO2[l] = np.sum(RCO2)+np.sum(breakdown_CO2)
@@ -190,7 +196,7 @@ for l in trange(0,len(t_steps)):
 #plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
 #plt.colorbar()
 #plt.show()
-#plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]), label = 'sillburp')
+plt.plot(t_steps[1:-1], np.log10(tot_RCO2[1:-1]), label = 'sillburp')
 plt.plot(t_steps[1:-1], np.log10(tot_RCO2_silli[1:-1]), label = 'SILLi')
 plt.xlabel(r'Time (yr)')
 plt.ylabel(r'Carbon emissions log kg/yr')
