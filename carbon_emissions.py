@@ -265,8 +265,11 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energ
         progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
         progress_of_reactions_old = np.zeros_like(progress_of_reactions)
         rate_of_reactions = np.zeros_like(progress_of_reactions)
+        oil_production_rate = np.zeros((a,b))
+    
     else:
         progress_of_reactions_old = progress_of_reactions.copy()
+    S_over_k = np.zeros((a,b))
     
     do_labile_reaction = progress_of_reactions[reactants.index('LABILE'), :, :, :] < 1
     do_refractory_reaction = progress_of_reactions[reactants.index('REFRACTORY'), :, :, :] < 1
@@ -289,16 +292,16 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energ
                         progress_of_reactions[i_reaction, i_approx, i, j] = min((1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt)), 1)
                         rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) / dt
                     else:
-                        S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / no_reactions[OIL]
-                        progress_of_reactions[i_reaction, i_approx, i, j] = min(1.0 - S_over_k - (1.0 - initial_product_conc - S_over_k) * np.exp(-reaction_rate * dt), 1)
-                        rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc - S_over_k) * (1.0 - np.exp(-reaction_rate * dt)) / dt
+                        S_over_k[i,j] = 0.0 if reaction_rate == 0 else oil_production_rate[i,j] / reaction_rate / no_reactions[OIL]
+                        progress_of_reactions[i_reaction, i_approx, i, j] = min(1.0 - S_over_k[i,j] - (1.0 - initial_product_conc - S_over_k[i,j]) * np.exp(-reaction_rate * dt), 1)
+                        rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc - S_over_k[i,j]) * (1.0 - np.exp(-reaction_rate * dt)) / dt
                     
                     if i_reaction == reactants.index('LABILE'):
                         if i_approx == 0:
-                            oil_production_rate = 0.0
+                            oil_production_rate[i,j] = 0.0
                         oil_production_rate += -reaction_rate * (1.0 - progress_of_reactions[i_reaction, i_approx, i, j]) / no_reactions[reactants.index('LABILE')]
                         if i_approx == no_reactions[reactants.index('LABILE')] - 1:
-                            oil_production_rate *= (1.0 - mass_frac_labile_to_gas)
+                            oil_production_rate[i,j] *= (1.0 - mass_frac_labile_to_gas)
     
     time_step_progress = progress_of_reactions - progress_of_reactions_old
     products_progress = np.zeros((n_reactions, a, b))

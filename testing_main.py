@@ -181,7 +181,7 @@ for l in trange(0,len(t_steps)):
 
             RCO2 = rool.value_pusher2D(RCO2,0, row_push_start, columns_pushed)
             Rom = rool.value_pusher2D(Rom,0, row_push_start, columns_pushed)
-            #oil_production_rate = rool.value_pusher2D(oil_production_rate,0, row_push_start, columns_pushed)
+            oil_production_rate = rool.value_pusher2D(oil_production_rate,0, row_push_start, columns_pushed)
             curr_TOC = rool.value_pusher2D(curr_TOC,0, row_push_start, columns_pushed)
             for huh in range(progress_of_reactions.shape[0]):
                 for bruh in range(progress_of_reactions.shape[1]):
