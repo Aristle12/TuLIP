@@ -82,7 +82,7 @@ T_field = cool.heat_flux(mu, a, b, dx, dy, T_field, 'straight')
 ##Initiating lithology
 rock = np.zeros((a,b), dtype=object)#pd.DataFrame( data = [], index = range(a), columns = range(b))
 rock[:] = 'granite' 
-rock[0:int(a//3),:] = 'limestone'
+rock[0:int(a//3),:] = 'sandstone'
 rock[int(a//3)+1:int(2*a//3),:] = 'shale'
 rock[int(2*a//3)+1:a,:] = 'sandstone'
 
