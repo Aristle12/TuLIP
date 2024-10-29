@@ -191,7 +191,7 @@ for l in trange(0,len(t_steps)):
 
 
     tot_RCO2[l] = np.sum(RCO2)+np.sum(breakdown_CO2)
-    tot_RCO2_silli[l] = np.sum(RCO2_silli)#+np.sum(breakdown_CO2)
+    tot_RCO2_silli[l] = np.sum(RCO2_silli)+np.sum(breakdown_CO2)
 #print(tot_RCO2[tot_RCO2!=0])
 #plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
 #plt.colorbar()
