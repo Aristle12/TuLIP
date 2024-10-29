@@ -8,7 +8,7 @@ import h5py
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import pickle
-
+import seaborn as sns
 #Dimensions of the 2D grid
 x = 300000 #m - Horizontal extent of the crust
 y = 35000 #m - Vertical thickness of the crust
@@ -120,12 +120,15 @@ for i in range(a):
 labels = [key for key in lith_plot_dict]
 
 # Visualize the rock array
-plt.imshow(plot_rock, cmap='viridis')
+plt.imshow(plot_rock, cmap='viridis', extent = [0, x/1000, y/1000, 0])
+plt.ylabel('Depth (km)')
+plt.xlabel('Lateral extent (km)')
 cbar = plt.colorbar(ticks=list(lith_plot_dict.values()))
 cbar.set_ticklabels(list(labels))
 cbar.set_label('Rock Type')
 plt.title('Bedrock Composition')
-plt.show()
+plt.savefig('plots/bedrock_distribution.png', format = 'png')
+plt.close()
 
 #Setting up the remaining property arrays#
 porosity = np.zeros_like(rock)
@@ -172,8 +175,10 @@ while ((empl_heights>max_emplacement/dy).any() or (empl_heights<min_emplacement/
         empl_heights[empl_heights>max_emplacement/dy] = rool.randn_heights(np.sum(empl_heights>max_emplacement/dy), max_emplacement, min_emplacement, 5000, dy)
     if (empl_heights<min_emplacement/dy).any():
         empl_heights[empl_heights<min_emplacement/dy] = rool.randn_heights(np.sum(empl_heights<(min_emplacement/dy)), max_emplacement, min_emplacement, 5000, dy)
-plt.hist(empl_heights*dy)
-plt.show()
+sns.kdeplot(empl_heights*dy/1000, label = 'Depth distribution', color = 'red', linewidth = 1.75)
+plt.ylabel('Depth distribution (km)')
+plt.savefig('plots/Depth.png', format = 'png')
+plt.close()
 
 x_space = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
     
@@ -187,9 +192,16 @@ while ((x_space>0.66*x/dx).any() or (x_space<(x//(3*dx))).any()):
         x_space[x_space>0.66*x/dx] = rool.x_spacings(np.sum(x_space>0.66*x/dx), x//3, 2*x//3, x//6, dx)
     if (x_space<(x//(3*dx))).any():
         x_space[x_space<(x//(3*dx))] = rool.x_spacings(np.sum(x_space<(x//(3*dx))), x//3, 2*x//3, x//6, dx)
-plt.hist(x_space*dx)
-plt.show()
+#sns.kdeplot(x_space*dx)
+#plt.show()
 width, thickness = rool.randn_dims(min_thickness, max_thickness, 700, mar, sar, n_sills)
+sns.kdeplot(width, label = 'Width distribution', linewidth = 1.75)
+sns.kdeplot(thickness, label = 'Thickness Distribution', linewidth = 1.75, color = 'red')
+plt.xlim(left = 0)
+plt.xlabel('Length units (m)')
+plt.legend()
+plt.savefig('plots/WidthThickness.png', format = 'png')
+plt.close()
 
 ###Defining flux rate and setting time###
 flux = int(30e9) #m3/yr
@@ -251,10 +263,14 @@ for l in range(len(time_steps)):
             thickness = thickness[0:n_sills]
             break
 cum_volume = np.cumsum(cum_volume)
-plt.plot(plot_time, cum_volume)
+plt.plot(plot_time, cum_volume, color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
 lol = (np.array(empl_times)-thermal_maturation_time)*flux
-plt.plot(empl_times, lol)
-plt.show()
+plt.plot(empl_times, lol, color = 'black', linewidth = 1.75, label = 'Mean cumulative volume')
+plt.ylabel(r'Volume emplacemed ($km^3$)')
+plt.xlabel(r'Time (Ma)')
+plt.legend()
+plt.savefig('plots/VolumeTime.png', format = 'png')
+plt.close()
 
 #Building the third dimension#
 z_coords = rool.x_spacings(n_sills, x//3, 2*x//3, x//6, dx)
@@ -322,11 +338,11 @@ for l in trange(len(time_steps)):
     curr_TOC_silli = props_array[TOC_index]
     TOC = rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
     if l==0:
-        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt, dy)
+        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
         if (rock=='limestone').any():
             breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
     else:
-        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, dy, TOC, W_silli)
+        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
         if (rock=='limestone').any():    
             breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
     props_array[TOC_index] = curr_TOC_silli
@@ -344,19 +360,23 @@ for l in trange(len(time_steps)):
             curr_sill +=1
         else:
             break
+    dV = dx*dx*dy
+    RCO2_silli = RCO2_silli*density*dV/100
     tot_RCO2[l] = np.sum(RCO2_silli)
     if l>=saving_time_step_index:
         props_total_array[l-saving_time_step_index] = props_array
-    if l>=saving_time_step_index:
-        props_total_array[l-saving_time_step_index] = props_array
 try:
-    plt.plot(time_steps[1:], np.log10(tot_RCO2[1:]+1e-5))
+    plt.plot(time_steps[saving_time_step_index:]/1e6, np.log10(tot_RCO2[saving_time_step_index:]), linewidth = 1.75)
+    plt.ylabel(r'Carbon dioxide released ($log{_10} kg CO{_2}/yr$)')
 except RuntimeWarning:
     print("Warning: Divide by zero error encountered. Some values in tot_RCO2 are zero.")
-    plt.plot(time_steps[1:], tot_RCO2[1:])
+    plt.plot(time_steps[saving_time_step_index:]/1e6, tot_RCO2[saving_time_step_index:], linewidth = 1.75)
+    plt.ylabel(r'Carbon dioxide released (kg CO$_2$/yr)')
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
 #plt.plot(time_steps[1:], tot_RCO2[1:])
+plt.xlabel('Time (Ma)')
+
 plt.show()
 
 reverse_lith_dict = {value: key for key, value in lith_plot_dict.items()}
@@ -371,9 +391,9 @@ for l in range(shape_indices[0]):
 
 pickled_props = pickle.dumps(props_total_array)
 
-with h5py.File('PropertyEvolution.hdf5', 'w') as hf:
+with h5py.File('prop_dict.hdf5', 'w') as hf:
     hf.create_dataset('props_total_array', data=pickled_props, chunks = True, compression = 'gzip')
-with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
+with h5py.file('prop_dict', 'a') as hdf:
     group = hdf.require('prop_dict')
 
     for key, value in prop_dict.items():
@@ -384,7 +404,7 @@ with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
         else:
             group.create_dataset(key, data = value)
 
-with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
+with h5py.file('lith_dict.hdf5', 'a') as hdf:
     group = hdf.require('lith_dict')
 
     for key, value in reverse_lith_dict.items():
@@ -396,4 +416,5 @@ with h5py.file('PropertyEvolution.hdf5', 'a') as hdf:
             group.create_dataset(key, data = value)
 
 props_h5.create_dataset('RCO2', data = tot_RCO2)
+props_h5.create_dataset('time_steps', data = time_steps)
 

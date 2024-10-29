@@ -72,12 +72,20 @@ def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
                         curr_breakdown_CO2[i,j] = dolo_inter([T_field[i,j],pressure])
                     except ValueError:
                         curr_breakdown_CO2[i,j] = 0
-                        print('Warning: Limestone pressure out of bounds. Skipping')
+                        print(f'Warning: Limestone pressure out of bounds at {i} {j}. Skipping')
 
                 elif lithology[i,j] == 'evaporite':
-                    curr_breakdown_CO2[i,j] = evap_inter([T_field[i,j],pressure])
+                    try:
+                        curr_breakdown_CO2[i,j] = evap_inter([T_field[i,j],pressure])
+                    except ValueError:
+                        curr_breakdown_CO2[i,j] = 0
+                        print(f'Warning: Evaporite pressure out of bounds at {i} {j}. Skipping')
                 elif lithology[i,j]=='marl':
-                    curr_breakdown_CO2[i,j]== marl_inter([T_field[i,j],pressure])
+                    try:
+                        curr_breakdown_CO2[i,j]== marl_inter([T_field[i,j],pressure])
+                    except ValueError:
+                        curr_breakdown_CO2[i,j] = 0
+                        print(f'Warning: Marl pressure out of bounds at {i} {j}. Skipping')
     max_breakdown_co2 = np.maximum(breakdownCO2, curr_breakdown_CO2)
     try:
         for i in range(a):
@@ -115,7 +123,7 @@ def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np
     if np.isnan(W).all():
         W = np.ones((len(E),a, b))
         TOCo = TOC_prev
-    if np.isnan(TOCo).any():
+    if np.isnan(np.array(TOCo, dtype = float)).any():
         raise ValueError('TOCo cannot be NaN after the first time step')
     fl = np.zeros_like(W)
     for l in range(0, len(E)):
