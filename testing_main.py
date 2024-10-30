@@ -141,7 +141,8 @@ props_array[TOC_index] = TOC
 tot_RCO2 = np.zeros(len(t_steps))
 tot_RCO2_silli = np.zeros(len(t_steps))
 reaction_energies = emit.get_sillburp_reaction_energies()
-push = True
+push = False
+sill_emplaced = False
 for l in trange(0,len(t_steps)):
     curr_time = t_steps[l]
     #print('Current time:',curr_time, t_steps[l])
@@ -159,8 +160,15 @@ for l in trange(0,len(t_steps)):
         #    print('Carbon is over')
         #print(progress_of_reactions[(progress_of_reactions!=0) & (progress_of_reactions!=1)])
         RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions)
+    if sill_emplaced:
+        print(breakdown_CO2)
+        pd.DataFrame(RCO2_silli).to_csv('silli_emissions.csv')
+        pd.DataFrame(RCO2).to_csv('sillburp_emissions.csv')
+        sill_emplaced = False
     if curr_time==t_empl:
         print('Sill emplaced')
+        tot_RCO2[l] = np.sum(RCO2)#+np.sum(breakdown_CO2)
+        tot_RCO2_silli[l] = np.sum(RCO2_silli)#+np.sum(breakdown_CO2)
         #T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
         T_field, new_dike = rool.mult_sill(T_field,5000, 3000, y_coords*dy, x_coords*dx, dx, dy, push=push)
         if push == True:
@@ -172,12 +180,15 @@ for l in trange(0,len(t_steps)):
                         #if row_push_start[n]==0:
                         row_push_start[n] = m
                         break
+            density = rool.value_pusher2D(T_field, magma_prop_dict['Density'], row_push_start, columns_pushed)
+            porosity = rool.value_pusher2D(porosity, magma_prop_dict['Porosity'], row_push_start, columns_pushed)
+            rock = rool.value_pusher2D(rock, magma_prop_dict['Lithology'], row_push_start, columns_pushed)
             RCO2_silli = rool.value_pusher2D(RCO2_silli,0, row_push_start, columns_pushed)
             Rom_silli = rool.value_pusher2D(Rom_silli,0, row_push_start, columns_pushed)
             percRo_silli = rool.value_pusher2D(percRo_silli,0, row_push_start, columns_pushed)
             curr_TOC_silli = rool.value_pusher2D(curr_TOC_silli,0, row_push_start, columns_pushed)
             for huh in range(W_silli.shape[0]):
-                W_silli[huh] = rool.value_pusher2D(W_silli[huh],0, row_push_start, columns_pushed)
+                W_silli[huh] = rool.value_pusher2D(W_silli[huh],1, row_push_start, columns_pushed)
 
             RCO2 = rool.value_pusher2D(RCO2,0, row_push_start, columns_pushed)
             Rom = rool.value_pusher2D(Rom,0, row_push_start, columns_pushed)
@@ -187,11 +198,10 @@ for l in trange(0,len(t_steps)):
                 for bruh in range(progress_of_reactions.shape[1]):
                     progress_of_reactions[huh][bruh] = rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_push_start, columns_pushed)
                     progress_of_reactions[huh][bruh] = rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_push_start, columns_pushed)
-
-
-
-    tot_RCO2[l] = np.sum(RCO2)+np.sum(breakdown_CO2)
-    tot_RCO2_silli[l] = np.sum(RCO2_silli)+np.sum(breakdown_CO2)
+        sill_emplaced = True
+    if curr_time!=t_empl:
+        tot_RCO2[l] = np.sum(RCO2)#+np.sum(breakdown_CO2)
+        tot_RCO2_silli[l] = np.sum(RCO2_silli)#+np.sum(breakdown_CO2)
 #print(tot_RCO2[tot_RCO2!=0])
 #plt.imshow(np.sum(np.sum(progress_of_reactions, axis = 0), axis = 0))
 #plt.colorbar()

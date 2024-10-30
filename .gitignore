@@ -4,4 +4,4 @@ __pycache__
 sillcube.npy
 *.pyc
 plots/*
-carbon.csv
+*.csv

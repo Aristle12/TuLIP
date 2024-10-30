@@ -9,6 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import pickle
 import seaborn as sns
+import pandas as pd
 #Dimensions of the 2D grid
 x = 300000 #m - Horizontal extent of the crust
 y = 35000 #m - Vertical thickness of the crust
