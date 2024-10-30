@@ -264,7 +264,7 @@ for l in range(len(time_steps)):
             thickness = thickness[0:n_sills]
             break
 cum_volume = np.cumsum(cum_volume)
-plt.plot(plot_time, cum_volume, color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
+plt.plot(plot_time/int(1e6), cum_volume/int(1e9), color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
 lol = (np.array(empl_times)-thermal_maturation_time)*flux
 plt.plot(empl_times, lol, color = 'black', linewidth = 1.75, label = 'Mean cumulative volume')
 plt.ylabel(r'Volume emplacemed ($km^3$)')
