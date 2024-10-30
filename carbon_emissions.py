@@ -223,7 +223,7 @@ def get_sillburp_reaction_energies():
             E_0 = E_1
     return reaction_energies
 @jit(forceobj=True)
-def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan):
+def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan, weights = None):
     if np.isnan(TOCo).all():
         TOCo = TOC_prev
     
@@ -313,14 +313,25 @@ def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energ
     
     time_step_progress = progress_of_reactions - progress_of_reactions_old
     products_progress = np.zeros((n_reactions, a, b))
-    for i_reaction in range(0,n_reactions):
-        products_progress[i_reaction,:, :] = np.mean(progress_of_reactions[i_reaction,0:no_reactions[i_reaction],:,:], axis  = 0)
-    products_progress = np.mean(products_progress, axis=0)
-    time_step_summarized = np.mean(time_step_progress, axis=0)
-    time_step_summarized = np.mean(time_step_summarized, axis=0)
-    TOC = TOCo * (1-products_progress) * calc_parser
-    dTOC = (TOC_prev - TOC)/dt
-    Rom = (1 - porosity) * density * dTOC
-    RCO2 = Rom * 3.67
+    if weights is None:
+        for i_reaction in range(0,n_reactions):
+            products_progress[i_reaction,:, :] = np.mean(progress_of_reactions[i_reaction,0:no_reactions[i_reaction],:,:], axis  = 0)
+        products_progress = np.mean(products_progress, axis=0)
+        #time_step_summarized = np.mean(time_step_progress, axis=0)
+        #time_step_summarized = np.mean(time_step_summarized, axis=0)
+        TOC = TOCo * (1-products_progress) * calc_parser
+        dTOC = (TOC_prev - TOC)/dt
+        Rom = (1 - porosity) * density * dTOC
+        RCO2 = Rom * 3.67
+    else:
+        if weights.shape!=products_progress.shape:
+            raise IndexError(f'Shape of weights must be {products_progress.shape}')
+        for i_reaction in range(0,n_reactions):
+            products_progress[i_reaction,:,:] = np.mean(progress_of_reactions[i_reaction,0:no_reactions[i_reaction],:,:], axis = 0)
+        products_progress = np.average(products_progress, axis=0, weights = weights)
+        TOC = TOCo * (1-products_progress) * calc_parser
+        dTOC = (TOC_prev - TOC)/dt
+        Rom = (1 - porosity) * density * dTOC
+        RCO2 = Rom * 3.67
     
     return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC, rate_of_reactions

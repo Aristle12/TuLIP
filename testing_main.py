@@ -143,6 +143,8 @@ tot_RCO2_silli = np.zeros(len(t_steps))
 reaction_energies = emit.get_sillburp_reaction_energies()
 push = False
 sill_emplaced = False
+
+sillburp_weights = np.ones((4,a,b))*0.25
 for l in trange(0,len(t_steps)):
     curr_time = t_steps[l]
     #print('Current time:',curr_time, t_steps[l])
@@ -151,7 +153,7 @@ for l in trange(0,len(t_steps)):
     if l==0:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
 
-        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies)
+        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
         breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
     else:
         RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
@@ -159,7 +161,7 @@ for l in trange(0,len(t_steps)):
         #if (progress_of_reactions>=1).all():
         #    print('Carbon is over')
         #print(progress_of_reactions[(progress_of_reactions!=0) & (progress_of_reactions!=1)])
-        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions)
+        RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
     if sill_emplaced:
         print(breakdown_CO2)
         pd.DataFrame(RCO2_silli).to_csv('silli_emissions.csv')
