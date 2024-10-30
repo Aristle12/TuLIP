@@ -5,3 +5,4 @@ sillcube.npy
 *.pyc
 plots/*
 *.csv
+carbon.csv
