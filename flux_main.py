@@ -58,7 +58,7 @@ lith_plot_dict = {'granite':0,
 Temp_index = prop_dict['Temperature']
 rock_index = prop_dict['Lithology']
 poros_index = prop_dict['Porosity']
-dense_index = prop_dict['Porosity']
+dense_index = prop_dict['Density']
 TOC_index = prop_dict['TOC']
 
 magma_prop_dict = {'Temperature': T_mag,
