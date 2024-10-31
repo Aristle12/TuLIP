@@ -58,7 +58,7 @@ lith_plot_dict = {'granite':0,
 Temp_index = prop_dict['Temperature']
 rock_index = prop_dict['Lithology']
 poros_index = prop_dict['Porosity']
-dense_index = prop_dict['Porosity']
+dense_index = prop_dict['Density']
 TOC_index = prop_dict['TOC']
 
 magma_prop_dict = {'Temperature': T_mag,
@@ -124,7 +124,7 @@ labels = [key for key in lith_plot_dict]
 plt.imshow(plot_rock, cmap='viridis', extent = [0, x/1000, y/1000, 0])
 plt.ylabel('Depth (km)')
 plt.xlabel('Lateral extent (km)')
-cbar = plt.colorbar(ticks=list(lith_plot_dict.values()), orientation = 'horizontal')
+cbar = plt.colorbar(ticks=list(lith_plot_dict.values()))
 cbar.set_ticklabels(list(labels))
 cbar.set_label('Rock Type')
 plt.title('Bedrock Composition')
@@ -264,7 +264,7 @@ for l in range(len(time_steps)):
             thickness = thickness[0:n_sills]
             break
 cum_volume = np.cumsum(cum_volume)
-plt.plot(plot_time/int(1e6), cum_volume/int(1e9), color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
+plt.plot(plot_time, cum_volume, color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
 lol = (np.array(empl_times)-thermal_maturation_time)*flux
 plt.plot(empl_times, lol, color = 'black', linewidth = 1.75, label = 'Mean cumulative volume')
 plt.ylabel(r'Volume emplacemed ($km^3$)')
@@ -368,7 +368,7 @@ for l in trange(len(time_steps)):
         props_total_array[l-saving_time_step_index] = props_array
 try:
     plt.plot(time_steps[saving_time_step_index:]/1e6, np.log10(tot_RCO2[saving_time_step_index:]), linewidth = 1.75)
-    plt.ylabel(r'Carbon dioxide released ($log_{10} kg CO_{2}/yr$)')
+    plt.ylabel(r'Carbon dioxide released ($log{_10} kg CO{_2}/yr$)')
 except RuntimeWarning:
     print("Warning: Divide by zero error encountered. Some values in tot_RCO2 are zero.")
     plt.plot(time_steps[saving_time_step_index:]/1e6, tot_RCO2[saving_time_step_index:], linewidth = 1.75)
@@ -389,7 +389,7 @@ for l in range(shape_indices[0]):
 
 #props_h5.create_dataset('props_array', data = props_total_array)
 
-'''
+
 pickled_props = pickle.dumps(props_total_array)
 
 with h5py.File('prop_dict.hdf5', 'w') as hf:
@@ -415,9 +415,7 @@ with h5py.file('lith_dict.hdf5', 'a') as hdf:
                 sub_group.create_dataset(sub_key, data=sub_value)
         else:
             group.create_dataset(key, data = value)
-'''
 
-#props_h5.create_dataset('props_array', data = props_total_array)
 props_h5.create_dataset('RCO2', data = tot_RCO2)
 props_h5.create_dataset('time_steps', data = time_steps)
 
