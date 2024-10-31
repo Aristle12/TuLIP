@@ -90,14 +90,16 @@ class sill_controls:
                 density[i,j] = rock_prop_dict[rock[i,j]]['Density']
                 TOC[i,j] = rock_prop_dict[rock[i,j]]['TOC']
         return porosity, density, TOC
-    
-    def build_sillcube(x, y, dx, dy, dt, thickness_range, aspect_ratio, depth_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
-        if depth_function is None:
-            depth_function = rool.randn_heights
-        if lat_function is None:
-            lat_function = rool.x_spacings
-        if dims_function is None:
-            dims_function = rool.randn_dims
+    def func_assigner(func, *args, **kwargs):
+        result = func(*args,**kwargs)
+        # If the result is a tuple or list, enumerate it
+        if isinstance(result, (tuple, list)):
+            enumerated_result = list(enumerate(result))
+            return enumerated_result
+        # If the result is a single value, return it as is
+        return result
+    def build_sillcube(self, x, y, dx, dy, dt, thickness_range, aspect_ratio, depth_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+        dims_empirical = False
         min_thickness = thickness_range[0] #m
         max_thickness = thickness_range[1] #m
         sd_min = thickness_range[2]
@@ -112,8 +114,44 @@ class sill_controls:
         x_max = lat_range[1]
         sd_x = lat_range[2]
 
-        empl_heights = depth_function(n_sills, max_emplacement, min_emplacement, sd_empl, dy)
+        if depth_function==None or depth_function=='normal':
+            depth_function = rool.randn_heights
+            depth_input_params = (n_sills, max_emplacement, min_emplacement, sd_empl, dy)
+        elif depth_function == 'uniform':
+            depth_function = rool.uniform_heights
+            depth_input_params = (n_sills, min_emplacement, max_emplacement, dy)
+        elif depth_function=='empirical':
+            depth_function = rool.empirical_CDF
+            depth_input_params = (n_sills, depth_range[0], depth_range[1])
 
+        empl_heights = self.func_assigner(depth_function, depth_input_params)
+        
+        if lat_function==None or lat_function=='normal':
+            lat_function = rool.x_spacings
+            lat_input_params = (n_sills, x_min, x_max, sd_x, dx)
+        elif lat_function=='uniform':
+            lat_function = rool.uniform_x
+            lat_input_params = (n_sills, x_min, x_max, dx)
+        elif lat_function == 'empirical':
+            lat_function = rool.empirical_CDF
+            lat_input_params = (n_sills, lat_range[0], lat_range[1])
+        
+        if dims_function==None or dims_function== 'normal':
+            dims_function = rool.randn_dims
+            dims_input_params = (min_thickness, max_thickness, sd_min, mar, sar, n_sills)
+        elif dims_function == 'uniform':
+            dims_function = rool.uniform_dims
+            dims_input_params = (min_thickness, max_thickness, aspect_ratio[0], aspect_ratio[1], n_sills)
+        elif dims_function == 'scaled':
+            dims_function = rool.get_scaled_dims
+            dims_input_params = (min_thickness, max_thickness, mar, sar, empl_heights, n_sills)
+        elif dims_function == 'empirical':
+            dims_empirical = True
+            dims_function = rool.empirical_CDF
+            dims_input_params = (n_sills, aspect_ratio[0], aspect_ratio[1])
+        
+
+        '''
         #Checking to see if there are any assignments outside the distribution#
         n = 0
         while ((empl_heights>max_emplacement/dy).any() or (empl_heights<min_emplacement/dy).any()):
@@ -125,11 +163,13 @@ class sill_controls:
                 empl_heights[empl_heights>max_emplacement/dy] = depth_function(np.sum(empl_heights>max_emplacement/dy), max_emplacement, min_emplacement, sd_empl, dy)
             if (empl_heights<min_emplacement/dy).any():
                 empl_heights[empl_heights<min_emplacement/dy] = depth_function(np.sum(empl_heights<(min_emplacement/dy)), max_emplacement, min_emplacement, sd_empl, dy)
+        '''
         sns.kdeplot(empl_heights*dy/1000, label = 'Depth distribution', color = 'red', linewidth = 1.75)
         plt.ylabel('Depth distribution (km)')
         plt.savefig('plots/Depth.png', format = 'png')
         plt.close()
-        x_space = lat_function(n_sills, x_min, x_max, sd_x, dx)
+        x_space = self.func_assigner(lat_function, lat_input_params)
+        '''
         n = 0
         while ((x_space>x_max/dx).any() or (x_space<(x_min/dx)).any()):
             print((len(x_space[x_space>x_max/dx])+len(x_space[x_space<(x_min/dx)]))*100/n_sills, '%')
@@ -140,7 +180,14 @@ class sill_controls:
                 x_space[x_space>x_max/dx] = lat_function(np.sum(x_space>x_max/dx), x_min, x_max, sd_x, dx)
             if (x_space<(x//(3*dx))).any():
                 x_space[x_space<(x_min/dx)] = lat_function(np.sum(x_space<(x_min/dx)), x_min, x_max, sd_x, dx)
-        width, thickness = dims_function(min_thickness, max_thickness, sd_min, mar, sar, n_sills)
+        '''
+        width, thickness = self.func_assigner(dims_function, dims_input_params) if not dims_empirical else (None, None)
+        if width==None:
+            aspect_ratios = self.func_assigner(dims_function, dims_input_params)
+            thickness = self.func_assigner(dims_function, (thickness_range[0], thickness_range[1], n_sills))
+            width = thickness*aspect_ratios
+
+        
         sns.kdeplot(width, label = 'Width distribution', linewidth = 1.75)
         sns.kdeplot(thickness, label = 'Thickness Distribution', linewidth = 1.75, color = 'red')
         plt.xlim(left = 0)
@@ -340,4 +387,4 @@ class sill_controls:
                 tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
         return tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
 
-        
+     ##Start time iteration for sill emplacement and carbon calculation (if carbon calculation is on)   

@@ -118,7 +118,7 @@ def empirical_CDF(n_sills, xarray, cdf):
     return why
     
 
-def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills, dx, dy):
+def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills):
     """
     Linearly scaled with height (inversely) plus noise for both aspect ratio and shape
     Returns the width and height respectively in the number of nodes
@@ -233,8 +233,6 @@ def index_finder(array, string):
 def mult_sill(T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
     a,b = T_field.shape
     new_dike = np.zeros_like(T_field)
-    height = height//dy
-    x_space= x_space//dx
     majr = majr//dx
     minr = minr//dy
     if not push:
