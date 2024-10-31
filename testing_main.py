@@ -144,7 +144,8 @@ reaction_energies = emit.get_sillburp_reaction_energies()
 push = False
 sill_emplaced = False
 
-sillburp_weights = np.ones((4,a,b))*0.25
+sillburp_weights = np.ones((4,a,b))/3
+sillburp_weights[3] = np.zeros((a,b))
 for l in trange(0,len(t_steps)):
     curr_time = t_steps[l]
     #print('Current time:',curr_time, t_steps[l])
@@ -172,7 +173,7 @@ for l in trange(0,len(t_steps)):
         tot_RCO2[l] = np.sum(RCO2)#+np.sum(breakdown_CO2)
         tot_RCO2_silli[l] = np.sum(RCO2_silli)#+np.sum(breakdown_CO2)
         #T_field = rool.single_sill(T_field,x_coords,y_coords, 5000//dx, 3000//dy, T_bot)
-        T_field, new_dike = rool.mult_sill(T_field,5000, 3000, y_coords*dy, x_coords*dx, dx, dy, push=push)
+        T_field, new_dike = rool.mult_sill(T_field,5000, 3000, y_coords, x_coords, dx, dy, push=push)
         if push == True:
             columns_pushed = np.sum(new_dike, axis =0, dtype=int)
             row_push_start = np.zeros(b, dtype = int)
