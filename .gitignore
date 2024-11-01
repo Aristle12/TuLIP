@@ -6,3 +6,4 @@ sillcube.npy
 plots/*
 *.csv
 carbon.csv
+*.ipynb
