@@ -1,6 +1,6 @@
 import numpy as np
-from numba import jit
-from tqdm import trange
+from numba import jit, int32, float64, boolean, void, types, experimental
+from tqdm import trange, tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.sparse as sc
@@ -13,13 +13,15 @@ class cool:
     def __init__(self):
         pass
     ###Functions to cool magma bodies###
-    def shift_array(self, arr, n):
+    @staticmethod
+    def shift_array(arr, n):
         if n >= 0:
             return np.concatenate((arr[-n:], arr[:-n]))
         else:
             return np.concatenate((arr[-n:], arr[:-n]))
 
-    def is_nan(self, q):
+    @staticmethod
+    def is_nan(q):
         r = 0
         for i in range(0, len(q)):
             if np.isnan(q[i]):
@@ -30,8 +32,9 @@ class cool:
         else:
             return False
 
+    @staticmethod
     @jit
-    def avg_perm(self, k):
+    def avg_perm(k):
         ##Function to return the averaged permeabilities required for heat diffusion in an anisotropic medium
         kiph = k
         kimh = k
@@ -50,10 +53,11 @@ class cool:
 
         return kiph, kimh, kjph, kjmh
 
-    def cheat_solver(self, Tf, a):
+    @staticmethod
+    def cheat_solver(Tf, a):
         """
         Matrix taking too much time to solve?
-        Here is a cheat solver for linear gradients. Can't promise it will be the same as the regular equilibrium solve, but it should be accurate
+        Here is a cheat solver for linear gradients. Can't promise it will be the same as the regular equilibrium solve, but it should be approximately accurate
         """
         T_top = Tf[0,0]
         grad = (Tf[-1,0]-Tf[0,0])/a
@@ -338,7 +342,7 @@ class cool:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
 
-    @jit
+    @jit(forceobj = True)
     def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
         Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
@@ -1482,7 +1486,7 @@ class sill_controls:
         '''
         sns.kdeplot(empl_heights*dy/1000, label = 'Depth distribution', color = 'red', linewidth = 1.75)
         plt.ylabel('Depth distribution (km)')
-        plt.savefig('plots/Depth.png', format = 'png')
+        plt.savefig('plots/Depth.png', format = 'png', bbox_inches = 'tight')
         plt.close()
         x_space = self.func_assigner(lat_function, *lat_input_params)
         '''
@@ -1509,7 +1513,7 @@ class sill_controls:
         plt.xlim(left = 0)
         plt.xlabel('Length units (m)')
         plt.legend()
-        plt.savefig('plots/WidthThickness.png', format = 'png')
+        plt.savefig('plots/WidthThickness.png', format = 'png', bbox_inches = 'tight')
         plt.close()
         
         thermal_maturation_time = phase_times[0]
@@ -1570,13 +1574,13 @@ class sill_controls:
                     thickness = thickness[0:n_sills]
                     break
         cum_volume = np.cumsum(cum_volume)
-        plt.plot(plot_time, cum_volume, color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
+        plt.plot(plot_time, cum_volume/int(1e9), color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
         lol = (np.array(empl_times)-thermal_maturation_time)*flux
-        plt.plot(empl_times, lol, color = 'black', linewidth = 1.75, label = 'Mean cumulative volume')
+        plt.plot(empl_times, lol/int(1e9), color = 'black', linewidth = 1.75, label = 'Mean cumulative volume')
         plt.ylabel(r'Volume emplacemed ($km^3$)')
         plt.xlabel(r'Time (Ma)')
         plt.legend()
-        plt.savefig('plots/VolumeTime.png', format = 'png')
+        plt.savefig('plots/VolumeTime.png', format = 'png', bbox_inches = 'tight')
         plt.close()
 
         z_coords = lat_function(n_sills, x_min, x_max, sd_x, dx)
@@ -1585,45 +1589,56 @@ class sill_controls:
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
         return sillcube, n_sills, params
     
-    def get_silli_initial_thermogenic_state(self, props_array, dx, dy, dt, method, k=None, time = None, lith_plot_dict = None, rock_prop_dict = None):
-        if (lith_plot_dict==None).all():
-            lith_plot_dict = self.lith_plot_dict
-        if (rock_prop_dict==None).all():
-            rock_prop_dict = self.rock_prop_dict
+    def get_silli_initial_thermogenic_state(self, props_array, dx, dy, dt, method, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        print(rock_prop_dict)
+        try:
+            if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
+                lith_plot_dict = self.lith_plot_dict
+            if not rock_prop_dict or all(value is None for value in rock_prop_dict.values()):
+                rock_prop_dict = self.rock_prop_dict
+        except AttributeError:
+            pass
         density = props_array[self.dense_index]
         porosity = props_array[self.poros_index]
         rock = props_array[self.rock_index]
+        T_field = props_array[self.Temp_index]
         t = 0
         a, b = props_array[0].shape
         H = np.zeros((a,b))
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
-        if (k == None).all():
+        if np.isnan(k).all():
             k = self.rool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
-        if (time==None).all():
+        if np.isnan(time):
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
             RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
+            breakdown_CO2 = np.zeros_like(T_field)
             if (rock=='limestone').any():
                 breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
             props_array[self.TOC_index] = curr_TOC_silli
             diff = 1e6
             iter = 0
-            thresh = 1e-5
+            thresh = 1e-3
             t+=dt
             tot_RCO2 = []
             tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
             iter_thresh = int(1e7//dt)
-            while iter<iter_thresh and diff>thresh:
-                curr_TOC_silli = props_array[self.TOC_index]
-                RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
-                if (rock=='limestone').any():    
-                    breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
-                props_array[self.TOC_index] = curr_TOC_silli
-                tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
-                if iter>0:
-                    diff = tot_RCO2[-2]-tot_RCO2[-1]
-                iter+=1
+            current_time = 0
+            with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
+                while iter<iter_thresh and diff>thresh:
+                    curr_TOC_silli = props_array[self.TOC_index]
+                    RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
+                    if (rock=='limestone').any():    
+                        breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
+                    props_array[self.TOC_index] = curr_TOC_silli
+                    tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
+                    if iter>0:
+                        diff = tot_RCO2[-2]-tot_RCO2[-1]
+                    iter+=1
+                    current_time += dt
+                    pbar.update(1)
+                    pbar.set_postfix({"Change": diff})
         else:
             t_steps = np.linspace(0, time, dt)
             tot_RCO2 = []
@@ -1642,48 +1657,63 @@ class sill_controls:
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                 props_array[self.TOC_index] = curr_TOC_silli
                 tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
-        return tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
+        props_array[self.Temp_index] = T_field
+        props_array[self.dense_index] = density
+        props_array[self.rock_index] = rock
+        props_array[self.poros_index] = porosity
+        return current_time, tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
 
-    def get_sillburp_initial_thermogenic_state(self, props_array, dx, dy, dt, method, sillburp_weights = None, k=None, time = None, lith_plot_dict = None, rock_prop_dict = None):
-        if (lith_plot_dict==None).all():
-            lith_plot_dict = self.lith_plot_dict
-        if (rock_prop_dict==None).all():
-            rock_prop_dict = self.rock_prop_dict
+    def get_sillburp_initial_thermogenic_state(self, props_array, dx, dy, dt, method, sillburp_weights = None, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        try:
+            if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
+                lith_plot_dict = self.lith_plot_dict
+            if not rock_prop_dict or all(value is None for value in rock_prop_dict.values()):
+                rock_prop_dict = self.rock_prop_dict
+        except AttributeError:
+            pass
         density = props_array[self.dense_index]
         porosity = props_array[self.poros_index]
         rock = props_array[self.rock_index]
+        T_field = props_array[self.Temp_index]
         t = 0
         a, b = props_array[0].shape
         H = np.zeros((a,b))
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
-        if (k == None).all():
+        if np.isnan(k).all():
             k = self.rool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
-        if (time==None).all():
+        if np.isnan(time):
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
             props_array[self.Temp_index] = T_field
             curr_TOC = props_array[self.TOC_index]
             reaction_energies = emit.get_sillburp_reaction_energies()
             RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
+            breakdown_CO2 = np.zeros_like(T_field)
             if (rock=='limestone').any():
                 breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
             props_array[self.TOC_index] = curr_TOC_silli
             diff = 1e6
             iter = 0
-            thresh = 1e-5
+            thresh = 1e-3
             t+=dt
             tot_RCO2 = []
             iter_thresh = int(1e7//dt)
             tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
-            while iter<iter_thresh and diff>thresh:
-                curr_TOC = props_array[self.TOC_index]
-                RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
-                if (rock=='limestone').any():    
-                    breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
-                props_array[self.TOC_index] = curr_TOC_silli
-                tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
-                if iter>0:
-                    diff = tot_RCO2[-2]-tot_RCO2[-1]
-                iter+=1
+            current_time = 0
+            with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
+                while iter<iter_thresh and diff>thresh:
+                    curr_TOC = props_array[self.TOC_index]
+                    RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
+                    if (rock=='limestone').any():    
+                        breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
+                    props_array[self.TOC_index] = curr_TOC_silli
+                    tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
+                    if iter>0:
+                        diff = tot_RCO2[-2]-tot_RCO2[-1]
+                    iter+=1
+                    current_time += dt
+
+                    pbar.update(1)
+                    pbar.set_postfix({"Change": diff})
         else:
             t_steps = np.linspace(0, time, dt)
             tot_RCO2 = []
@@ -1702,10 +1732,11 @@ class sill_controls:
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                 props_array[self.TOC_index] = curr_TOC_silli
                 tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
-        return tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
+        return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
 
     def emplace_sills(self,props_array, k, dx, dy, dt, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model=None, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
-        shape_index = [len(time_steps[time_steps.index(current_time):])]+list(props_array.shape)
+        saving_time_step_index = np.where(time_steps==current_time)[0]
+        shape_index = [len(time_steps[saving_time_step_index])]+list(props_array.shape)
         props_total_array = np.empty(shape_index, dtype = object)
         if lith_plot_dict==None:
             lith_plot_dict = self.lith_plot_dict
@@ -1732,7 +1763,7 @@ class sill_controls:
             raise ValueError(f'model is {model}, but must be either silli or sillburp')
         empl_times, empl_heights, x_space, width, thickness = emplacement_params
         curr_sill = 0
-        for l in range(time_steps.index(current_time), len(time_steps)):
+        for l in trange(time_steps.index(current_time), len(time_steps)):
             curr_time = time_steps[l]
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, cool_method, H)
             curr_TOC_silli = props_array[self.TOC_index]
@@ -1821,6 +1852,27 @@ class sill_controls:
         rock[0:int(5000/dy),:] = 'shale'
         rock[int((5000/dy)+1):int(15000/dy),:] = 'sandstone'
         rock[int((30000/dy)+1):,:] = 'peridotite'
+
+        plot_rock = np.zeros((a,b), dtype = int)
+
+        for i in range(a):
+            for j in range(b):
+                plot_rock[i,j] = self.lith_plot_dict[rock[i,j]]
+
+
+        labels = [key for key in self.lith_plot_dict]
+
+        # Visualize the rock array
+        plt.imshow(plot_rock, cmap='viridis', extent = [0, x/1000, y/1000, 0])
+        plt.ylabel('Depth (km)')
+        plt.xlabel('Lateral extent (km)')
+        cbar = plt.colorbar(ticks=list(self.lith_plot_dict.values()), orientation = 'horizontal')
+        cbar.set_ticklabels(list(labels))
+        cbar.set_label('Rock Type')
+        plt.title('Bedrock Composition')
+        plt.savefig('plots/bedrock_distribution.png', format = 'png')
+        plt.close()
+
         #Setting up the remaining property arrays#
         porosity = np.zeros_like(rock)
         density = np.zeros_like(rock)
@@ -1851,7 +1903,7 @@ class sill_controls:
         max_emplacement = 15500 #m
         n_sills = 20000
 
-        tot_volume = int(0.5e6*1e9)
+        tot_volume = int(0.05e6*1e9)
         flux = int(30e9)
 
         thermal_mat_time = 3e6
@@ -1862,9 +1914,11 @@ class sill_controls:
         time_steps = np.arange(0, np.sum(phase_times), dt)
 
         sillcube, n_sills, emplacement_params = self.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume, flux, n_sills)
-        carbon_model_params = self.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k)
-        props_total_array, carbon_model_params = self.emplace_sills(props_array, k, dx, dy, dt, n_sills, x//2, 'conv smooth', 'silli', time_steps, emplacement_params[0], carbon_model_params, emplacement_params)
-
+        print('sillcube built')
+        current_time, carbon_model_params = self.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k)
+        print('Got initial emissions state')
+        props_total_array, carbon_model_params = self.emplace_sills(props_array, k, dx, dy, dt, n_sills, x//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'silli')
+        print('Model Run complete')
         tot_RCO2 = carbon_model_params[0]
         plt.plot(time_steps, tot_RCO2)
-        plt.show()
+        plt.savefig('plots/CarbonEmisisons.png', format = 'png')
