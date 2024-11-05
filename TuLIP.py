@@ -1727,7 +1727,7 @@ class sill_controls:
                     pbar.update(1)
                     pbar.set_postfix({"Change": diff})
         else:
-            t_steps = np.linspace(0, time, dt)
+            t_steps = np.arange(0, time, dt)
             tot_RCO2 = []
             for l in trange(0, len(t_steps)):
                 T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
