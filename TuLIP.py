@@ -796,6 +796,7 @@ class emit:
             RCO2 = Rom * 3.67
         else:
             if weights.shape!=products_progress.shape:
+                print(weights)
                 raise IndexError(f'Shape of weights must be {products_progress.shape}')
             for i_reaction in range(0,n_reactions):
                 products_progress[i_reaction,:,:] = np.mean(progress_of_reactions[i_reaction,0:no_reactions[i_reaction],:,:], axis = 0)
