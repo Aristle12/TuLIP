@@ -29,7 +29,7 @@ shape = 'elli'
 #Initializing the temp field
 T_field = np.zeros((a,b))
 T_field[-1,:] = T_mag
-T_field = TuLIP.cool.heat_flux(k, a, b, dx, dy, T_field, 'straight')
+T_field = sc.cool.heat_flux(k, a, b, dx, dy, T_field, 'straight')
 rock = np.empty((a,b), dtype = object)
 rock[:] = 'granite'
 rock[0:int(5000/dy),:] = 'shale'
@@ -49,7 +49,7 @@ labels = [key for key in sc.lith_plot_dict]
 plt.imshow(plot_rock, cmap='viridis', extent = [0, x/1000, y/1000, 0])
 plt.ylabel('Depth (km)')
 plt.xlabel('Lateral extent (km)')
-cbar = plt.colorbar(ticks=list(self.lith_plot_dict.values()), orientation = 'horizontal')
+cbar = plt.colorbar(ticks=list(sc.lith_plot_dict.values()), orientation = 'horizontal')
 cbar.set_ticklabels(list(labels))
 cbar.set_label('Rock Type')
 plt.title('Bedrock Composition')
