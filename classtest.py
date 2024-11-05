@@ -86,10 +86,10 @@ min_emplacement = 1000 #m
 max_emplacement = 15500 #m
 n_sills = 20000
 
-tot_volume = int(0.5e6*1e9)
+tot_volume = int(0.03e6*1e9)
 flux = int(30e9)
 
-thermal_mat_time = int(3e6)
+thermal_mat_time = int(3e4)
 model_time = tot_volume/flux
 cooling_time = int(1e4)
 
