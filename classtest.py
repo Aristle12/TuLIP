@@ -99,7 +99,8 @@ print(f'Length of time_steps:{len(time_steps)}')
 
 sillcube, n_sills, emplacement_params = sc.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume, flux, n_sills)
 print('sillcube built')
-params = sc.get_sillburp_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
+#params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
+params = sc.get_sillburp_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', None, k)
 current_time = params[0]
 print(f'Current time before function: {current_time}')
 carbon_model_params = params[1:]
