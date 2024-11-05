@@ -1619,16 +1619,21 @@ class sill_controls:
             thresh = 1e-3
             t+=dt
             tot_RCO2 = []
+            dV = dx*dx*dy
             tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
             iter_thresh = int(1e7//dt)
             current_time = 0
             with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
                 while iter<iter_thresh and diff>thresh:
+                    T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
+                    props_array[self.Temp_index] = T_field
                     curr_TOC_silli = props_array[self.TOC_index]
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                     props_array[self.TOC_index] = curr_TOC_silli
+                    RCO2_silli = RCO2_silli*density*dV/100
+                    breakdown_CO2 = breakdown_CO2*density*dV/100
                     tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
                     if iter>0:
                         diff = tot_RCO2[-2]-tot_RCO2[-1]
@@ -1639,12 +1644,13 @@ class sill_controls:
         else:
             t_steps = np.arange(0, time, dt)
             tot_RCO2 = []
+            dV = dx*dx*dy
             for l in trange(0, len(t_steps)):
                 T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
                 props_array[self.Temp_index] = T_field
                 curr_TOC_silli = props_array[self.TOC_index]
-                TOC = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
                 if l==0:
+                    #TOC = props_array[self.TOC_index]
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
                     if (rock=='limestone').any():
                         breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
@@ -1653,12 +1659,15 @@ class sill_controls:
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                 props_array[self.TOC_index] = curr_TOC_silli
+                RCO2_silli = RCO2_silli*density*dV/100
+                breakdown_CO2 = breakdown_CO2*density*dV/100
                 tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
                 current_time = t_steps[l]
         props_array[self.Temp_index] = T_field
         props_array[self.dense_index] = density
         props_array[self.rock_index] = rock
         props_array[self.poros_index] = porosity
+        props_array[self.TOC_index]
         return current_time, tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
 
     def get_sillburp_initial_thermogenic_state(self, props_array, dx, dy, dt, method, sillburp_weights = None, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
@@ -1686,6 +1695,7 @@ class sill_controls:
             curr_TOC = props_array[self.TOC_index]
             reaction_energies = emit.get_sillburp_reaction_energies()
             RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
+            breakdown_CO2 = np.zeros_like(T_field)
             if (rock=='limestone').any():
                 breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
             props_array[self.TOC_index] = curr_TOC_silli
@@ -1695,6 +1705,8 @@ class sill_controls:
             t+=dt
             tot_RCO2 = []
             iter_thresh = int(1e7//dt)
+            RCO2 = RCO2*density*dV/100
+            breakdown_CO2 = breakdown_CO2*density*dV/100 if (rock=='limestone').any() else np.zeros_like(T_field)
             tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
             current_time = 0
             with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
@@ -1704,6 +1716,8 @@ class sill_controls:
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                     props_array[self.TOC_index] = curr_TOC_silli
+                    RCO2 = RCO2*density*dV/100
+                    breakdown_CO2 = breakdown_CO2*density*dV/100
                     tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
                     if iter>0:
                         diff = tot_RCO2[-2]-tot_RCO2[-1]
@@ -1729,6 +1743,8 @@ class sill_controls:
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                 props_array[self.TOC_index] = curr_TOC_silli
+                RCO2 = RCO2*density*dV/100
+                breakdown_CO2 = breakdown_CO2*density*dV/100
                 tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
                 current_time = t_steps[l]
         props_array[self.Temp_index] = T_field
@@ -1911,10 +1927,10 @@ class sill_controls:
         max_emplacement = 15500 #m
         n_sills = 20000
 
-        tot_volume = int(0.03e6*1e9)
+        tot_volume = int(0.5e6*1e9)
         flux = int(30e9)
 
-        thermal_mat_time = int(3e4)
+        thermal_mat_time = int(3e6)
         model_time = tot_volume/flux
         cooling_time = int(1e4)
 
@@ -1932,5 +1948,5 @@ class sill_controls:
         props_total_array, carbon_model_params = self.emplace_sills(props_array, k, dx, dy, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'silli')
         print('Model Run complete')
         tot_RCO2 = carbon_model_params[0]
-        plt.plot(time_steps, tot_RCO2)
+        plt.plot(time_steps[np.where(time_steps==current_time)[0][0],:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0],:]))
         plt.savefig('plots/CarbonEmisisons.png', format = 'png')
