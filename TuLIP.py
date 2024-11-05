@@ -1687,13 +1687,13 @@ class sill_controls:
         a, b = props_array[0].shape
         H = np.zeros((a,b))
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
+        reaction_energies = emit.get_sillburp_reaction_energies()
         if np.isnan(k).all():
             k = self.rool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
         if np.isnan(time):
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
             props_array[self.Temp_index] = T_field
             curr_TOC = props_array[self.TOC_index]
-            reaction_energies = emit.get_sillburp_reaction_energies()
             RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
             breakdown_CO2 = np.zeros_like(T_field)
             if (rock=='limestone').any():
