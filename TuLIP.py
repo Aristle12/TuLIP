@@ -695,6 +695,7 @@ class emit:
     @staticmethod
     @jit(forceobj=True)
     def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan, weights = None):
+        TOCo = np.array(TOCo, dtype=float)
         if np.isnan(TOCo).all():
             TOCo = TOC_prev
         
@@ -1327,6 +1328,7 @@ class rules:
 
 class sill_controls:
     def __init__(self):
+
         self.cool = cool()
         self.rool = rules() 
         ###Setting up the properties dictionary to translate properties to indices for 3D array###
@@ -1684,6 +1686,7 @@ class sill_controls:
         rock = props_array[self.rock_index]
         T_field = props_array[self.Temp_index]
         breakdown_CO2 = np.zeros_like(T_field)
+        dV = dx*dx*dy
         t = 0
         a, b = props_array[0].shape
         H = np.zeros((a,b))
@@ -1696,10 +1699,9 @@ class sill_controls:
             props_array[self.Temp_index] = T_field
             curr_TOC = props_array[self.TOC_index]
             RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
-            breakdown_CO2 = np.zeros_like(T_field)
             if (rock=='limestone').any():
                 breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
-            props_array[self.TOC_index] = curr_TOC_silli
+            props_array[self.TOC_index] = curr_TOC
             diff = 1e6
             iter = 0
             thresh = 1e-3
@@ -1752,7 +1754,7 @@ class sill_controls:
         props_array[self.dense_index] = density
         props_array[self.rock_index] = rock
         props_array[self.poros_index] = porosity
-        return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
+        return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
     def emplace_sills(self,props_array, k, dx, dy, dt, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model=None, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         saving_time_step_index = np.where(time_steps==current_time)[0][0]
