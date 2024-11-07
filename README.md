@@ -1,4 +1,4 @@
-# Project Name
+# TuLIP
 
 Thermally understanding Large Igneous Provinces (TuLIP)
 
