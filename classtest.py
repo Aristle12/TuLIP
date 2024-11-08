@@ -100,7 +100,7 @@ print(f'Length of time_steps:{len(time_steps)}')
 sillcube, n_sills, emplacement_params = sc.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume, flux, n_sills)
 print('sillcube built')
 #params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
-params = sc.get_sillburp_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', None, k, time = thermal_mat_time)
+params = sc.get_sillburp_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k= k, time = thermal_mat_time)
 current_time = params[0]
 print(f'Current time before function: {current_time}')
 carbon_model_params = params[1:]
@@ -108,6 +108,6 @@ print('Got initial emissions state')
 props_total_array, carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'sillburp')
 print('Model Run complete')
 tot_RCO2 = carbon_model_params[0]
-plt.plot(time_steps[np.where(time_steps==current_time)[0]:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0]:]))
+plt.plot(time_steps[np.where(time_steps==current_time)[0][0]:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0]:]))
 plt.savefig('plots/CarbonEmisisons.png', format = 'png')
 

@@ -693,15 +693,15 @@ class emit:
                 E_0 = E_1
         return reaction_energies
     @staticmethod
-    @jit(forceobj=True)
-    def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=np.nan, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan, weights = None):
-        TOCo = np.array(TOCo, dtype=float)
-        if np.isnan(TOCo).all():
+    @jit(forceobj = True)
+    def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=None, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan, weights = None):
+        #TOCo = np.array(TOCo, dtype=float)
+
+        if TOCo is None:
             TOCo = TOC_prev
         
         a, b = T_field.shape
         calc_parser = (lithology == 'shale') | (lithology == 'sandstone')
-        sqrt_2pi = np.sqrt(2 * np.pi)
         n_reactions = 4
         reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
         OIL = reactants.index('OIL')
@@ -745,11 +745,10 @@ class emit:
             progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
             progress_of_reactions_old = np.zeros_like(progress_of_reactions)
             rate_of_reactions = np.zeros_like(progress_of_reactions)
-            oil_production_rate = np.zeros((a,b))
-        
+            #oil_production_rate = np.zeros((a,b))
         else:
             progress_of_reactions_old = progress_of_reactions.copy()
-        S_over_k = np.zeros((a,b))
+        #S_over_k = np.zeros((a,b))
         
         do_labile_reaction = progress_of_reactions[reactants.index('LABILE'), :, :, :] < 1
         do_refractory_reaction = progress_of_reactions[reactants.index('REFRACTORY'), :, :, :] < 1
@@ -772,18 +771,16 @@ class emit:
                             progress_of_reactions[i_reaction, i_approx, i, j] = min((1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt)), 1)
                             rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) / dt
                         else:
-                            S_over_k[i,j] = 0.0 if reaction_rate == 0 else oil_production_rate[i,j] / reaction_rate / no_reactions[OIL]
-                            progress_of_reactions[i_reaction, i_approx, i, j] = min(1.0 - S_over_k[i,j] - (1.0 - initial_product_conc - S_over_k[i,j]) * np.exp(-reaction_rate * dt), 1)
-                            rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc - S_over_k[i,j]) * (1.0 - np.exp(-reaction_rate * dt)) / dt
+                            S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / no_reactions[OIL]
+                            progress_of_reactions[i_reaction, i_approx, i, j] = min(1.0 - S_over_k - (1.0 - initial_product_conc - S_over_k) * np.exp(-reaction_rate * dt), 1)
+                            rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc - S_over_k) * (1.0 - np.exp(-reaction_rate * dt)) / dt
                         
                         if i_reaction == reactants.index('LABILE'):
                             if i_approx == 0:
-                                oil_production_rate[i,j] = 0.0
+                                oil_production_rate = 0.0
                             oil_production_rate += -reaction_rate * (1.0 - progress_of_reactions[i_reaction, i_approx, i, j]) / no_reactions[reactants.index('LABILE')]
                             if i_approx == no_reactions[reactants.index('LABILE')] - 1:
-                                oil_production_rate[i,j] *= (1.0 - mass_frac_labile_to_gas)
-        
-        time_step_progress = progress_of_reactions - progress_of_reactions_old
+                                oil_production_rate *= (1.0 - mass_frac_labile_to_gas)
         products_progress = np.zeros((n_reactions, a, b))
         if weights is None:
             for i_reaction in range(0,n_reactions):
@@ -1681,10 +1678,10 @@ class sill_controls:
                 rock_prop_dict = self.rock_prop_dict
         except AttributeError:
             pass
-        density = props_array[self.dense_index]
-        porosity = props_array[self.poros_index]
+        density = np.array(props_array[self.dense_index], dtype = float)
+        porosity = np.array(props_array[self.poros_index], dtype = float)
         rock = props_array[self.rock_index]
-        T_field = props_array[self.Temp_index]
+        T_field = np.array(props_array[self.Temp_index], dtype = float)
         breakdown_CO2 = np.zeros_like(T_field)
         dV = dx*dx*dy
         t = 0
@@ -1714,7 +1711,7 @@ class sill_controls:
             current_time = 0
             with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
                 while iter<iter_thresh and diff>thresh:
-                    curr_TOC = props_array[self.TOC_index]
+                    curr_TOC = np.array(props_array[self.TOC_index], dtpye = float)
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
@@ -1730,19 +1727,24 @@ class sill_controls:
                     pbar.update(1)
                     pbar.set_postfix({"Change": diff})
         else:
+            print('Entered  else loop')
             t_steps = np.arange(0, time, dt)
             tot_RCO2 = []
             for l in trange(0, len(t_steps)):
                 T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
                 props_array[self.Temp_index] = T_field
-                curr_TOC_silli = props_array[self.TOC_index]
-                TOC = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
+                curr_TOC_silli = np.array(props_array[self.TOC_index], dtype = float)
+                TOC = np.array(self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC'), dtype = float)
                 if l==0:
+                    print('First time step')
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
+                    print('Carbon burped')
                     if (rock=='limestone').any():
                         breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
                 else:
+                    print('Other steps')
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
+                    print('Carbon burped')
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                 props_array[self.TOC_index] = curr_TOC_silli
@@ -1951,5 +1953,5 @@ class sill_controls:
         props_total_array, carbon_model_params = self.emplace_sills(props_array, k, dx, dy, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'silli')
         print('Model Run complete')
         tot_RCO2 = carbon_model_params[0]
-        plt.plot(time_steps[np.where(time_steps==current_time)[0][0],:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0],:]))
+        plt.plot(time_steps[np.where(time_steps==current_time)[0][0]:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0]:]))
         plt.savefig('plots/CarbonEmisisons.png', format = 'png')
