@@ -1,4 +1,4 @@
-# Project Name
+# TuLIP
 
 Thermally understanding Large Igneous Provinces (TuLIP)
 
@@ -111,3 +111,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Your Name - [@yourusername](https://github.com/yourusername) - your.email@example.com
 
 Project Link: [https://github.com/Aristle12/TuLIP.git](https://github.com/Aristle12/TuLIP.git)
+
+
+<a href="https://www.freepik.com/icons/tulip-flower">Icon by Stockio</a>
