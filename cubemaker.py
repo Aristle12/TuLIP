@@ -1,8 +1,10 @@
-import TuLIP
-import numpy as np
 import matplotlib.pyplot as plt
-# Import the sill_controls class from the TuLIP module
-sc = TuLIP.sill_controls()
+import numpy as np
+from TuLIP import sill_controls
+import pandas as pd
+from tqdm import trange
+
+sc = sill_controls()
 
 #Dimensions of the 2D grid
 x = 300000 #m - Horizontal extent of the crust
@@ -22,6 +24,7 @@ T_mag = 1000 #deg C
 
 #Initializing diffusivity field
 k = np.ones((a,b))*31.536 #m2/yr
+
 dt = (min(dx,dy)**2)/(5*np.max(k))
 #Shape of the sills
 shape = 'elli'
@@ -76,8 +79,8 @@ props_array[sc.dense_index] = density
 props_array[sc.TOC_index] = TOC
 
 ###Setting up sill dimensions and locations###
-min_thickness = 900 #m
-max_thickness = 3500 #m
+min_thickness = 300 #m
+max_thickness = 1500 #m
 
 mar = 7
 sar = 2.5
@@ -86,28 +89,31 @@ min_emplacement = 1000 #m
 max_emplacement = 15500 #m
 n_sills = 20000
 
-tot_volume = int(0.03e6*1e9)
+tot_volume_start = int(0.01e6*1e9)
+tot_volume_end = int(0.5e6*1e9)
+tot_volume = np.arange(tot_volume_start, tot_volume_end, int(0.05e6*1e9))
 flux = int(30e9)
 
-thermal_mat_time = int(3e4)
+thermal_mat_time = int(3e6)
 model_time = tot_volume/flux
-cooling_time = int(1e4)
+cooling_time = int(1e6)
 
-phase_times = [thermal_mat_time, model_time, cooling_time]
-time_steps = np.arange(0, np.sum(phase_times), dt)
-print(f'Length of time_steps:{len(time_steps)}')
+n_sills_array = []
 
-sillcube, n_sills, emplacement_params = sc.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume, flux, n_sills)
-print('sillcube built')
-#params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
-params = sc.get_sillburp_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k= k, time = thermal_mat_time)
-current_time = params[0]
-print(f'Current time before function: {current_time}')
-carbon_model_params = params[1:]
-print('Got initial emissions state')
-props_total_array, carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'sillburp')
-print('Model Run complete')
-tot_RCO2 = carbon_model_params[0]
-plt.plot(time_steps[np.where(time_steps==current_time)[0][0]:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0]:]))
-plt.savefig('plots/CarbonEmisisons.png', format = 'png')
 
+for l in range(len(tot_volume)):
+    print(f'Building cube for {tot_volume[l]}')
+    phase_times = np.array([thermal_mat_time, model_time[l], cooling_time])
+    print(phase_times)
+    time_steps = np.arange(0, np.sum(phase_times), dt)
+    print(f'Length of time_steps:{len(time_steps)}')
+
+    sillcube, n_sills, emplacement_params = sc.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume[l], flux, n_sills)
+    print('sillcube built')
+
+    n_sills_array.append(n_sills)
+
+    np.save('sillcubes/sillcube'+str(np.round(tot_volume[l], 2)), sillcube)
+
+
+pd.DataFrame(n_sills_array).to_csv('sillcubes/n_sills.csv')

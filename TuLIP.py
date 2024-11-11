@@ -1519,7 +1519,7 @@ class sill_controls:
         total_empl_time = tot_volume/flux
         cooling_time = phase_times[1]
         model_time = total_empl_time+thermal_maturation_time+cooling_time
-        time_steps = np.arange(model_time,step=dt)
+        time_steps = np.arange(0, model_time,dt)
         saving_time_step_index = np.min(np.where(time_steps>=thermal_maturation_time)[0])
         print(saving_time_step_index, time_steps[saving_time_step_index])
         empl_times = []
