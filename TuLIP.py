@@ -311,7 +311,7 @@ class cool:
                 Tret[-1,:] = Tret[-2,:]+ (q*dy/k[-1,:])
             return Tret
 
-    @jit
+    @jit(forceobj = True)
     def conv_chain_solve(k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
         Solver for the heat diffusion equation (expanded via the chain rule) based on convolution method - faster when inhomogenous time varying permeability is used
@@ -1711,11 +1711,11 @@ class sill_controls:
             current_time = 0
             with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
                 while iter<iter_thresh and diff>thresh:
-                    curr_TOC = np.array(props_array[self.TOC_index], dtpye = float)
+                    curr_TOC = np.array(props_array[self.TOC_index], dtype = float)
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
-                    props_array[self.TOC_index] = curr_TOC_silli
+                    props_array[self.TOC_index] = curr_TOC
                     RCO2 = RCO2*density*dV/100
                     breakdown_CO2 = breakdown_CO2*density*dV/100
                     tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
