@@ -89,7 +89,7 @@ min_emplacement = 1000 #m
 max_emplacement = 15500 #m
 n_sills = 20000
 
-tot_volume_start = int(0.01e6*1e9)
+tot_volume_start = int(0.05e6*1e9)
 tot_volume_end = int(0.5e6*1e9)
 tot_volume = np.arange(tot_volume_start, tot_volume_end, int(0.05e6*1e9))
 flux = int(30e9)
