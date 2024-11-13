@@ -8,3 +8,4 @@ plots/*
 carbon.csv
 *.ipynb
 sillcubes /*
+*.npy

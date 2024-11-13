@@ -108,10 +108,10 @@ for l in range(len(tot_volume)):
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
 
-    sillcube, n_sills, emplacement_params = sc.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume[l], flux, n_sills)
+    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume[l], flux, n_sills)
     print('sillcube built')
 
-    n_sills_array.append(n_sills)
+    n_sills_array.append(n_sills1)
 
     np.save('sillcubes/sillcube'+str(np.round(tot_volume[l], 2)), sillcube)
 
