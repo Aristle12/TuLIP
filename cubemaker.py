@@ -3,15 +3,28 @@ import numpy as np
 from TuLIP import sill_controls
 import pandas as pd
 from tqdm import trange
+import pdb
+from numba import jit
+import pyvista as pv
 
+#@jit
+def int_maker(sillcube):
+    for i in trange(sillcube.shape[0]):
+        for j in range(sillcube.shape[1]):
+            for g in range(sillcube.shape[2]):
+                if sillcube[i,j,g] != 0:
+                    ele = str(sillcube[i,j,g])
+                    sillcube[i,j,g] = ele[1:3] if 's' not in ele[1:3] else ele[1]
+    return sillcube
 sc = sill_controls()
 
 #Dimensions of the 2D grid
 x = 300000 #m - Horizontal extent of the crust
-y = 35000 #m - Vertical thickness of the crust
+y = 8000 #m - Vertical thickness of the crust
+z = 30000 #m - Third dimension for cube
 
-dx = 250 #m node spacing in x-direction
-dy = 250 #m node spacing in y-direction
+dx = 50 #m node spacing in x-direction
+dy = 50 #m node spacing in y-direction
 
 a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
@@ -29,6 +42,7 @@ dt = (min(dx,dy)**2)/(5*np.max(k))
 #Shape of the sills
 shape = 'elli'
 
+'''
 #Initializing the temp field
 T_field = np.zeros((a,b))
 T_field[-1,:] = T_mag
@@ -77,28 +91,31 @@ props_array[sc.rock_index] = rock
 props_array[sc.poros_index] = porosity
 props_array[sc.dense_index] = density
 props_array[sc.TOC_index] = TOC
-
+'''
 ###Setting up sill dimensions and locations###
-min_thickness = 300 #m
-max_thickness = 1500 #m
+min_thickness = 100 #m
+max_thickness = 600 #m
 
-mar = 7
-sar = 2.5
+mar = 19.23
+sar = 9.74
 
-min_emplacement = 1000 #m
-max_emplacement = 15500 #m
+min_emplacement = 500 #m
+max_emplacement = 4000 #m
 n_sills = 20000
 
-tot_volume_start = int(0.05e6*1e9)
-tot_volume_end = int(0.5e6*1e9)
-tot_volume = np.arange(tot_volume_start, tot_volume_end, int(0.05e6*1e9))
-flux = int(30e9)
+volume = x*y*z
+
+tot_volume_start = 0.05*volume
+tot_volume_end = 0.2*volume
+tot_volume = np.arange(tot_volume_start, tot_volume_end, 0.05*volume)
+flux = int(3e9)
 
 thermal_mat_time = int(3e6)
 model_time = tot_volume/flux
 cooling_time = int(1e6)
 
 n_sills_array = []
+z_range = [0, z, z//3]
 
 
 for l in range(len(tot_volume)):
@@ -108,12 +125,23 @@ for l in range(len(tot_volume)):
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
 
-    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume[l], flux, n_sills)
+    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, z, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, [x//3, 2*x//3, x//6], phase_times, tot_volume[l], flux, n_sills)
     print('sillcube built')
-
+    #pdb.set_trace()
     n_sills_array.append(n_sills1)
 
     np.save('sillcubes/sillcube'+str(np.round(tot_volume[l], 2)), sillcube)
+    print('Done Here')
+    mask = sillcube!=0
+    sillcube[sillcube==''] = 0
+    sillcube = int_maker(sillcube)
+    sillcube = sillcube.astype(int)
+    #pdb.set_trace()
+    grid = pv.ImageData()
+    grid.dimensions = sillcube.shape
+    grid.point_data["sillcube"] = sillcube.flatten(order="F")
+    grid.save('sillcubes/sillcube'+str(tot_volume[l])+'.vtk')
+    emplace_frame = pd.DataFrame(np.transpose(emplacement_params), columns=['empl_times', 'empl_heights', 'x_space', 'width', 'thickness'])
+    emplace_frame.to_csv('sillcubes/emplacement_params'+str(tot_volume[l])+'.csv')
 
-
-pd.DataFrame(n_sills_array).to_csv('sillcubes/n_sills.csv')
+pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volume}).to_csv('sillcubes/n_sills.csv')

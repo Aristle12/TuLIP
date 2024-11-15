@@ -1,11 +1,11 @@
 *.hdf5
 .vscode
 __pycache__
-sillcube.npy
 *.pyc
 plots/*
 *.csv
 carbon.csv
 *.ipynb
-sillcubes /*
+sillcubes/*
 *.npy
+sillcubes/sillcube3600000000000.0.vtk

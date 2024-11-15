@@ -8,6 +8,7 @@ import pypardiso as ps
 from scipy.special import erf, erfinv
 from scipy.io import loadmat
 from scipy.interpolate import RegularGridInterpolator
+import pdb
 
 class cool:
     def __init__(self):
@@ -1221,6 +1222,7 @@ class rules:
                 sillcube[mask] += '_' + str(l) + 's' + str(empl_times[l])
                 if dike_tail:
                     sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
+                #pdb.set_trace()
 
         elif shape == 'rect':
             for l in trange(n_sills):
@@ -1418,7 +1420,7 @@ class sill_controls:
         #    return enumerated_result
         # If the result is a single value, return it as is
         return result
-    def build_sillcube(self, x, y, dx, dy, dt, thickness_range, aspect_ratio, depth_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+    def build_sillcube(self, x, y, z, dx, dy, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
         dims_empirical = False
         min_thickness = thickness_range[0] #m
         max_thickness = thickness_range[1] #m
@@ -1433,6 +1435,10 @@ class sill_controls:
         x_min = lat_range[0]
         x_max = lat_range[1]
         sd_x = lat_range[2]
+
+        z_min = z_range[0]
+        z_max = z_range[1]
+        sd_z = z_range[2]
 
         if depth_function==None or depth_function=='normal':
             depth_function = self.rool.randn_heights
@@ -1581,8 +1587,8 @@ class sill_controls:
         plt.savefig('plots/VolumeTime.png', format = 'png', bbox_inches = 'tight')
         plt.close()
 
-        z_coords = lat_function(n_sills, x_min, x_max, sd_x, dx)
-        sillcube = self.rool.sill_3Dcube(x,y,x,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
+        z_coords = lat_function(n_sills, z_min, z_max, sd_z, dx)
+        sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
 
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
         return sillcube, n_sills, params

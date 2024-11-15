@@ -8,8 +8,8 @@ sc = TuLIP.sill_controls()
 x = 300000 #m - Horizontal extent of the crust
 y = 35000 #m - Vertical thickness of the crust
 
-dx = 250 #m node spacing in x-direction
-dy = 250 #m node spacing in y-direction
+dx = 50 #m node spacing in x-direction
+dy = 50 #m node spacing in y-direction
 
 a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
@@ -79,11 +79,11 @@ props_array[sc.TOC_index] = TOC
 min_thickness = 900 #m
 max_thickness = 3500 #m
 
-mar = 7
-sar = 2.5
+mar = 19.23
+sar = 9.74
 
-min_emplacement = 1000 #m
-max_emplacement = 15500 #m
+min_emplacement = 500 #m
+max_emplacement = 4000 #m
 n_sills = 20000
 
 tot_volume = int(0.5e6*1e9)
