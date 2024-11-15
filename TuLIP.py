@@ -1424,21 +1424,25 @@ class sill_controls:
         dims_empirical = False
         min_thickness = thickness_range[0] #m
         max_thickness = thickness_range[1] #m
-        sd_min = thickness_range[2]
+        if len(thickness_range)>2:
+            sd_min = thickness_range[2]
         mar = aspect_ratio[0]
         sar = aspect_ratio[1]
 
         min_emplacement = depth_range[0] #m
         max_emplacement = depth_range[1] #m
-        sd_empl = depth_range[2]
+        if len(depth_range)>2:
+            sd_empl = depth_range[2]
 
         x_min = lat_range[0]
         x_max = lat_range[1]
-        sd_x = lat_range[2]
+        if len(lat_range)>2:
+            sd_x = lat_range[2]
 
         z_min = z_range[0]
         z_max = z_range[1]
-        sd_z = z_range[2]
+        if len(z_range)>2:
+            sd_z = z_range[2]
 
         if depth_function==None or depth_function=='normal':
             depth_function = self.rool.randn_heights
@@ -1455,12 +1459,15 @@ class sill_controls:
         if lat_function==None or lat_function=='normal':
             lat_function = self.rool.x_spacings
             lat_input_params = (n_sills, x_min, x_max, sd_x, dx)
+            z_params = (n_sills, z_min, z_max, sd_z, dx)
         elif lat_function=='uniform':
             lat_function = self.rool.uniform_x
             lat_input_params = (n_sills, x_min, x_max, dx)
+            z_params = (n_sills, z_min, z_max, dx)
         elif lat_function == 'empirical':
             lat_function = self.rool.empirical_CDF
             lat_input_params = (n_sills, lat_range[0], lat_range[1])
+            z_params = (n_sills, z_range[0], z_range[1])
         
         if dims_function==None or dims_function== 'normal':
             dims_function = self.rool.randn_dims
@@ -1587,7 +1594,7 @@ class sill_controls:
         plt.savefig('plots/VolumeTime.png', format = 'png', bbox_inches = 'tight')
         plt.close()
 
-        z_coords = lat_function(n_sills, z_min, z_max, sd_z, dx)
+        z_coords = self.func_assigner(lat_function, z_params)
         sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
 
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
