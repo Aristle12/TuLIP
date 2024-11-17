@@ -34,7 +34,7 @@ shape = 'elli'
 #Initializing the temp field
 T_field = np.zeros((a,b))
 #T_field[-1,:] = T_mag
-q = np.ones(b)*k[0,0]*((T_field[-1,0]-T_field[0,0])/y)
+q = k[-1,:]*(30/1000)
 T_field = sc.cool.heat_flux(k, a, b, dx, dy, T_field, 'straight', q)
 
 plt.imshow(T_field)

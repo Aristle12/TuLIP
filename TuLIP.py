@@ -1601,11 +1601,15 @@ class sill_controls:
         return sillcube, n_sills, params
     
     def get_silli_initial_thermogenic_state(self, props_array, dx, dy, dt, method, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
-        try:
-            if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
-                lith_plot_dict = self.lith_plot_dict
-        except AttributeError:
-            pass
+
+        if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
+            lith_plot_dict = self.lith_plot_dict
+        
+        if not rock_prop_dict or all(value is None for value in rock_prop_dict.values()):
+            rock_prop_dict = self.rock_prop_dict
+        
+
+
         density = props_array[self.dense_index]
         porosity = props_array[self.poros_index]
         rock = props_array[self.rock_index]
