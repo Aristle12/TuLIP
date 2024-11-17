@@ -85,7 +85,9 @@ props_array[sc.poros_index] = porosity
 props_array[sc.dense_index] = density
 props_array[sc.TOC_index] = TOC
 
-params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k)
+thermal_mat_time = int(3e6)
+
+params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
 
 current_time = params[0]
 csv = pd.read_csv('sillcubes/n_sills.csv')
