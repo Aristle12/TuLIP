@@ -1604,8 +1604,6 @@ class sill_controls:
         try:
             if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
                 lith_plot_dict = self.lith_plot_dict
-            if not rock_prop_dict or all(value is None for value in rock_prop_dict.values()):
-                rock_prop_dict = self.rock_prop_dict
         except AttributeError:
             pass
         density = props_array[self.dense_index]
