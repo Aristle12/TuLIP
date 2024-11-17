@@ -2,7 +2,7 @@ from TuLIP import sill_controls
 import numpy as np
 import pyvista as pv
 import matplotlib.pyplot as plt
-
+import pandas as pd
 sc = sill_controls()
 
 #Dimensions of the 2D grid
@@ -87,5 +87,9 @@ props_array[sc.TOC_index] = TOC
 
 params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k)
 
-data = pv.StructuredGrid(params)
+current_time = params[0]
+csv = pd.read_csv('sillcubes/n_sills.csv')
+csv['curr_time'] = current_time
+csv.to_csv('sillcubes/n_sills.csv')
+data = pv.StructuredGrid(np.array(params[1:], dtype = float))
 data.save('sillcubes/initial_silli_state.vtk')
