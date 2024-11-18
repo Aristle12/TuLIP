@@ -6,15 +6,18 @@ import pandas as pd
 sc = sill_controls()
 
 #Dimensions of the 2D grid
-x = 300000 #m - Horizontal extent of the crust
+x = 300000/20 #m - Horizontal extent of the crust
 y = 8000 #m - Vertical thickness of the crust
 z = 30000 #m - Third dimension for cube
+
+ecks = x*20
 
 dx = 50 #m node spacing in x-direction
 dy = 50 #m node spacing in y-direction
 
 a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
+bee = int(ecks//dx)
 
 #Temp at the surface
 T_surf = 0 #deg C
@@ -89,9 +92,16 @@ thermal_mat_time = int(3e6)
 
 params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
 
+tiled_props_array = np.empty((len((sc.prop_dict.keys())),a,bee), dtype = object)
+for i in range(tiled_props_array.shape[0]):
+    tiled_props_array[i] = np.tile(props_array[i],(1,20))
+
 current_time = params[0]
 csv = pd.read_csv('sillcubes/n_sills.csv')
 csv['curr_time'] = current_time
 csv.to_csv('sillcubes/n_sills.csv')
+tiled_params = np.empty((params[1:].shape[0],a,bee))
+for i in range(params[1:].shape[0]):
+    tiled_params[i] = np.tile(params[i+1],(1,20))
 data = pv.StructuredGrid(np.array(params[1:], dtype = float))
 data.save('sillcubes/initial_silli_state.vtk')
