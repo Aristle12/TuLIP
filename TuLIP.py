@@ -1773,7 +1773,8 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, dt, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model=None, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, k, dx, dy, dt, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+        print(q)
         saving_time_step_index = np.where(time_steps==current_time)[0][0]
         print(f'Current time: {current_time}')
         print(f'saving_time_step_index: {saving_time_step_index}')
@@ -1809,7 +1810,7 @@ class sill_controls:
         dV = dx*dx*dy
         for l in trange(saving_time_step_index, len(time_steps)):
             curr_time = time_steps[l]
-            T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, cool_method, H)
+            T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             curr_TOC_silli = props_array[self.TOC_index]
             TOC = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
             if model=='silli':

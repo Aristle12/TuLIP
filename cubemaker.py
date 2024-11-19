@@ -106,8 +106,8 @@ n_sills = 20000
 volume = x*y*z
 
 tot_volume_start = 0.05*volume
-tot_volume_end = 0.2*volume
-tot_volume = np.arange(tot_volume_start, tot_volume_end, 0.05*volume)
+tot_volume_end = 0.21*volume
+tot_volume = np.arange(tot_volume_start, tot_volume_end, 0.03*volume)
 flux = int(3e9)
 
 thermal_mat_time = int(3e6)
@@ -119,7 +119,7 @@ z_range = [0, z, z//3]
 
 
 for l in range(len(tot_volume)):
-    print(f'Building cube for {tot_volume[l]}')
+    print(f'Building cube for {tot_volume[l]}: Cube {l} of {len(tot_volume)}')
     phase_times = np.array([thermal_mat_time, model_time[l], cooling_time])
     print(phase_times)
     time_steps = np.arange(0, np.sum(phase_times), dt)

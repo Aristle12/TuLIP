@@ -93,8 +93,12 @@ thermal_mat_time = int(3e6)
 params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
 
 tiled_props_array = np.empty((len((sc.prop_dict.keys())),a,bee), dtype = object)
-for i in range(tiled_props_array.shape[0]):
-    tiled_props_array[i] = np.tile(props_array[i],(1,300))
+
+tiled_props_array[sc.Temp_index] = np.tile(props_array[sc.Temp_index],(1,300))
+tiled_props_array[sc.rock_index] = np.tile(props_array[sc.rock_index],(1,300))
+tiled_props_array[sc.poros_index] = np.tile(props_array[sc.poros_index],(1,300))
+tiled_props_array[sc.dense_index] = np.tile(props_array[sc.dense_index],(1,300))
+tiled_props_array[sc.TOC_index] = np.tile(props_array[sc.TOC_index],(1,300))
 
 current_time = params[0]
 csv = pd.read_csv('sillcubes/n_sills.csv')
@@ -104,6 +108,7 @@ tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_si
 ace = np.array([RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli])
 tiled_params = np.empty((ace.shape[0],a,bee))
 tiled_props_array[sc.TOC_index] = np.tile(curr_TOC_silli,(1,300))
+tot_RCO2 = tot_RCO2*300
 for i in range(ace.shape[0]):
     tiled_params[i] = np.tile(ace[i],(1,300))
 tiled_W = np.empty((W_silli.shape[0],a,bee))
@@ -129,3 +134,8 @@ props_array_vtk = pv.ImageData()
 props_array_vtk.dimensions = tiled_props_array.shape
 props_array_vtk.point_data['data'] = tiled_props_array.flatten(order = 'F')
 props_array_vtk.save('sillcubes/initial_silli_state_properties.vtk')
+
+tot_vtk = pv.ImageData()
+tot_vtk.data['data'] = tot_RCO2
+tot_vtk.dimensions = tot_RCO2.shape
+tot_vtk.save('sillcubes/tot_RCO2.vtk')
