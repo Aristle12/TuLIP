@@ -9,6 +9,8 @@ from scipy.special import erf, erfinv
 from scipy.io import loadmat
 from scipy.interpolate import RegularGridInterpolator
 import pdb
+import pyvista as pv
+import os
 
 class cool:
     def __init__(self):
@@ -332,7 +334,7 @@ class cool:
         for i in range(1,a-1):
             for j in range(1,b-1):
                 Tnow[i,j] =  (-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt+(H[i,j]*dt))+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]
-        for i in range(1,a-2):
+        for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
         Tnow[0,:] = T_surf
@@ -363,7 +365,7 @@ class cool:
         for i in range(1,a-1):
             for j in range(1,b-1):
                 Tnow[i,j] =  (-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2)))+(H[i,j]*dt))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]
-        for i in range(1,a-2):
+        for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
         Tnow[0,:] = T_surf
@@ -1773,8 +1775,7 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, dt, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
-        print(q)
+    def emplace_sills(self,props_array, k, dx, dy, dt, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, volume_params, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         saving_time_step_index = np.where(time_steps==current_time)[0][0]
         print(f'Current time: {current_time}')
         print(f'saving_time_step_index: {saving_time_step_index}')
@@ -1808,6 +1809,14 @@ class sill_controls:
         empl_times, empl_heights, x_space, width, thickness = emplacement_params
         curr_sill = 0
         dV = dx*dx*dy
+
+        flux = volume_params[0]
+        tot_volume = volume_params[1]
+        props_array_vtk = pv.ImageData(dimensions = [props_array.shape[1], props_array.shape[2],1])
+        dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))
+
+        os.makedirs(dir, exist_ok = True)
+
         for l in trange(saving_time_step_index, len(time_steps)):
             curr_time = time_steps[l]
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
@@ -1829,6 +1838,7 @@ class sill_controls:
             while time_steps[l]==empl_times[curr_sill] and curr_sill<n_sills:
                 #print(f'Now emplacing sill {curr_sill}')
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[curr_sill])
+
                 if model=='silli':
                     if (col_pushed!=0).all():
                         RCO2_silli = self.rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
@@ -1852,7 +1862,13 @@ class sill_controls:
                     curr_sill +=1
                 else:
                     break
-                dV = dx*dx*dy
+            props_array_vtk.point_data['Temperature'] = props_array[self.Temp_index].flatten()
+            props_array_vtk.point_data['Density'] = props_array[self.dense_index].flatten()
+            props_array_vtk.point_data['Porosity'] = props_array[self.poros_index].flatten()
+            props_array_vtk.point_data['TOC'] = props_array[self.TOC_index].flatten()
+            props_array_vtk.point_data['Lithology'] = props_array[self.rock_index].flatten()
+            props_array_vtk.save(dir+'/'+'Properties_'+str(l)+'.vtk')
+
             props_total_array[l-saving_time_step_index] = props_array
         if model=='silli':
             carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli

@@ -36,7 +36,7 @@ shape = 'elli'
 
 #Initializing the temp field
 T_field = np.zeros((a,b))
-#T_field[-1,:] = T_mag
+#T_field[-1,:] = T_magpre
 q = k[-1,:]*(30/1000)
 T_field = sc.cool.heat_flux(k, a, b, dx, dy, T_field, 'straight', q)
 
@@ -120,22 +120,19 @@ data = pv.ImageData()
 data.dimensions = tiled_params.shape
 data.spacing = (1.0, 1.0, 1.0)  # Adjust spacing as needed
 # Assign the tiled parameters to the point data
-data.point_data['data'] = np.array(tiled_params, dtype=float).flatten(order="F")
+data.point_data['data'] = np.array(tiled_params, dtype=float).flatten()
 # Print the point data to verify
 print(data.point_data['data'])
 data.save('sillcubes/initial_silli_state_carbon.vtk')
 
 W_data = pv.ImageData()
-W_data.dimensions = W_silli.shape
-W_data.point_data['data'] = W_silli.flatten(order = 'F')
+W_data.dimensions = tiled_W.shape
+W_data.point_data['data'] = tiled_W.flatten()
 W_data.save('sillcubes/W_data.vtk')
 
 props_array_vtk = pv.ImageData()
 props_array_vtk.dimensions = tiled_props_array.shape
-props_array_vtk.point_data['data'] = tiled_props_array.flatten(order = 'F')
+props_array_vtk.point_data['data'] = tiled_props_array.flatten()
 props_array_vtk.save('sillcubes/initial_silli_state_properties.vtk')
 
-tot_vtk = pv.ImageData()
-tot_vtk.data['data'] = tot_RCO2
-tot_vtk.dimensions = tot_RCO2.shape
-tot_vtk.save('sillcubes/tot_RCO2.vtk')
+pd.DataFrame(tot_RCO2).to_csv('sillcubes/tot_RCO2.csv')
