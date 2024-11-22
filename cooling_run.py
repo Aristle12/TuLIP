@@ -67,6 +67,10 @@ x_space = emplacement_params['x_space']
 width = emplacement_params['width']
 thickness = emplacement_params['thickness']
 
+for gee in range(len(empl_times)):
+    ab = str(empl_times[gee])
+    empl_times[gee] = float(ab[:-1])
+
 emplacement_params = [empl_times, empl_heights, x_space, width, thickness]
 #RCO2_vtk = pv.read('sillcubes/RCO2.vtk')
 tot_RCO2 = list(pd.read_csv('sillcubes/tot_RCO2.csv'))
@@ -76,6 +80,12 @@ end_time = np.array(empl_times)[-1]+(50*dt)
 print(f'End time is {end_time}')
 time_steps = np.arange(current_time,end_time,dt)
 volume_params = [flux, volumes]
+
+switch = False
+
+for j in range(len(empl_times)):
+    if len(np.where(time_steps==empl_times[j]))==0:
+        print(f'Emplacement time step {j} is not in time_steps')
 
 props_total_array, carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, dt, n_sills, b//20, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, volume_params,model = 'silli', q=q)
 
