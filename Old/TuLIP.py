@@ -1,6 +1,5 @@
 import numpy as np
 from numba import jit
-from tqdm import trange, tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.sparse as sc
@@ -1596,7 +1595,7 @@ class sill_controls:
         plt.savefig('plots/VolumeTime.png', format = 'png', bbox_inches = 'tight')
         plt.close()
 
-        z_coords = self.func_assigner(lat_function, *z_params)
+        z_coords = self.func_assigner(lat_function, z_params)
         sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
 
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
@@ -1684,7 +1683,7 @@ class sill_controls:
         props_array[self.dense_index] = density
         props_array[self.rock_index] = rock
         props_array[self.poros_index] = porosity
-        props_array[self.TOC_index] = curr_TOC_silli
+        props_array[self.TOC_index]
         return current_time, tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
 
     def get_sillburp_initial_thermogenic_state(self, props_array, dx, dy, dt, method, sillburp_weights = None, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
@@ -1775,14 +1774,14 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, dtee, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, volume_params, saving_factor = 10, save_dir = None, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, k, dx, dy, dt, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, volume_params, saving_factor = 10, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         saving_time_step_index = np.where(time_steps==current_time)[0]
         if len(saving_time_step_index)>0:
             saving_time_step_index = saving_time_step_index[0]
         print(f'Current time: {current_time}')
         print(f'saving_time_step_index: {saving_time_step_index}')
-        #shape_index = [len(time_steps[saving_time_step_index:])]+list(props_array.shape)
-        #props_total_array = np.empty(shape_index, dtype = object)
+        shape_index = [len(time_steps[saving_time_step_index:])]+list(props_array.shape)
+        props_total_array = np.empty(shape_index, dtype = object)
         if lith_plot_dict==None:
             lith_plot_dict = self.lith_plot_dict
         if rock_prop_dict==None:
@@ -1795,7 +1794,7 @@ class sill_controls:
         density = props_array[self.dense_index]
         porosity = props_array[self.poros_index]
         T_field = props_array[self.Temp_index]
-        a,b = T_field.shape
+        a,b = sillcube.shape[1], sillcube.shape[2]
         breakdown_CO2 = np.zeros_like(T_field)
         if np.isnan(H):
             H = np.zeros((a,b))
@@ -1815,25 +1814,17 @@ class sill_controls:
         flux = volume_params[0]
         tot_volume = volume_params[1]
         props_array_vtk = pv.ImageData(dimensions = [props_array.shape[2], props_array.shape[1],1])
-        
-        if save_dir is None:
-            save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
-        os.makedirs(save_dir, exist_ok = True)
+        dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))
+
+        os.makedirs(dir, exist_ok = True)
 
         for l in trange(saving_time_step_index, len(time_steps)):
             curr_time = time_steps[l]
-            if len(dtee)>1:
-                if curr_sill==n_sills:
-                    dt = dtee[1]
-                    print(f'dt changed to {dt}')
-                else:
-                    dt = dtee[0]            
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
             TOC = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
-
             if model=='silli':
                 if l!=saving_time_step_index:
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
@@ -1880,20 +1871,16 @@ class sill_controls:
                 props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
                 props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                 props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
-                props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
-                props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
-                props_array_vtk.point_data['TOC'] = np.array(curr_TOC_silli, dtype = float).flatten()
-                props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
-                props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
+                props_array_vtk.save(dir+'/'+'Properties_'+str(l)+'.vtk')
 
-            #props_total_array[l-saving_time_step_index] = props_array
+            props_total_array[l-saving_time_step_index] = props_array
         if model=='silli':
             carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
             carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
         else:
             carbon_model_params = None
-        return carbon_model_params
+        return props_total_array, carbon_model_params
 
     def example_run(self):
         #Dimensions of the 2D grid

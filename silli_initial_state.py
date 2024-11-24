@@ -7,7 +7,7 @@ sc = sill_controls()
 
 #Dimensions of the 2D grid
 x = 300000/300 #m - Horizontal extent of the crust
-y = 8000 #m - Vertical thickness of the crust
+y = 12000 #m - Vertical thickness of the crust
 z = 30000 #m - Third dimension for cube
 
 ecks = x*300
@@ -78,7 +78,7 @@ for i in range(a):
     for j in range(b):
         porosity[i,j] = sc.rock_prop_dict[rock[i,j]]['Porosity']
         density[i,j] = sc.rock_prop_dict[rock[i,j]]['Density']
-        TOC[i,j] = sc.rock_prop_dict[rock[i,j]]['TOC'] if rock[i,j]=='granite' else 2
+        TOC[i,j] = sc.rock_prop_dict[rock[i,j]]['TOC']
 ###Building the 3d properties array###
 props_array = np.empty((len((sc.prop_dict.keys())),a,b), dtype = object)
 
@@ -100,29 +100,35 @@ tiled_props_array[sc.poros_index] = np.tile(props_array[sc.poros_index],(1,300))
 tiled_props_array[sc.dense_index] = np.tile(props_array[sc.dense_index],(1,300))
 tiled_props_array[sc.TOC_index] = np.tile(props_array[sc.TOC_index],(1,300))
 
-current_time = params[0]
-csv = pd.read_csv('sillcubes/n_sills.csv')
-csv['curr_time'] = current_time
-csv.to_csv('sillcubes/n_sills.csv')
+curr_time = params[0]
+#csv = pd.read_csv('sillcubes/n_sills.csv')
+#csv['curr_time'] = current_time
+#csv.to_csv('sillcubes/n_sills.csv')
+#pd.DataFrame(np.array(curr_time)).to_csv('sillcubes/n_sills.csv')
+np.save('sillcubes/curr_time', np.array(curr_time))
 tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = params[1:]
 ace = np.array([RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli])
-tiled_params = np.empty((ace.shape[0],a,bee))
+tiled_RCO2 = np.tile(RCO2_silli,(1,300))
+tiled_Rom = np.tile(Rom_silli,(1,300))
+tiled_percRo = np.tile(percRo_silli,(1,300))
+tiled_TOC = np.tile(curr_TOC_silli,(1,300))
 tiled_props_array[sc.TOC_index] = np.tile(curr_TOC_silli,(1,300))
 tot_RCO2 = tot_RCO2*300
-for i in range(ace.shape[0]):
-    tiled_params[i] = np.tile(ace[i],(1,300))
+
+
 tiled_W = np.empty((W_silli.shape[0],a,bee))
 for i in range(W_silli.shape[0]):
     tiled_W[i] = np.tile(W_silli[i],(1,300))
 
 data = pv.ImageData()
 # Set the dimensions and spacing
-data.dimensions = tiled_params.shape
-data.spacing = (1.0, 1.0, 1.0)  # Adjust spacing as needed
-# Assign the tiled parameters to the point data
-data.point_data['data'] = np.array(tiled_params, dtype=float).flatten()
+data.dimensions = [tiled_RCO2.shape[0], tiled_RCO2.shape[1], 1]
+
+data.point_data['RCO2_silli'] = np.array(tiled_RCO2, dtype=float).flatten()
+data.point_data['Rom_silli'] = np.array(tiled_Rom, dtype=float).flatten()
+data.point_data['percRo_silli'] = np.array(tiled_percRo, dtype=float).flatten()
+data.point_data['curr_TOC_silli'] = np.array(tiled_TOC, dtype=float).flatten()
 # Print the point data to verify
-print(data.point_data['data'])
 data.save('sillcubes/initial_silli_state_carbon.vtk')
 
 W_data = pv.ImageData()
