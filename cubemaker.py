@@ -62,7 +62,6 @@ def cubemaker(tot_volume):
     max_emplacement = 4000 #m
     n_sills = 2000
 
-    volume = x*y*z
 
     
     

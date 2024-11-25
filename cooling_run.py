@@ -6,6 +6,7 @@ import os
 from numba import set_num_threads
 from joblib import Parallel, delayed
 import itertools
+import pdb
 
 sc = sill_controls()
 set_num_threads(10)
@@ -19,7 +20,7 @@ def cooler(iter, z_index):
 
     flux = int(3e9)
 
-    dx = 50 #m node spacing in x-direction
+    dx = dz = 50 #m node spacing in x-direction
     dy = 50 #m node spacing in y-direction
 
     a = int(y//dy) #Number of rows
@@ -82,8 +83,8 @@ def cooler(iter, z_index):
     #RCO2_vtk = pv.read('sillcubes/RCO2.vtk')
     tot_RCO2 = []#list(pd.read_csv('sillcubes/tot_RCO2.csv'))
     carbon_model_params = [tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli]
-
-    end_time = np.array(empl_times)[-1]+30000
+    post_cooling_time = 30000 #years
+    end_time = np.array(empl_times)[-1]+post_cooling_time
     print(f'End time is {end_time}')
     time_steps1 = np.arange(current_time,np.array(empl_times)[-1],dt)
     time_steps2 = np.arange(np.array(empl_times)[-1]+(10*dt), end_time, 10*dt)
@@ -122,14 +123,18 @@ z = 30000 #m - Third dimension for cube
 
 flux = int(3e9)
 
-dx = 50 #m node spacing in x-direction
+dx = dz = 50 #m node spacing in x-direction
 dy = 50 #m node spacing in y-direction
 
 a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
+c = int(z//dz) # Number of columns in z direction
 
 iter = [0, 1, 2]
-z_index = [b//20, b//20+1, b//20+3, b//20-3, b//20-2]
+
+factor = np.random.randint(1, int(0.9*c//2), 4)
+z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
+print(f'slices are {z_index}')
 fluxy = [int(3e9)]
 
 pairs = itertools.product(iter, z_index)
