@@ -1295,17 +1295,17 @@ class rules:
         return array_new
         '''
 
-    def sill3D_pushy_emplacement(self, props_array, props_dict, sillcube, n_rep, mag_props_dict, z_index, curr_empl_time):
+    def sill3D_pushy_emplacement(self, props_array, props_dict, sillsquare, n_rep, mag_props_dict, curr_empl_time):
         string_finder = str(n_rep)+'s'+str(curr_empl_time)
         T_field_index = props_dict['Temperature']
         T_field = props_array[T_field_index]
         a,b = T_field.shape
-        if len(sillcube.shape)!=3:
-            raise IndexError('sillcube array must be three-dimensional')
+        if len(sillsquare)!=3:
+            raise IndexError('sillsquare array must be two-dimensional')
         if T_field.size==0:
             raise ValueError("Temperature values in props_array cannot be empty")
         new_dike = np.zeros_like(T_field)
-        new_dike[self.index_finder(sillcube[z_index], string_finder)] = 1
+        new_dike[self.index_finder(sillsquare, string_finder)] = 1
         columns_pushed = np.sum(new_dike, axis =0, dtype=int)
         #columns_pushed  = columns_pushed.astype(int)
         row_push_start = np.zeros(b, dtype = int)
@@ -1317,7 +1317,7 @@ class rules:
                     break
         #row_push_start = np.array(row_push_start, dtype=int)
         #row_push_start[row_push_start==np.nan] = 0
-        if np.sum(self.index_finder(sillcube[z_index], string_finder))==0:
+        if np.sum(self.index_finder(sillsquare, string_finder))==0:
             #print(f'Sill {n_rep} was NOT emplaced in this slice')
             pass
         else:
@@ -1775,7 +1775,7 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, dtee, n_sills, z_index, cool_method, time_steps, current_time, sillcube, carbon_model_params, emplacement_params, volume_params, saving_factor = 10, save_dir = None, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, k, dx, dy, dtee, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, saving_factor = 10, save_dir = None, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         saving_time_step_index = np.where(time_steps==current_time)[0]
         if len(saving_time_step_index)>0:
             saving_time_step_index = saving_time_step_index[0]
@@ -1821,7 +1821,7 @@ class sill_controls:
         os.makedirs(save_dir, exist_ok = True)
 
         for l in trange(saving_time_step_index, len(time_steps)):
-            curr_time = time_steps[l]
+            #curr_time = time_steps[l]
             if len(dtee)>1:
                 if curr_sill==n_sills:
                     dt = dtee[1]
@@ -1849,7 +1849,7 @@ class sill_controls:
             props_array[self.TOC_index] = curr_TOC_silli
             while time_steps[l]==empl_times[curr_sill] and curr_sill<n_sills:
                 #print(f'Now emplacing sill {curr_sill}')
-                props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillcube, curr_sill, magma_prop_dict, z_index, empl_times[curr_sill])
+                props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
 
                 if model=='silli':
                     if (col_pushed!=0).all():
