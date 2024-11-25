@@ -66,7 +66,7 @@ def cooler(iter, z_index):
     n_sills_dataframe = pd.read_csv(load_dir+'/n_sills.csv')
     current_time = np.load('sillcubes/curr_time.npy')
     n_sills = n_sills_dataframe['n_sills'][iter]
-    volumes = n_sills_dataframe['volumes'][iter]
+    volumes = float(n_sills_dataframe['volumes'][iter])
 
     sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
     emplacement_params = pd.read_csv(load_dir+'/emplacement_params'+str(volumes)+'.csv')
