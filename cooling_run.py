@@ -135,7 +135,7 @@ fluxy = [int(3e9)]
 pairs = itertools.product(iter, z_index)
 
 
-Parallel(n_jobs = 15)(delayed(cooler)(iter, flux) for iter, flux in pairs)
+Parallel(n_jobs = 10)(delayed(cooler)(iter, flux) for iter, flux in pairs)
 '''
 factor = 10
 saving_props_array = np.empty((props_total_array.shape[0]//factor +1,props_total_array.shape[1],a,b), dtype = object)
