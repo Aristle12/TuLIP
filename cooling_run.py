@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 import itertools
 
 sc = sill_controls()
-set_num_threads(15)
+set_num_threads(10)
 
 
 def cooler(iter, z_index):
