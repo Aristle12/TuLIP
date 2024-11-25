@@ -86,7 +86,7 @@ def cooler(iter, z_index):
     end_time = np.array(empl_times)[-1]+30000
     print(f'End time is {end_time}')
     time_steps1 = np.arange(current_time,np.array(empl_times)[-1],dt)
-    time_steps2 = np.arange(np.array(empl_times)[-1], end_time, 10*dt)
+    time_steps2 = np.arange(np.array(empl_times)[-1]+(10*dt), end_time, 10*dt)
     time_steps = np.append(time_steps1, time_steps2)
     print(f'Total time steps: {len(time_steps)}')
 
