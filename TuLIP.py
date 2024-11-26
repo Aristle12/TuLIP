@@ -1300,7 +1300,7 @@ class rules:
         T_field_index = props_dict['Temperature']
         T_field = props_array[T_field_index]
         a,b = T_field.shape
-        if len(sillsquare)!=3:
+        if len(sillsquare)!=2:
             raise IndexError('sillsquare array must be two-dimensional')
         if T_field.size==0:
             raise ValueError("Temperature values in props_array cannot be empty")
