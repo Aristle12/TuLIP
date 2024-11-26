@@ -1300,8 +1300,8 @@ class rules:
         T_field_index = props_dict['Temperature']
         T_field = props_array[T_field_index]
         a,b = T_field.shape
-        if len(sillsquare)!=2:
-            raise IndexError(f'sillsquare array must be two-dimensional but is {sillsquare.shape}')
+        if len(sillsquare.shape)!=2:
+            raise IndexError(f'sillsquare array must be two-dimensional but is {len(sillsquare.shape)}')
         if T_field.size==0:
             raise ValueError("Temperature values in props_array cannot be empty")
         new_dike = np.zeros_like(T_field)
