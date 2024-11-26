@@ -1775,7 +1775,7 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, dtee, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, saving_factor = 10, save_dir = None, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, k, dx, dy, dtee, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = 10, save_dir = None, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         saving_time_step_index = np.where(time_steps==current_time)[0]
         if len(saving_time_step_index)>0:
             saving_time_step_index = saving_time_step_index[0]

@@ -69,7 +69,7 @@ def cooler(iter, z_index):
     n_sills = n_sills_dataframe['n_sills'][iter]
     volumes = float(n_sills_dataframe['volumes'][iter])
 
-    sillsquare = np.load(load_dir+'/sillcube'+str(volumes)+'_'+str[z_index]+'.npy', allow_pickle=True)
+    sillsquare = np.load(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_index)+'.npy', allow_pickle=True)
     emplacement_params = pd.read_csv(load_dir+'/emplacement_params'+str(volumes)+'.csv')
     empl_times = emplacement_params['empl_times']
     empl_heights = emplacement_params['empl_heights']
@@ -83,7 +83,7 @@ def cooler(iter, z_index):
     #RCO2_vtk = pv.read('sillcubes/RCO2.vtk')
     tot_RCO2 = []#list(pd.read_csv('sillcubes/tot_RCO2.csv'))
     carbon_model_params = [tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli]
-    post_cooling_time = 30000 #years
+    post_cooling_time = 0#30000 #years
     end_time = np.array(empl_times)[-1]+post_cooling_time
     print(f'End time is {end_time}')
     time_steps1 = np.arange(current_time,np.array(empl_times)[-1],dt)
@@ -105,12 +105,12 @@ def cooler(iter, z_index):
 
     dir_save = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+'/'+str(z_index)
     os.makedirs(dir_save, exist_ok = True)
-    timeframe = pd.DataFrame(time_steps[1:])
+    timeframe = pd.DataFrame(time_steps[1:], columns=['time_steps'])
     print(len(timeframe['time_steps']))
     timeframe.to_csv(dir_save+'/times.csv')
 
     current_time = np.round(current_time, 3)
-    carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, [dt, 10*dt], n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params,saving_factor=10,model = 'silli', q=q)
+    carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, [dt, 10*dt], n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor=10,model = 'silli', q=q)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe.to_csv(dir_save+'/times.csv')
@@ -131,26 +131,32 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-iter = [0, 1, 2]
+iter = [0, 1, 2, 3]
 
 factor = np.random.randint(1, int(0.9*c//2), 4)
 z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
 pairs = itertools.product(iter, z_index)
 load_dir = 'sillcubes/'+str(format(flux, '.3e'))
+os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
+for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
+    file_path = os.path.join(load_dir, 'slice_volumes', filename)
+    if os.path.isfile(file_path):
+        os.remove(file_path)
 n_sills_dataframe = pd.read_csv(load_dir+'/n_sills.csv')
 current_time = np.load('sillcubes/curr_time.npy')
-for iter, z_index in pairs:
-    volumes = float(n_sills_dataframe['volumes'][iter])
+for iters in iter:
+    volumes = float(n_sills_dataframe['volumes'][iters])
 
     sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
-    sillsquare = sillcube[z_index]
-    np.save(sillsquare, load_dir+'/sillcube'+str(volumes)+'_'+str[z_index]+'.npy')
+    for z_indexs in z_index:
+        sillsquare = sillcube[z_indexs]
+        np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 
 print(f'slices are {z_index}')
 fluxy = [int(3e9)]
 
 
-
+#cooler(0, z_index[0])
 Parallel(n_jobs = 18)(delayed(cooler)(iter, flux) for iter, flux in pairs)
 '''
 factor = 10
