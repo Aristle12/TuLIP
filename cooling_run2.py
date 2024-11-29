@@ -3,16 +3,14 @@ import pyvista as pv
 from TuLIP import sill_controls
 import pandas as pd
 import os
-from numba import set_num_threads
+#from numba import set_num_threads
 from joblib import Parallel, delayed
 import itertools
 import pdb
 
 sc = sill_controls()
-set_num_threads(10)
 
-
-def cooler(iter, z_index, flux):
+def cooler(load_dir, z_index):
     def truncate(number):
         # Convert the number to a string
         number_str = str(number)
@@ -29,6 +27,9 @@ def cooler(iter, z_index, flux):
         
         # Convert the truncated string back to a float
         return float(truncated_str)
+    iter = 1
+    flux = int(3e8)
+
     #Dimensions of the 2D grid
     x = 300000 #m - Horizontal extent of the crust
     y = 12000 #m - Vertical thickness of the crust
@@ -139,14 +140,9 @@ def cooler(iter, z_index, flux):
     timeframe.to_csv(dir_save+'/times.csv')
 
 
-
-
 x = 300000 #m - Horizontal extent of the crust
 y = 8000 #m - Vertical thickness of the crust
 z = 30000 #m - Third dimension for cube
-
-fluxy = [int(3e9), int(3e8), int(3e7)]
-flux = int(3e9)
 
 dx = dz = 50 #m node spacing in x-direction
 dy = 50 #m node spacing in y-direction
@@ -155,104 +151,28 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-iter = [0, 1, 2]
-
-iter2 = 3
-flux2 = int(3e9)
-
+load_dirs = ['sillcubes/3.000e+08/third/', 'sillcubes/3.000e+08/half/', 'sillcubes/3.000e+08/middle60/']
 
 factor = np.random.randint(1, int(0.9*c//2), 4)
 z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
-pairs = itertools.product(iter, z_index, fluxy)
 
-#pairs = pairs+pairs2
-for flux in fluxy:
-    load_dir = 'sillcubes/'+str(format(flux, '.3e'))
+for load_dir in load_dirs:
     os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
     for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
         file_path = os.path.join(load_dir, 'slice_volumes', filename)
         if os.path.isfile(file_path):
             os.remove(file_path)
     n_sills_dataframe = pd.read_csv(load_dir+'/n_sills.csv')
-    current_time = np.load('sillcubes/curr_time.npy')
-    for iters in iter:
-        volumes = float(n_sills_dataframe['volumes'][iters])
-
-        sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
-        for z_indexs in z_index:
+    volumes = float(n_sills_dataframe['volumes'][1])
+    sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
+    for z_indexs in z_index:
             sillsquare = sillcube[z_indexs]
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
-    if flux==int(3e9):
-        print('We doing this')
-        volumes = float(n_sills_dataframe['volumes'][3])
 
-        sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
-        for z_indexs in z_index:
-            sillsquare = sillcube[z_indexs]
-            np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
 
+pairs = itertools.product(load_dirs, z_index)
 
 
 
-
-#Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
-Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, flux2) for z_indexs in z_index)
-
-'''
-factor = 10
-saving_props_array = np.empty((props_total_array.shape[0]//factor +1,props_total_array.shape[1],a,b), dtype = object)
-saving_time_steps = np.empty(len(time_steps)//factor+1)
-T_field = np.empty((len(time_steps)//factor+1,a,b))
-density_field = np.empty_like(T_field)
-porosity_field = np.empty_like(T_field)
-TOC_field = np.empty_like(T_field)
-rock_field = np.empty_like(T_field, dtype = object)
-
-for i in range(len(time_steps)):
-    if i%factor ==0:
-        saving_time_steps[i//factor] = time_steps[i]
-        saving_props_array[i//factor] = props_total_array[i]
-        T_field[i//factor] = props_total_array[i,sc.Temp_index]
-        density_field[i//factor] = props_total_array[i,sc.dense_index]
-        porosity_field[i//factor] = props_total_array[i,sc.poros_index]
-        TOC_field[i//factor] = props_total_array[i,sc.TOC_index]
-        rock_field[i//factor] = props_total_array[i, sc.rock_index]
-
-T_data = pv.ImageData(dimensions=(a,b, len(saving_time_steps)), spacing = (dx,dy, dt))
-density_data = pv.ImageData(dimensions=(a,b, len(saving_time_steps)), spacing = (dx,dy, dt))
-porosity_data = pv.ImageData(dimensions=(a,b, len(saving_time_steps)), spacing = (dx,dy, dt))
-TOC_data = pv.ImageData(dimensions=(a,b, len(saving_time_steps)), spacing = (dx,dy, dt))
-rock_data = pv.ImageData(dimensions=(a,b, len(saving_time_steps)), spacing = (dx,dy, dt))
-
-
-for t in range(len(saving_time_steps)):
-    T_data.point_data[f'data_{saving_time_steps[t]}'] = T_field[t].flatten()
-    density_data.point_data[f'data_{t}'] = density_field[t].flatten
-    porosity_data.point_data[f'data_{t}'] = porosity_field[t].flatten
-    TOC_data.point_data[f'data_{t}'] = TOC_field[t].flatten
-    rock_data.point_data[f'data_{t}'] = rock_field[t].flatten
-
-
-
-T_data.time_values = saving_time_steps
-density_data.time_values = saving_time_steps
-porosity_data.time_values = saving_time_steps
-TOC_data.time_values = saving_time_steps
-rock_data.time_values = saving_time_steps
-
-
-T_data.point_data['data'] = np.array(T_field, dtype = float).flatten()
-density_data.point_data['data'] = np.array(density_field, dtype = float).flatten()
-porosity_data.point_data['data'] = np.array(porosity_field, dtype = float).flatten()
-TOC_data.point_data['data'] = np.array(TOC_field, dtype = float).flatten()
-rock_data.point_data['data'] = np.array(rock_field).flatten()
-
-
-os.makedirs(dir, exist_ok=True)
-T_data.save(dir+'/T_data.vtk')
-density_data.save(dir+'/density_data.vtk')
-porosity_data.save(dir+'/porosity_data.vtk')
-TOC_data.save(dir+'/TOC_data.vtk')
-rock_data.save(dir+'/rock_data.vtk')
-'''
+Parallel(n_jobs = 30)(delayed(cooler)(load_dir, z_indexs) for load_dir, z_indexs in pairs)

@@ -1004,7 +1004,7 @@ class rules:
     @staticmethod
     def prop_updater(lithology, lith_dict: dict, prop_dict: dict, property: str):
         '''
-        This function updates the associated rock properties once everything has shiftes. This is done to avoid thermopgenic carbon generation from popints that are now pure magma'''
+        This function updates the associated rock properties once everything has shifted. This is done to avoid thermopgenic carbon generation from popints that are now pure magma'''
         prop = np.zeros_like(lithology)
         for rock in lith_dict.keys():
             prop[lithology==rock] = prop_dict[rock][property]
@@ -1307,6 +1307,7 @@ class rules:
         new_dike = np.zeros_like(T_field)
         new_dike[self.index_finder(sillsquare, string_finder)] = 1
         columns_pushed = np.sum(new_dike, axis =0, dtype=int)
+        #print(columns_pushed[columns_pushed!=0])
         #columns_pushed  = columns_pushed.astype(int)
         row_push_start = np.zeros(b, dtype = int)
         for n in range(b):
@@ -1317,6 +1318,7 @@ class rules:
                     break
         #row_push_start = np.array(row_push_start, dtype=int)
         #row_push_start[row_push_start==np.nan] = 0
+        #print(f'rows are {row_push_start}')
         if np.sum(self.index_finder(sillsquare, string_finder))==0:
             #print(f'Sill {n_rep} was NOT emplaced in this slice')
             pass
@@ -1795,6 +1797,7 @@ class sill_controls:
         density = props_array[self.dense_index]
         porosity = props_array[self.poros_index]
         T_field = props_array[self.Temp_index]
+        TOC1 = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
         a,b = T_field.shape
         breakdown_CO2 = np.zeros_like(T_field)
         if np.isnan(H):
@@ -1827,48 +1830,58 @@ class sill_controls:
                     dt = dtee[1]
                     print(f'dt changed to {dt}')
                 else:
-                    dt = dtee[0]            
+                    dt = dtee[0] 
+            else:
+                dt = dtee           
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
-            TOC = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
+            curr_TOC_push = np.zeros_like(curr_TOC_silli)
+            rock = props_array[self.rock_index]
+            TOC1 = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
+            
 
             if model=='silli':
                 if l!=saving_time_step_index:
-                    RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
-                    RCO2_silli = RCO2_silli*density*dV/100
-                    tot_RCO2.append(np.sum(RCO2_silli))
+                    RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC1, W_silli)
+                    RCO2_model = RCO2_silli*density*dV/100
+                    
             elif model=='sillburp':
                 if l!=saving_time_step_index:
-                    RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
-                    RCO2 = RCO2*density*dV/100
-                    tot_RCO2.append(np.sum(RCO2))
+                    RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC1, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
+                    RCO2_model = RCO2*density*dV/100
             if (rock=='limestone').any():    
                 breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
+            if l!=saving_time_step_index:
+                RCO2_model += breakdown_CO2
+                tot_RCO2.append(np.sum(RCO2_model))
             props_array[self.TOC_index] = curr_TOC_silli
-            while time_steps[l]==empl_times[curr_sill] and curr_sill<n_sills:
+            while time_steps[l]==empl_times[curr_sill] and curr_sill<int(n_sills):
                 #print(f'Now emplacing sill {curr_sill}')
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
+                curr_TOC_silli = props_array[self.TOC_index]
 
                 if model=='silli':
-                    if (col_pushed!=0).all():
+                    if (col_pushed!=0).any():
+                        curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
                         RCO2_silli = self.rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
                         Rom_silli = self.rool.value_pusher2D(Rom_silli,0, row_start, col_pushed)
                         percRo_silli =self.rool.value_pusher2D(percRo_silli, 0, row_start, col_pushed)
-                        curr_TOC_silli = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
+                        
                         for m in range(W_silli.shape[0]):
                             W_silli[m] = self.rool.value_pusher2D(W_silli[m],0, row_start, col_pushed)
+                        col_pushed = np.zeros_like(row_start)
                 elif model=='sillburp':
                     if (col_pushed!=0).all():
                         RCO2 = self.rool.value_pusher2D(RCO2,0, row_start, col_pushed)
                         Rom = self.rool.value_pusher2D(Rom,0, row_start, col_pushed)
-                        oil_production_rate = self.rool.value_pusher2D(oil_production_rate,0, row_start, col_pushed)
                         curr_TOC = self.rool.value_pusher2D(curr_TOC,0, row_start, col_pushed)
                         for huh in range(progress_of_reactions.shape[0]):
                             for bruh in range(progress_of_reactions.shape[1]):
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
+                        col_pushed = np.zeros_like(row_start)
 
                 if (curr_sill+1)<n_sills:
                     curr_sill +=1
@@ -1876,13 +1889,16 @@ class sill_controls:
                     break
             if l%saving_factor==0:
                 props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
+                props_array_vtk.point_data['Temperature_nopush'] = np.array(T_field, dtype = float).flatten()
                 props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
                 props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
                 props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                 props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
                 props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
                 props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
-                props_array_vtk.point_data['TOC'] = np.array(curr_TOC_silli, dtype = float).flatten()
+                props_array_vtk.point_data['TOC2'] = np.array(curr_TOC_silli, dtype = float).flatten()
+                props_array_vtk.point_data['TOC_pushed'] = np.array(curr_TOC_push, dtype = float).flatten()
+                props_array_vtk.point_data['TOC0'] = np.array(TOC1, dtype = float).flatten()
                 props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
                 props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
 

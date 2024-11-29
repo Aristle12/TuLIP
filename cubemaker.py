@@ -11,7 +11,7 @@ from joblib import Parallel, delayed
 
 #@jit
 n_sills_array = []
-flux = int(3e8)
+flux = int(3e7)
 save_dir = 'sillcubes/'+str(format(flux, '.3e'))
 
 os.makedirs(save_dir, exist_ok = True)
@@ -81,13 +81,12 @@ def cubemaker(tot_volume):
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
 
-    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, z, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, [x//6, 5*x//6, 1.5*x//6], phase_times, tot_volume, flux, n_sills)
+    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, z, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, [x//4, 3*x//4, x//8], phase_times, tot_volume, flux, n_sills)
     print('sillcube built')
     #pdb.set_trace()
     n_sills_array.append(int(n_sills1))
 
     np.save(save_dir+'/sillcube'+str(np.round(tot_volume, 2)), sillcube)
-    print('Done Here')
     mask = sillcube!=0
     sillcube[sillcube==''] = 0
     sillcube = int_maker(sillcube)
@@ -125,6 +124,6 @@ tot_volume_start = 0.05*volume
 tot_volume_end = 0.2*volume
 tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.05*volume)
 
-n_sills_array = Parallel(n_jobs = 15)(delayed(cubemaker)(tot_volume) for tot_volume in tot_volumes)
+n_sills_array = Parallel(n_jobs = 2)(delayed(cubemaker)(tot_volume) for tot_volume in tot_volumes)
 
 pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volumes}).to_csv(save_dir+'/n_sills.csv')
