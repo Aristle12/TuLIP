@@ -28,7 +28,7 @@ def cooler(load_dir, z_index):
         # Convert the truncated string back to a float
         return float(truncated_str)
     iter = 1
-    flux = int(3e8)
+    flux = int(3e7)
 
     #Dimensions of the 2D grid
     x = 300000 #m - Horizontal extent of the crust
@@ -66,7 +66,7 @@ def cooler(load_dir, z_index):
 
     q = k[-1,:]*(30/1000)
 
-    load_dir = 'sillcubes/'+str(format(flux, '.3e'))
+    
 
     data = pv.read('sillcubes/initial_silli_state_carbon.vtk')
 
@@ -127,7 +127,7 @@ def cooler(load_dir, z_index):
         else:
             print(f'Emplacement time step {j} is at {np.where(time_steps==empl_times[j])[0]}')
 
-    dir_save = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+'/'+str(z_index)
+    dir_save = load_dir+'/'+str(z_index)
     os.makedirs(dir_save, exist_ok = True)
     timeframe = pd.DataFrame(time_steps[1:], columns=['time_steps'])
     print(len(timeframe['time_steps']))
@@ -151,7 +151,7 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-load_dirs = ['sillcubes/3.000e+08/third/', 'sillcubes/3.000e+08/half/', 'sillcubes/3.000e+08/middle60/']
+load_dirs = ['sillcubes/3.000e+07/half/', 'sillcubes/3.000e+07/middle60/']
 
 factor = np.random.randint(1, int(0.9*c//2), 4)
 z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]

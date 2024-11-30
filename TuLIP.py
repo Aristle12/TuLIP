@@ -1826,7 +1826,7 @@ class sill_controls:
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             if len(dtee)>1:
-                if curr_sill==n_sills:
+                if curr_sill>=n_sills:
                     dt = dtee[1]
                     print(f'dt changed to {dt}')
                 else:
