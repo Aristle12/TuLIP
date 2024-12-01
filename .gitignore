@@ -10,3 +10,4 @@ sillcubes/*
 *.npy
 sillcubes/sillcube3600000000000.0.vtk
 sillcubes3.000e+09/*
+.DS_Store
