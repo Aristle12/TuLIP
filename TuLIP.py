@@ -607,7 +607,7 @@ class emit:
         TOC = TOCo*(1-Frac)*calc_parser
         dTOC = (TOC_prev-TOC)/dt
         Rom = (1-porosity)*density*dTOC
-        RCO2 = Rom*3.67
+        RCO2 = Rom*3.67/100
         return RCO2, Rom, percRo, TOC, W
 
     def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
@@ -635,7 +635,7 @@ class emit:
         TOC = TOCo*Frac*calc_parser
         dTOC = (TOC_prev-TOC)/dt
         Rom = (1-porosity)*density*dTOC
-        RCO2 = Rom*3.67
+        RCO2 = Rom*3.67/100
         return RCO2, Rom, percRo, I_curr, TOC
 
     def analyticalRo_I(T_field):
@@ -805,7 +805,7 @@ class emit:
             TOC = TOCo * (1-products_progress) * calc_parser
             dTOC = (TOC_prev - TOC)/dt
             Rom = (1 - porosity) * density * dTOC
-            RCO2 = Rom * 3.67
+            RCO2 = Rom * 3.67/100
         
         return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC, rate_of_reactions
 
@@ -1845,12 +1845,12 @@ class sill_controls:
             if model=='silli':
                 if l!=saving_time_step_index:
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC1, W_silli)
-                    RCO2_model = RCO2_silli*density*dV/100
+                    RCO2_model = RCO2_silli*dV
                     
             elif model=='sillburp':
                 if l!=saving_time_step_index:
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC1, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
-                    RCO2_model = RCO2*density*dV/100
+                    RCO2_model = RCO2*dV
             if (rock=='limestone').any():    
                 breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
             if l!=saving_time_step_index:

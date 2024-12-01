@@ -82,6 +82,7 @@ def cooler(iter, z_index, flux):
     W_silli = W_vtk.point_data['data'].reshape(W_vtk.dimensions)
 
     RCO2_silli = data.point_data['RCO2_silli'].reshape(data.dimensions)
+    RCO2_silli = RCO2_silli.reshape(data.dimensions[0], data.dimensions[1])/props_array[sc.dense_index]
     Rom_silli = data.point_data['Rom_silli'].reshape(data.dimensions)
     percRo_silli = data.point_data['percRo_silli'].reshape(data.dimensions)
     curr_TOC_silli = data.point_data['curr_TOC_silli'].reshape(data.dimensions)
@@ -104,7 +105,7 @@ def cooler(iter, z_index, flux):
     #RCO2_vtk = pv.read('sillcubes/RCO2.vtk')
     tot_RCO2 = []#list(pd.read_csv('sillcubes/tot_RCO2.csv'))
     carbon_model_params = [tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli]
-    post_cooling_time = 0#30000 #years
+    post_cooling_time = 30000 #years
     end_time = np.array(empl_times)[-1]+post_cooling_time
     print(f'End time is {end_time}')
     time_steps1 = np.arange(current_time,np.array(empl_times)[-1],dt)
@@ -162,7 +163,8 @@ flux2 = int(3e9)
 
 
 factor = np.random.randint(1, int(0.9*c//2), 4)
-z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
+#z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
+z_index = [191, 284, 300, 493, 506]
 pairs = itertools.product(iter, z_index, fluxy)
 
 #pairs = pairs+pairs2
@@ -192,11 +194,7 @@ for flux in fluxy:
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
 
-
-
-
-
-#Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
+Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
 Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, flux2) for z_indexs in z_index)
 
 '''

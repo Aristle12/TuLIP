@@ -18,14 +18,16 @@ target_volume = int(1e6)*int(1e9) #m3/year
 
 fluxes = [int(3e7), int(3e8), int(3e9)] #m3/year
 
-times_csv = pd.read_csv('sillcubes/'+str(format(fluxes[0], '.3e'))+'/300/times.csv')
-time_steps = times_csv['time_steps']
+#times_csv = pd.read_csv('sillcubes/'+str(format(fluxes[0], '.3e'))+'/300/times.csv')
+#time_steps = times_csv['time_steps']
+#tot_RO2 = np.zeros_like(time_steps)
+
 area_per_cube = 300*30 #km
 
 n = 10
 
 
-tot_RO2 = np.zeros_like(time_steps)
+
 mont_RCO2= np.array([])
 total_area = 0
 current_volume = 0 #m3/year
@@ -50,6 +52,10 @@ for j in trange(n):
 
         print(f'Volume is {volume:.3e}')
 
+        times_csv = pd.read_csv('sillcubes/'+str(format(fluxes[0], '.3e'))+str(format(volume, '.3e'))+'/300/times.csv')
+        time_steps = times_csv['time_steps']
+        tot_RCO2 = np.zeros_like(time_steps)
+
         scales = pd.read_csv(load_dir+'scales.csv')
         scale = scales['scale'][itera]
         volume_cube = scales['tot_volume'][itera]
@@ -61,6 +67,9 @@ for j in trange(n):
 
         for l in range(len(time_cube)):
             tot_RCO2 = CO2_adder(time_steps, time_cube[l], tot_RCO2, RCO2_cube[l])
+        
+        cum_CO2
+
         current_volume+=volume_cube
         remaining_volume-=volume
         total_area+=area_per_cube

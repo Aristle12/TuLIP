@@ -10,7 +10,7 @@ import pdb
 
 sc = sill_controls()
 
-def cooler(load_dir, z_index):
+def cooler(load_dir, z_index, iter):
     def truncate(number):
         # Convert the number to a string
         number_str = str(number)
@@ -27,8 +27,8 @@ def cooler(load_dir, z_index):
         
         # Convert the truncated string back to a float
         return float(truncated_str)
-    iter = 1
-    flux = int(3e7)
+    #iter = 1
+    flux = int(3e8)
 
     #Dimensions of the 2D grid
     x = 300000 #m - Horizontal extent of the crust
@@ -127,7 +127,7 @@ def cooler(load_dir, z_index):
         else:
             print(f'Emplacement time step {j} is at {np.where(time_steps==empl_times[j])[0]}')
 
-    dir_save = load_dir+'/'+str(z_index)
+    ##dir_save = load_dir+'/'+str(format(volumes,'.3e'))+'/'+str(z_index)
     os.makedirs(dir_save, exist_ok = True)
     timeframe = pd.DataFrame(time_steps[1:], columns=['time_steps'])
     print(len(timeframe['time_steps']))
@@ -151,11 +151,12 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-load_dirs = ['sillcubes/3.000e+07/half/', 'sillcubes/3.000e+07/middle60/']
+load_dirs = ['sillcubes/3.000e+08/half/', 'sillcubes/3.000e+08/middle60/']
 
-factor = np.random.randint(1, int(0.9*c//2), 4)
-z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
-
+#factor = np.random.randint(1, int(0.9*c//2), 4)
+#z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
+z_index = [89, 280, 300, 483, 555]
+itera = [0,1,2]
 for load_dir in load_dirs:
     os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
     for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
@@ -163,16 +164,17 @@ for load_dir in load_dirs:
         if os.path.isfile(file_path):
             os.remove(file_path)
     n_sills_dataframe = pd.read_csv(load_dir+'/n_sills.csv')
-    volumes = float(n_sills_dataframe['volumes'][1])
-    sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
-    for z_indexs in z_index:
+    for iters in itera:
+        volumes = float(n_sills_dataframe['volumes'][iters])
+        sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
+        for z_indexs in z_index:
             sillsquare = sillcube[z_indexs]
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 
 print(f'slices are {z_index}')
 
-pairs = itertools.product(load_dirs, z_index)
+pairs = itertools.product(load_dirs, z_index, itera)
 
 
 
-Parallel(n_jobs = 30)(delayed(cooler)(load_dir, z_indexs) for load_dir, z_indexs in pairs)
+Parallel(n_jobs = 30)(delayed(cooler)(load_dir, z_indexs, iters) for load_dir, z_indexs, iters in pairs)
