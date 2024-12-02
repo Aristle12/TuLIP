@@ -24,6 +24,8 @@ Cadd = pd.DataFrame({'pCO2': pCO2})
 # Calculate Cadd and CO2add
 Cadd['Cadd'] = (Matm * 1e-6 * Cadd['pCO2'] * C_molmass * ((0.23 + 2233 / (Cadd['pCO2'] + 34)) * Mrat * DICcorr + 1) - Ctot_i) / 1e12
 Cadd['CO2add'] = Cadd['Cadd'] * 44 / 12
+
+'''
 # Second case with different initial pCO2
 pco2i = 500
 
@@ -58,3 +60,7 @@ plt.ylabel('pCO2 increase (ppm)')
 plt.xlim(0, 60000)
 plt.title('CO2 added vs pCO2 increase')
 plt.show()
+'''
+
+slope2, slope1, intercept = np.polyfit(Cadd['pCO2'], Cadd['Cadd'], deg = 2)
+
