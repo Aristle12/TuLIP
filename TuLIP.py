@@ -1837,7 +1837,6 @@ class sill_controls:
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
-            curr_TOC_push = np.zeros_like(curr_TOC_silli)
             rock = props_array[self.rock_index]
             TOC1 = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
             
@@ -1854,7 +1853,7 @@ class sill_controls:
             if (rock=='limestone').any():    
                 breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
             if l!=saving_time_step_index:
-                RCO2_model += breakdown_CO2
+                RCO2_model += breakdown_CO2*dV
                 tot_RCO2.append(np.sum(RCO2_model))
             props_array[self.TOC_index] = curr_TOC_silli
             while time_steps[l]==empl_times[curr_sill] and curr_sill<int(n_sills):
@@ -1889,16 +1888,12 @@ class sill_controls:
                     break
             if l%saving_factor==0:
                 props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
-                props_array_vtk.point_data['Temperature_nopush'] = np.array(T_field, dtype = float).flatten()
                 props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
                 props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
                 props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                 props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
                 props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
                 props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
-                props_array_vtk.point_data['TOC2'] = np.array(curr_TOC_silli, dtype = float).flatten()
-                props_array_vtk.point_data['TOC_pushed'] = np.array(curr_TOC_push, dtype = float).flatten()
-                props_array_vtk.point_data['TOC0'] = np.array(TOC1, dtype = float).flatten()
                 props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
                 props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
 
