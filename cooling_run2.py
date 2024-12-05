@@ -127,7 +127,9 @@ def cooler(load_dir, z_index, iter):
         else:
             print(f'Emplacement time step {j} is at {np.where(time_steps==empl_times[j])[0]}')
 
-    ##dir_save = load_dir+'/'+str(format(volumes,'.3e'))+'/'+str(z_index)
+    dir_save = load_dir+str(format(volumes,'.3e'))+'/'+str(z_index)
+    print(f'Saving at {dir_save}')
+    #dir_save = load_dir+'/'+str(z_index)
     os.makedirs(dir_save, exist_ok = True)
     timeframe = pd.DataFrame(time_steps[1:], columns=['time_steps'])
     print(len(timeframe['time_steps']))
@@ -155,8 +157,10 @@ load_dirs = ['sillcubes/3.000e+08/half/', 'sillcubes/3.000e+08/middle60/']
 
 #factor = np.random.randint(1, int(0.9*c//2), 4)
 #z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
-z_index = [89, 280, 300, 483, 555]
-itera = [0,1,2]
+#z_index = [89, 280, 300, 483, 555]
+z_index = [89,300]
+itera = [1]
+'''
 for load_dir in load_dirs:
     os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
     for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
@@ -172,7 +176,7 @@ for load_dir in load_dirs:
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 
 print(f'slices are {z_index}')
-
+'''
 pairs = itertools.product(load_dirs, z_index, itera)
 
 

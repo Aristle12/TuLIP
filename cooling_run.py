@@ -165,8 +165,8 @@ flux2 = int(3e9)
 factor = np.random.randint(1, int(0.9*c//2), 4)
 #z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
 z_index = [191, 284, 300, 493, 506]
-pairs = itertools.product(iter, z_index, fluxy)
-
+pairs = itertools.product([1], z_index, [flux2])
+'''
 #pairs = pairs+pairs2
 for flux in fluxy:
     load_dir = 'sillcubes/'+str(format(flux, '.3e'))
@@ -193,9 +193,11 @@ for flux in fluxy:
             sillsquare = sillcube[z_indexs]
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
-
+'''
 Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
-Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, flux2) for z_indexs in z_index)
+#Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, flux2) for z_indexs in z_index)
+
+#cooler(1, 300, int(3e9))
 
 '''
 factor = 10
