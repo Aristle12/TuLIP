@@ -77,19 +77,19 @@ rock_prop_dict = {
 
 }
 
-rock = np.zeros(a,b, dtype = object)
+rock = np.zeros((a,b), dtype = object)
 rock[:] = 'granite'
 rock[0:a//4,:] = 'shale'
 
-density = np.zeros(a,b, dtype = object)
+density = np.zeros((a,b), dtype = object)
 density[rock=='shale'] = rock_prop_dict['shale']['Density']
 density[rock=='granite'] = rock_prop_dict['granite']['Density']
 
-porosity = np.zeros(a,b, dtype = object)
+porosity = np.zeros((a,b), dtype = object)
 porosity[rock=='shale'] = rock_prop_dict['shale']['Porosity']
 porosity[rock=='granite'] = rock_prop_dict['granite']['Porosity']
 
-TOC = np.zeros(a,b, dtype = object)
+TOC = np.zeros((a,b), dtype = object)
 TOC[rock=='shale'] = rock_prop_dict['shale']['TOC']
 TOC[rock=='granite'] = rock_prop_dict['granite']['TOC']
 
@@ -97,19 +97,70 @@ width, height = [10000//dx, 500//dy]
 
 depth = 0.25*a
 x_space = b//2
-thermal_maturation_time = int(3e6//dt)*dt
+thermal_maturation_time = int(3e2//dt)*dt
 empl_time = 10*dt
-cooling_time = 30000
+cooling_time = 3000
 empl_act_time = thermal_maturation_time+empl_time
-H = np.zeros(a,b)
+H = np.zeros((a,b))
 method = 'conv smooth'
+end_time = empl_time+thermal_maturation_time+cooling_time
+print(f'End time is {end_time}')
 
-
-time_steps = (0, empl_time+thermal_maturation_time+cooling_time, dt)
+time_steps = np.arange(0, end_time, dt)
+print(f'Length of time steps {len(time_steps)}')
 tot_CO2_silli = np.zeros_like(time_steps)
 tot_CO2_sillburp = np.zeros_like(time_steps)
 
-for l in range(len(time_steps)):
+factor = 40
+tile_x = b//factor
+tile_T_field = T_field[:, 0:tile_x]
+tile_rock = rock[:, 0:tile_x]
+tile_porosity = porosity[:, 0:tile_x]
+tile_TOC = TOC[:, 0:tile_x]
+tile_density = density[:, 0:tile_x]
+
+start_time = np.where(time_steps==thermal_maturation_time)[0][0]
+print(start_time)
+
+for l in trange(0, start_time):
+    curr_time = time_steps[l]
+    tile_T_field = sc.cool.diff_solve(k, a, tile_x, dx, dy, dt, tile_T_field, np.nan, method, H)
+    if l==0:
+        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli1 = emit.SILLi_emissions(tile_T_field, tile_density, tile_rock, tile_porosity, tile_TOC, dt)
+        reaction_energies = emit.get_sillburp_reaction_energies()
+        RCO2, Rom, progress_of_reactions1, oil_production_rate, curr_TOC, rate_of_reactions1 = emit.sillburp(tile_T_field, tile_TOC, tile_density, tile_rock, tile_porosity, dt, reaction_energies)
+        tot_CO2_silli[l] = np.sum(RCO2_silli)
+        tot_CO2_sillburp[l] = np.sum(RCO2)
+    else:
+        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli1 = emit.SILLi_emissions(tile_T_field, tile_density, tile_rock, tile_porosity,  curr_TOC_silli, dt, tile_TOC, W_silli1)
+        RCO2, Rom, progress_of_reactions1, oil_production_rate, curr_TOC, rate_of_reactions1 = emit.sillburp(tile_T_field, curr_TOC, tile_density, tile_rock, tile_porosity, dt, reaction_energies, tile_TOC, oil_production_rate, progress_of_reactions1, rate_of_reactions1)
+        tot_CO2_silli[l] = np.sum(RCO2_silli)
+        tot_CO2_sillburp[l] = np.sum(RCO2)
+
+RCO2_silli = np.tile(RCO2_silli, (1,factor))
+Rom_silli = np.tile(Rom_silli, (1,factor))
+percRo_silli = np.tile(percRo_silli, (1,factor))
+curr_TOC_silli = np.tile(curr_TOC_silli, (1,factor))
+
+W_silli = np.zeros((W_silli1.shape[0], a, b))
+
+for i in range(W_silli.shape[0]):
+    W_silli[i] = np.tile(W_silli1[i], (1,factor))
+
+RCO2 = np.tile(RCO2, (1,factor))
+Rom = np.tile(Rom, (1,factor))
+progress_of_reactions = np.zeros((progress_of_reactions1.shape[0], progress_of_reactions1.shape[1], a, b))
+rate_of_reactions = np.zeros((rate_of_reactions1.shape[0], rate_of_reactions1.shape[1], a, b))
+
+for i in range(progress_of_reactions.shape[0]):
+    for j in range(progress_of_reactions.shape[1]):
+        progress_of_reactions[i,j] = np.tile(progress_of_reactions1[i,j], (1,factor))
+        rate_of_reactions[i,j] = np.tile(rate_of_reactions1[i,j], (1,factor))
+
+curr_TOC = np.tile(curr_TOC, (1,factor))
+
+
+for l in trange(start_time, len(time_steps)):
     curr_time = time_steps[l]
     T_field = sc.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
     if l==0:
@@ -130,6 +181,7 @@ for l in range(len(time_steps)):
 
 plt.plot(time_steps, np.log10(tot_CO2_silli/int(1e9)), label = 'silli')
 plt.plot(time_steps, np.log10(tot_CO2_sillburp/int(1e9)), label = 'sillburp')
+plt.legend()
 plt.savefig('plots/high_res_compare.png', format = 'png')
 
 
