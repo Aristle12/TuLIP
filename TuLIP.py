@@ -1777,7 +1777,7 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, dtee, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = 10, save_dir = None, model=None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, k, dx, dy, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = 10, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         saving_time_step_index = np.where(time_steps==current_time)[0]
         if len(saving_time_step_index)>0:
             saving_time_step_index = saving_time_step_index[0]
@@ -1793,6 +1793,11 @@ class sill_controls:
             prop_dict = self.prop_dict
         if magma_prop_dict==None:
             magma_prop_dict = self.magma_prop_dict
+        if dt is None:
+            dts = np.array([time_steps[i]-time_steps[i-1] for i in range(1, len(time_steps))])
+            dts = np.append(dts[0],dts)
+        else:
+            dts = np.repeat(dt,len(time_steps))
         rock = props_array[self.rock_index]
         density = props_array[self.dense_index]
         porosity = props_array[self.poros_index]
@@ -1825,14 +1830,7 @@ class sill_controls:
 
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
-            if len(dtee)>1:
-                if curr_sill>=n_sills:
-                    dt = dtee[1]
-                    print(f'dt changed to {dt}')
-                else:
-                    dt = dtee[0] 
-            else:
-                dt = dtee           
+            dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             props_array[self.Temp_index] = T_field
