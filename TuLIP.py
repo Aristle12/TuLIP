@@ -1777,7 +1777,7 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = 10, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, k, dx, dy, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         saving_time_step_index = np.where(time_steps==current_time)[0]
         if len(saving_time_step_index)>0:
             saving_time_step_index = saving_time_step_index[0]
@@ -1884,18 +1884,42 @@ class sill_controls:
                     curr_sill +=1
                 else:
                     break
-            if l%saving_factor==0:
-                props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
-                props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
-                props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
-                props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
-                props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
-                props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
-                props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
-                props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
-                props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
+            if saving_factor is not None:
+                if len(saving_factor)>1:
+                    if curr_sill<n_sills:
+                        if l%saving_factor[0]==0:
+                            props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
+                            props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
+                            props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
+                            props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
+                            props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
+                            props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
+                            props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
+                            props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                            props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
+                        else:
+                            if l%saving_factor[1]==0:
+                                props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
+                                props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
+                                props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
+                                props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
+                                props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
+                                props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
+                                props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
+                                props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                                props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
+                else:
+                    if l%saving_factor==0:
+                        props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
+                        props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
+                        props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
+                        props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
+                        props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
+                        props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
+                        props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
+                        props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                        props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
 
-            #props_total_array[l-saving_time_step_index] = props_array
         if model=='silli':
             carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
