@@ -1,4 +1,6 @@
-# TuLIP
+# <img src="https://github.com/Aristle12/TuLIP/blob/TuLIPClass/flower_668095.png" width="30" height="30"> TuLIP
+
+
 
 Thermally understanding Large Igneous Provinces (TuLIP)
 
