@@ -16,15 +16,12 @@ class cool:
     def __init__(self):
         pass
     ###Functions to cool magma bodies###
-    @staticmethod
-    def shift_array(arr, n):
-        if n >= 0:
-            return np.concatenate((arr[-n:], arr[:-n]))
-        else:
-            return np.concatenate((arr[-n:], arr[:-n]))
 
     @staticmethod
     def is_nan(q):
+        '''
+        Native implementation of numpy's numpy.isnan. Originally created to allow for a nopython implementation in numba.
+        '''
         r = 0
         for i in range(0, len(q)):
             if np.isnan(q[i]):
@@ -56,21 +53,23 @@ class cool:
 
         return kiph, kimh, kjph, kjmh
 
-    @staticmethod
-    def cheat_solver(Tf, a):
+    def cheat_solver(self, Tf, a, q):
         """
-        Matrix taking too much time to solve?
-        Here is a cheat solver for linear gradients. Can't promise it will be the same as the regular equilibrium solve, but it should be approximately accurate
+        Quick approximate alternative to set up initial temperature grid while testing code to avoid lengthy set up times for large grids
         """
-        T_top = Tf[0,0]
-        grad = (Tf[-1,0]-Tf[0,0])/a
-        for i in range(0,a):
-            Tf[i,:] = T_top + i*grad
+        if self.is_nan(q):
+            T_top = Tf[0,0]
+            grad = (Tf[-1,0]-Tf[0,0])/a
+            for i in range(0,a):
+                Tf[i,:] = T_top + i*grad
+        else:
+            for i in range(1, a):
+                Tf[i,:] = Tf[i-1,:]+(q/31.532) #This implementation is not recommended. Please use other solvers for custom qs
         return Tf
 
     def straight_solver(self, Ab,dee, a, b):
         """
-        Inverse matrix multiplication for small sized matrices - slow and memory consuming for larger matrices
+        Inverse matrix multiplication for small sized matrices - fast implementation due to parallelization in pypardiso
         Ab = LHS weight matrix MxN
         dee = RHS matrix M*Nx1
         a = number of rows - M int
@@ -149,7 +148,7 @@ class cool:
         Tnow = temperature field at current time step MxN matrix - Note that you need to set the Dirichlet boundary values
         """
         if method == 'cheat':
-                return self.cheat_solver(Tnow,a)
+                return self.cheat_solver(Tnow,a, q)
         else:
             if ~np.isnan(q).any():
                 Tnow[-1,:] = q*dy/k[-1,:]
