@@ -1816,6 +1816,7 @@ class sill_controls:
         else:
             raise ValueError(f'model is {model}, but must be either silli or sillburp')
         empl_times, empl_heights, x_space, width, thickness = emplacement_params
+        empl_times = np.array(empl_times, dtype=float)
         curr_sill = 0
         dV = dx*dx*dy
 
@@ -1884,7 +1885,9 @@ class sill_controls:
                 else:
                     break
             if saving_factor is not None:
-                if len(saving_factor)>1:
+                if type(saving_factor)== int:
+                    saving_factor = [saving_factor]
+                if len(saving_factor)>1 and len(saving_factor)<3:
                     if curr_sill<n_sills:
                         if l%saving_factor[0]==0:
                             props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
@@ -1907,8 +1910,9 @@ class sill_controls:
                                 props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
                                 props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
                                 props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
-                else:
-                    if l%saving_factor==0:
+                elif len(saving_factor)==1:
+                    if l%saving_factor[0]==0:
+                        print('Saving cube')
                         props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
                         props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
                         props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
@@ -1918,6 +1922,8 @@ class sill_controls:
                         props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
                         props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
                         props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
+                else:
+                    raise ValueError('saving_factor should have either one or two values')
 
         if model=='silli':
             carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli

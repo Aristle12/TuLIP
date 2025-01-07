@@ -140,11 +140,11 @@ for i in range(len(fluxs)):
         deg_change = np.log2(pCO2_calc/pco2i)*ECS1
         conf_array[i,j] = deg_change 
         print(f'Degree change for {flux:.3e} and {volume:.3e} is {deg_change}')
-
+vol_fraction = np.array([0.15, 0.30, 0.45])
 plt.figure(figsize =[9,6])
-sns.heatmap(conf_array.T, annot=True, cmap = 'RdBu_r', fmt = '.3f', xticklabels = np.array(fluxs)/int(1e9), yticklabels = np.array(volumes[0:3])/int(1e9))
+sns.heatmap(conf_array.T, annot=True, cmap = 'RdBu_r', fmt = '.3f', xticklabels = np.array(fluxs)/int(1e9), yticklabels = vol_fraction)
 plt.xlabel(r'Flux $km^3$')
-plt.ylabel(r'Volume $km^3$')
+plt.ylabel(r'Sill volume fraction')
 plt.title(r'Warming in ${^\circ}C$')
 plt.tight_layout()
 plt.savefig('sillcubes/present_plots/warming_summary.png', format = 'png')

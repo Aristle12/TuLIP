@@ -11,8 +11,8 @@ from joblib import Parallel, delayed
 
 #@jit
 n_sills_array = []
-flux = int(3e7)
-save_dir = 'sillcubes/'+str(format(flux, '.3e'))
+flux = int(3*10**(8.5))
+save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
 
 os.makedirs(save_dir, exist_ok = True)
 
@@ -80,8 +80,8 @@ def cubemaker(tot_volume):
     print(phase_times)
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
-
-    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, z, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, [x//4, 3*x//4, x//8], phase_times, tot_volume, flux, n_sills)
+    lat_range = [x//3, 2*x//3, x//6]
+    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, z, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
     print('sillcube built')
     #pdb.set_trace()
     n_sills_array.append(int(n_sills1))

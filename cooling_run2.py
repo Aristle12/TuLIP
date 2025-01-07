@@ -28,7 +28,7 @@ def cooler(load_dir, z_index, iter):
         # Convert the truncated string back to a float
         return float(truncated_str)
     #iter = 1
-    flux = int(3e8)
+    flux = int(3e7)
 
     #Dimensions of the 2D grid
     x = 300000 #m - Horizontal extent of the crust
@@ -105,7 +105,7 @@ def cooler(load_dir, z_index, iter):
     #RCO2_vtk = pv.read('sillcubes/RCO2.vtk')
     tot_RCO2 = []#list(pd.read_csv('sillcubes/tot_RCO2.csv'))
     carbon_model_params = [tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli]
-    post_cooling_time = 0#30000 #years
+    post_cooling_time = 30000 #years
     end_time = np.array(empl_times)[-1]+post_cooling_time
     print(f'End time is {end_time}')
     time_steps1 = np.arange(current_time,np.array(empl_times)[-1],dt)
@@ -136,7 +136,7 @@ def cooler(load_dir, z_index, iter):
     timeframe.to_csv(dir_save+'/times.csv')
 
     current_time = np.round(current_time, 3)
-    carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, [dt, dt_factor*dt], n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor=10,model = 'silli', q=q)
+    carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor=100,model = 'silli', q=q)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe.to_csv(dir_save+'/times.csv')
@@ -153,14 +153,14 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-load_dirs = ['sillcubes/3.000e+08/half/', 'sillcubes/3.000e+08/middle60/']
+load_dirs = ['sillcubes/3.000e+07/middle60/']
 
 #factor = np.random.randint(1, int(0.9*c//2), 4)
 #z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
-#z_index = [89, 280, 300, 483, 555]
-z_index = [89,300]
-itera = [1]
-'''
+z_index = [89, 280, 300, 483, 555]
+#z_index = [89,300]
+itera = [0, 1, 2]
+
 for load_dir in load_dirs:
     os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
     for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
@@ -176,7 +176,7 @@ for load_dir in load_dirs:
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 
 print(f'slices are {z_index}')
-'''
+
 pairs = itertools.product(load_dirs, z_index, itera)
 
 
