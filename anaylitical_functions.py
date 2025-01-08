@@ -36,7 +36,7 @@ def db_pulse(e, f, ecks, why, cx, cy, L, l1, l2, sd,t):
 @jit
 def pulse_diri(e, ecks,a,L,l1,sd,t):
     s = 10
-    pulsee = cos_signal(e, a, L)
+    pulsee = rect(e, a, L)
     its = 900
     tee = np.zeros(its)
     for i in range(0,its):
