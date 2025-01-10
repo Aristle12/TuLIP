@@ -1167,9 +1167,9 @@ class rules:
             dike_net = dike_net + new_dike
             return T_field, dike_net, rock
     '''
-    def get_H(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
+    def get_chemH(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
         """
-        Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation
+        Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
         T_field = Temp field, int
         rho = Density kg/m3
         CU, CTh = U, Th concentrations in ppm, array
@@ -1190,6 +1190,40 @@ class rules:
     def get_diffusivity(T_field, lithology):
         K = 31.536*np.ones_like(T_field)
         return K
+    
+    @staticmethod
+    def get_radH(T_field, rho, dx):
+        a, b = T_field.shape
+        Ho = 8e-10 #W/kg
+        Lc = 12000 #m
+        depth = np.array([i*dx for i in range(a)])
+        H = np.zeros((a,b))
+        for i in range(a):
+            for j in range(b):
+                H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
+        return H
+    
+    @staticmethod
+    def calcF(T_field, T_liquidus=1250, T_solidus=1000):
+        F = 1 - ((T_field-T_solidus)/(T_liquidus-T_solidus))**2.5
+        return F
+
+    @staticmethod
+    def get_latH(T_field, rho, lithology, dx, dy, melt='basalt', rho_melt = 2850, T_liquidus=1250, T_solidus=1000):
+        heat_filter = lithology==melt
+        a,b = T_field.shape
+        #pressure = np.zeros((a,b))
+        #for i in range(1,a):
+        #    for j in range(b):
+        #        pressure[i,j] = (pressure[i-1,j]+ rho[i,j]*9.8*i*dy)*1e-9 #GPa
+        #rho_melt = 2700 #kg/m3
+        phi_cr = rules.calcF(T_field, T_liquidus, T_solidus)
+        L = 4e5 #J
+        H_lat = rho_melt*phi_cr*L*heat_filter
+        return H_lat
+
+        
+
 
 
     def sill_3Dcube(self, x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape='elli', dike_tail=False):
@@ -1832,7 +1866,11 @@ class sill_controls:
             #curr_time = time_steps[l]
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
+            H_rad = self.rool.get_radH(T_field, density,dx)
+            H_lat = self.rool.get_latH(T_field, density, rock, dx, dy)
+            H = H_rad+H_lat
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
+
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
             rock = props_array[self.rock_index]
