@@ -136,7 +136,7 @@ def cooler(load_dir, z_index, iter):
     timeframe.to_csv(dir_save+'/times.csv')
 
     current_time = np.round(current_time, 3)
-    carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor=100,model = 'silli', q=q)
+    carbon_model_params = sc.emplace_sills(props_array, k, dx, dy, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor=100,model = 'silli', q=q, save_dir=dir_save)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe.to_csv(dir_save+'/times.csv')

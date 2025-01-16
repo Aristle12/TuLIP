@@ -11,7 +11,7 @@ from joblib import Parallel, delayed
 
 #@jit
 n_sills_array = []
-flux = int(3*10**(8.5))
+flux = int(3e9)#*10**(7.5))
 save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
 
 os.makedirs(save_dir, exist_ok = True)
@@ -120,10 +120,19 @@ volume = x*4000*z
 
 
 
-tot_volume_start = 0.05*volume
-tot_volume_end = 0.2*volume
-tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.05*volume)
-
+#tot_volume_start = 0.05*volume
+#tot_volume_end = 0.2*volume
+#tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.05*volume)
+tot_volumes = np.array([0.075*volume, 0.125*volume])
 n_sills_array = Parallel(n_jobs = 2)(delayed(cubemaker)(tot_volume) for tot_volume in tot_volumes)
+n_sills_total = pd.read_csv(save_dir+'/n_sills.csv')
+# Append new data to the DataFrame
+new_data = pd.DataFrame({
+    'volumes': tot_volumes,
+    'n_sills': n_sills_array
+})
 
-pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volumes}).to_csv(save_dir+'/n_sills.csv')
+# Concatenate the existing DataFrame with the new data
+n_sills_total = pd.concat([n_sills_total, new_data], ignore_index=True)
+n_sills_total.to_csv(save_dir+'/n_sills.csv')
+#pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volumes}).to_csv(save_dir+'/n_sills.csv')

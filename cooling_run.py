@@ -148,8 +148,8 @@ x = 300000 #m - Horizontal extent of the crust
 y = 8000 #m - Vertical thickness of the crust
 z = 30000 #m - Third dimension for cube
 
-fluxy = [int(3e9), int(3e8), int(3e7)]
-flux2 = [int(3*10**7.5), int(3*10**8.5)]
+fluxy = [int(3e9), int(3e8), int(3e7), int(3*10**(7.5)), int(3*10**(8.5))]
+#flux2 = [int(3*10**7.5), int(3*10**8.5)]
 
 dx = dz = 50 #m node spacing in x-direction
 dy = 50 #m node spacing in y-direction
@@ -158,7 +158,7 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-iter = [0, 1, 2]
+iter = [3, 4]
 
 iter2 = 3
 
@@ -167,10 +167,10 @@ iter2 = 3
 factor = np.random.randint(1, int(0.9*c//2), 4)
 #z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
 z_index = [191, 284, 300, 493, 506]
-pairs = itertools.product(iter, z_index, flux2)
+pairs = itertools.product(iter, z_index, fluxy)
 
 #pairs = pairs+pairs2
-for flux in flux2:
+for flux in fluxy:
     load_dir = 'sillcubes/'+str(format(flux, '.3e'))
     os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
     for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
@@ -196,8 +196,8 @@ for flux in flux2:
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
 
-Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
-Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, flux2) for z_indexs in z_index)
+Parallel(n_jobs = 20)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
+#Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, fluxy) for z_indexs in z_index)
 
 #cooler(1, 300, int(3e9))
 
