@@ -8,7 +8,8 @@ import pypardiso as ps
 from scipy.special import erf, erfinv
 from scipy.io import loadmat
 from scipy.interpolate import RegularGridInterpolator
-import pdb
+from scipy.spatial import KDTree
+import pandas as pd
 import pyvista as pv
 import os
 
@@ -1363,8 +1364,8 @@ class rules:
         return props_array, row_push_start, columns_pushed
 
 class sill_controls:
-    def __init__(self):
-        
+    def __init__(self, x, y, dx, dy, k, calculate_closest_sill = False):
+        self.calculate_closest_sill = calculate_closest_sill
         self.cool = cool()
         self.rool = rules() 
         ###Setting up the properties dictionary to translate properties to indices for 3D array###
@@ -1378,8 +1379,7 @@ class sill_controls:
                         1:'Lithology',
                         2:'Porosity',
                         3:'Density',
-                        4:'TOC'
-        }
+                        4:'TOC'}
 
         #Lithology dictionary to translate rock types into numerical codes for numpy arrays
         self.lith_plot_dict = {'granite':0,
@@ -1457,6 +1457,54 @@ class sill_controls:
         #    return enumerated_result
         # If the result is a single value, return it as is
         return result
+    
+    @staticmethod
+    def check_closest_sill_temp(T_field, sills_array, T_solidus=800):
+        is_sill = (sills_array!=0)
+        boundary_finder = np.array(is_sill, dtype=int)
+        boundary_finder[1:-1, 1:-1] = boundary_finder[:-1,:]+boundary_finder[1:, :]+boundary_finder[:,:-1]+boundary_finder[:,1:]
+        sills_number = sills_array*is_sill
+        tot_sills = np.max(sills_array)
+        sills_list = np.arange(0,tot_sills+1, step=1)
+        sills_data = pd.DataFrame()
+        sills_data['sills'] = sills_list
+        distance_array = []
+        temperature_array = []
+        index_array = []
+        closest_sill = []
+        a,b = T_field.shape
+        rows = np.arange(b)
+        columns = np.arange(a)
+        rows_grid, columns_grid = np.meshgrid(rows, columns, indexing = 'ij')
+        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel()))
+        for curr_sill in range(tot_sills):
+            condition = (T_field>T_solidus) & is_sill
+            query_points = points[(sills_array==curr_sill) & (boundary_finder>0) & (boundary_finder<4)]
+            saved_distance = 1e10
+            saved_index = -1
+            saved_temperature = -1
+            saved_sill = -1
+            filtered_points = points[condition]
+            tree = KDTree(filtered_points)
+            if len(query_points)>0:
+                for curr_point in query_points:
+                    distance, index = tree.query(curr_point)
+                    if distance<saved_distance:
+                        saved_distance = distance
+                        saved_index = index
+                        saved_temperature = T_field[index]
+                        saved_sill = sills_array[index]
+            distance_array.append(saved_distance)
+            temperature_array.append(saved_temperature)
+            index_array.append(saved_index)
+            closest_sill.append(saved_sill)
+        sills_data['closest_sill'] = closest_sill
+        sills_data['distance'] = distance_array
+        sills_data['index'] = index_array
+        sills_data['temperature'] = temperature_array
+        return sills_data
+
+
     def build_sillcube(self, x, y, z, dx, dy, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
         dims_empirical = False
         min_thickness = thickness_range[0] #m
@@ -1861,7 +1909,7 @@ class sill_controls:
         if save_dir is None:
             save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
         os.makedirs(save_dir, exist_ok = True)
-
+        sillnet = np.zeros((a,b))
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
@@ -1896,7 +1944,9 @@ class sill_controls:
                 #print(f'Now emplacing sill {curr_sill}')
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
                 curr_TOC_silli = props_array[self.TOC_index]
-
+                sillnet = self.rool.value_pusher2D(sillnet, curr_sill, row_start, col_pushed)
+                if self.calculate_closest_sill:
+                    sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet)
                 if model=='silli':
                     if (col_pushed!=0).any():
                         curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
@@ -1962,15 +2012,16 @@ class sill_controls:
                         props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                 else:
                     raise ValueError('saving_factor should have either one or two values')
-
         if model=='silli':
             carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
             carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
         else:
             carbon_model_params = None
-        return carbon_model_params
-
+        if self.calculate_closest_sill:
+            return carbon_model_params, sills_data
+        else:
+            return carbon_model_params
     def example_run(self):
         #Dimensions of the 2D grid
         x = 300000 #m - Horizontal extent of the crust
