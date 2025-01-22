@@ -1365,6 +1365,11 @@ class rules:
 
 class sill_controls:
     def __init__(self, x, y, dx, dy, k, calculate_closest_sill = False):
+        self.x = x
+        self.y = y
+        self.dx = dx
+        self.dy = dy
+        self.k = k
         self.calculate_closest_sill = calculate_closest_sill
         self.cool = cool()
         self.rool = rules() 
@@ -1459,49 +1464,55 @@ class sill_controls:
         return result
     
     @staticmethod
-    def check_closest_sill_temp(T_field, sills_array, T_solidus=800):
-        is_sill = (sills_array!=0)
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, T_solidus=800, no_sill = ''):
+        is_sill = np.array((sills_array!=no_sill))
+        print('Sill nodes',np.sum(is_sill))
+        print('Hot sills', np.sum(T_field>T_solidus))
         boundary_finder = np.array(is_sill, dtype=int)
-        boundary_finder[1:-1, 1:-1] = boundary_finder[:-1,:]+boundary_finder[1:, :]+boundary_finder[:,:-1]+boundary_finder[:,1:]
-        sills_number = sills_array*is_sill
-        tot_sills = np.max(sills_array)
-        sills_list = np.arange(0,tot_sills+1, step=1)
-        sills_data = pd.DataFrame()
-        sills_data['sills'] = sills_list
-        distance_array = []
-        temperature_array = []
-        index_array = []
-        closest_sill = []
+        boundary_finder[1:-1, 1:-1] = (
+        boundary_finder[:-2, 1:-1] +  # Above
+        boundary_finder[2:, 1:-1] +   # Below
+        boundary_finder[1:-1, :-2] +  # Left
+        boundary_finder[1:-1, 2:])     # Right
+        sills_number = sills_array.copy()
+        sills_number[sills_array==no_sill] = -1
+        #tot_sills = np.max(sills_array)
+        #sills_list = np.arange(0,tot_sills+1, step=1)
+        sills_data = pd.DataFrame({'sills':curr_sill}, index = [0])
         a,b = T_field.shape
         rows = np.arange(b)
         columns = np.arange(a)
-        rows_grid, columns_grid = np.meshgrid(rows, columns, indexing = 'ij')
-        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel()))
-        for curr_sill in range(tot_sills):
-            condition = (T_field>T_solidus) & is_sill
-            query_points = points[(sills_array==curr_sill) & (boundary_finder>0) & (boundary_finder<4)]
-            saved_distance = 1e10
-            saved_index = -1
-            saved_temperature = -1
-            saved_sill = -1
-            filtered_points = points[condition]
-            tree = KDTree(filtered_points)
-            if len(query_points)>0:
-                for curr_point in query_points:
-                    distance, index = tree.query(curr_point)
-                    if distance<saved_distance:
-                        saved_distance = distance
-                        saved_index = index
-                        saved_temperature = T_field[index]
-                        saved_sill = sills_array[index]
-            distance_array.append(saved_distance)
-            temperature_array.append(saved_temperature)
-            index_array.append(saved_index)
-            closest_sill.append(saved_sill)
-        sills_data['closest_sill'] = closest_sill
-        sills_data['distance'] = distance_array
-        sills_data['index'] = index_array
-        sills_data['temperature'] = temperature_array
+        rows_grid, columns_grid = np.meshgrid(columns, rows, indexing='ij')
+        points = np.column_stack((columns_grid.ravel(), rows_grid.ravel()))
+        points = points.reshape(-1,2)
+        condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
+        print('Number of conditional points', np.sum((sills_number==curr_sill) & (boundary_finder>1) & (boundary_finder<4)))
+        query_condition = (sills_number == curr_sill) & (boundary_finder > 1) & (boundary_finder < 4)
+        query_points = points[query_condition.ravel()]
+        print('Not sill', sills_number[condition])
+        print('Iterating points', len(query_points))
+        saved_distance = 1e10
+        saved_index = -1
+        saved_temperature = -1
+        saved_sill = -1
+        filtered_points = points[condition.ravel()]
+        print('Leakage in condition', np.sum(T_field[condition]<T_solidus))
+        print('Number of filtered points', len(filtered_points))
+        tree = KDTree(filtered_points)
+        if len(query_points)>0:
+            for curr_point in query_points:
+                distance, index = tree.query(curr_point)
+                if distance<saved_distance:
+                    print(distance, index)
+                    index = np.unravel_index(index, (a,b))
+                    saved_distance = distance
+                    saved_index = str(index)
+                    saved_temperature = T_field[index]
+                    saved_sill = sills_array[index]
+        sills_data['closest_sill'] = saved_sill
+        sills_data['distance'] = saved_distance
+        sills_data['index'] = saved_index
+        sills_data['temperature'] = saved_temperature
         return sills_data
 
 
@@ -1910,6 +1921,7 @@ class sill_controls:
             save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
         os.makedirs(save_dir, exist_ok = True)
         sillnet = np.zeros((a,b))
+        sillnet[:] = ''
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
@@ -1946,7 +1958,7 @@ class sill_controls:
                 curr_TOC_silli = props_array[self.TOC_index]
                 sillnet = self.rool.value_pusher2D(sillnet, curr_sill, row_start, col_pushed)
                 if self.calculate_closest_sill:
-                    sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet)
+                    sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill)
                 if model=='silli':
                     if (col_pushed!=0).any():
                         curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
