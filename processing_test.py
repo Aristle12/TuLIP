@@ -30,7 +30,7 @@ boundary_finder[1:-1, 2:])     # Right
 plt.imshow(boundary_finder)
 plt.show()
 '''
-sillsquare[sillsquare==''] = -100
+sillsquare[sillsquare==''] = -1
 
 for g in trange(20):
     quer = '_'+str(g)+'s'
@@ -38,11 +38,12 @@ for g in trange(20):
 
 
 T_field[sillsquare!=-100] = 1000
-plt.imshow(T_field)
-#plt.show()
+plt.imshow(np.array(sillsquare, dtype = float))
+plt.colorbar(orientation = 'horizontal')
+plt.show()
 
 sill = np.max(sillsquare)
-sillsquare[sillsquare==-100] = ''
+sillsquare[sillsquare==-1] = ''
 print(sillsquare[sillsquare!=''])
 '''
 sills_number = sillsquare.copy()
@@ -58,17 +59,7 @@ plt.show()
 
 
 #for i in trange(sill+1):
-sills_data = sc.check_closest_sill_temp(T_field, sillsquare, 8)
+sills_data = sc.check_closest_sill_temp(T_field, sillsquare, 6)
 print(sills_data)
 
 
-# Example inputs
-T_field = np.random.rand(100, 100) * 1000  # Random temperature field
-sills_array = np.random.randint(0, 10, size=(100, 100))  # Random sills array
-curr_sill = 5  # Current sill to analyze
-
-# Call the function
-result = sc.check_closest_sill_temp(T_field, sills_array, curr_sill)
-
-# Display the result
-print(result)

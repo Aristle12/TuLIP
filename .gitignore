@@ -5,7 +5,7 @@ __pycache__
 plots/*
 *.csv
 carbon.csv
-#*.ipynb
+*.ipynb
 sillcubes/*
 *.npy
 sillcubes/sillcube3600000000000.0.vtk
