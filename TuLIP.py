@@ -1486,8 +1486,8 @@ class sill_controls:
         points = np.column_stack((columns_grid.ravel(), rows_grid.ravel()))
         points = points.reshape(-1,2)
         condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
-        print('Number of conditional points', np.sum((sills_number==curr_sill) & (boundary_finder>1) & (boundary_finder<4)))
-        query_condition = (sills_number == curr_sill) & (boundary_finder > 1) & (boundary_finder < 4)
+        print('Number of conditional points', np.sum((sills_number==curr_sill) & (boundary_finder>0) & (boundary_finder<4)))
+        query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
         query_points = points[query_condition.ravel()]
         print('Not sill', sills_number[condition])
         print('Iterating points', len(query_points))
@@ -1503,12 +1503,11 @@ class sill_controls:
             for curr_point in query_points:
                 distance, index = tree.query(curr_point)
                 if distance<saved_distance:
-                    print(distance, index)
-                    index = np.unravel_index(index, (a,b))
+                    index1 = filtered_points[index]#np.unravel_index(index, (a,b), order = 'F')
                     saved_distance = distance
-                    saved_index = str(index)
-                    saved_temperature = T_field[index]
-                    saved_sill = sills_array[index]
+                    saved_index = str(index1)
+                    saved_temperature = T_field[index1[1], index1[0]]
+                    saved_sill = sills_array[index1[1], index1[0]]
         sills_data['closest_sill'] = saved_sill
         sills_data['distance'] = saved_distance
         sills_data['index'] = saved_index
