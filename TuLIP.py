@@ -475,6 +475,15 @@ class emit:
     
     @staticmethod
     def get_init_CO2_percentages(T_field, lithology, density, dy):
+        '''
+        The get_init_CO2_percentages method calculates the initial exsolved CO2 percentages for different lithologies based on temperature and pressure conditions 
+        i.e., ensuring the CO2 is in equilibrium with the PT conditions. 
+        It uses interpolation to estimate CO2 values from pre-loaded data for specific rock types.
+        T_field: 2D array representing the temperature field.
+        lithology: 2D array indicating the type of rock at each location.
+        density: 2D array of rock densities.
+        dy: Scalar representing the vertical distance between layers.
+        '''
         a,b = lithology.shape
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         dolo = loadmat('dat/Dolostone.mat')
@@ -513,6 +522,15 @@ class emit:
         return init_CO2
     @staticmethod
     def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
+        '''
+        Calculate the amount of CO2 exsolved from the breakdown of carbonate rocks
+        T_field: 2D array representing the temperature field.
+        lithology: 2D array indicating the type of rock at each location.
+        density: 2D array of rock densities.
+        breakdownCO2: 2D array of initial CO2 breakdown values.
+        dy: Scalar representing the vertical distance between layers.
+        dt: Scalar representing the time step.
+        '''
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         a, b = T_field.shape
         dolo = loadmat('dat/Dolostone.mat')
@@ -611,6 +629,9 @@ class emit:
         return RCO2, Rom, percRo, TOC, W
 
     def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
+        '''
+        Untested function for the analytical solution of the Easy Ro model
+        '''
         calc_parser = (lithology=='shale') | (lithology=='sandstone')
         a1 = 2.334733
         a2 = 0.250621
@@ -640,7 +661,7 @@ class emit:
 
     def analyticalRo_I(T_field):
         '''
-        Initialization of I for the SILLi carbon model
+        Initialization of I for the analytical solution of the EasyRo model
         '''
 
         a = len(T_field[:,0])
@@ -661,6 +682,10 @@ class emit:
 
     @staticmethod
     def get_sillburp_reaction_energies():
+        '''
+        Function to create the reaction energies required for sillburp model for thermogenic carbon emissions. 
+        These generate normal distributions of activation energies for each component (Jonees et al. 2019)
+        '''
         sqrt_2pi = np.sqrt(2 * np.pi)
         n_reactions = 4
         mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
@@ -698,6 +723,21 @@ class emit:
     @staticmethod
     @jit(forceobj = True)
     def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=None, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan, weights = None):
+        '''
+        Python implementation of the sillburp model of Jones et al. (2019)
+        T_field - Temperature field array
+        TOC_prev - Total organic content at the previous time step. If the first time step, leave TOCo blank and make this the TOC content
+        density - Density array of the slice
+        lithology - Lithology array of the slice
+        porosity - Porosity field of the slice
+        dt - Time step
+        reaction_energies - Reaction energy arrays. These are most easily generated from the get_sillburp_reaction_energies() function. The model is designed to be used with these energies
+        TOCo - Total organic carbon content of the slice at the initial time
+        oil_production_rate - Rate of oil production as calculated by this model
+        progress_reactions - The progress of reactions at the current time step. Leave blank at the initial time step
+        rate_of_reactions - The rate of reaction progress at the current time step
+        weights - Array containing the distribution of different components of reaction groups - The order of weights is ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
+        '''
         #TOCo = np.array(TOCo, dtype=float)
 
         if TOCo is None:
@@ -1556,7 +1596,11 @@ class sill_controls:
         return sills_data
 
 
-    def build_sillcube(self, x, y, z, dx, dy, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+    def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+        x = self.x
+        y = self.y
+        dx = self.dx
+        dy = self.dy
         dims_empirical = False
         min_thickness = thickness_range[0] #m
         max_thickness = thickness_range[1] #m
@@ -1736,7 +1780,10 @@ class sill_controls:
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
         return sillcube, n_sills, params
     
-    def get_silli_initial_thermogenic_state(self, props_array, dx, dy, dt, method, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+    def get_silli_initial_thermogenic_state(self, props_array, dt, method, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        dx = self.dx
+        dy = self.dy
+        k = self.k
 
         if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
             lith_plot_dict = self.lith_plot_dict
@@ -1821,7 +1868,10 @@ class sill_controls:
         props_array[self.TOC_index] = curr_TOC_silli
         return current_time, tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
 
-    def get_sillburp_initial_thermogenic_state(self, props_array, dx, dy, dt, method, sillburp_weights = None, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+    def get_sillburp_initial_thermogenic_state(self, props_array, dt, method, sillburp_weights = None, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        dx = self.dx
+        dy = self.dy
+        k = self.k
         try:
             if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
                 lith_plot_dict = self.lith_plot_dict
@@ -1909,7 +1959,10 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+        k = self.k
+        dx = self.dx
+        dy = self.dy
         saving_time_step_index = np.where(time_steps==current_time)[0]
         if len(saving_time_step_index)>0:
             saving_time_step_index = saving_time_step_index[0]
@@ -2086,16 +2139,25 @@ class sill_controls:
             return carbon_model_params, sills_data
         else:
             return carbon_model_params
-    def example_run(self):
-        #Dimensions of the 2D grid
-        x = 300000 #m - Horizontal extent of the crust
-        y = 35000 #m - Vertical thickness of the crust
 
-        dx = 250 #m node spacing in x-direction
-        dy = 250 #m node spacing in y-direction
+class examples:
 
+    def __init__(self, x = 300000, y = 35000, dx = 250, dy = 250):
+        self.x = x
+        self.y = y
+        self.dx = dx
+        self.dy = dy
         a = int(y//dy) #Number of rows
         b = int(x//dx) #Number of columns
+        self.k = np.ones((a,b))*31.536
+        self.cool = cool()
+        self.rool = rules()
+        self.sc = sill_controls(self.x, self.y, self.dx, self.dy, self.k)
+    def example_run(self):
+        #Dimensions of the 2D grid
+
+        a = int(self.y//self.dy) #Number of rows
+        b = int(self.x//self.dx) #Number of columns
 
         #Temp at the surface
         T_surf = 0 #deg C
@@ -2104,9 +2166,8 @@ class sill_controls:
         T_mag = 1000 #deg C
 
         #Initializing diffusivity field
-        k = np.ones((a,b))*31.536 #m2/yr
 
-        dt = (min(dx,dy)**2)/(5*np.max(k))
+        dt = (min(self.dx,self.dy)**2)/(5*np.max(self.k))
 
         #Shape of the sills
         shape = 'elli'
@@ -2114,28 +2175,30 @@ class sill_controls:
         #Initializing the temp field
         T_field = np.zeros((a,b))
         T_field[-1,:] = T_mag
-        T_field = self.cool.heat_flux(k, a, b, dx, dy, T_field, 'straight')
+        T_field = self.cool.heat_flux(self.k, a, b, self.dx, self.dy, T_field, 'straight')
         rock = np.empty((a,b), dtype = object)
 
         rock[:] = 'granite'
-        rock[0:int(5000/dy),:] = 'shale'
-        rock[int((5000/dy)+1):int(15000/dy),:] = 'sandstone'
-        rock[int((30000/dy)+1):,:] = 'peridotite'
+        rock[0:int(5000/self.dy),:] = 'shale'
+        rock[int((5000/self.dy)+1):int(15000/self.dy),:] = 'sandstone'
+        rock[int((30000/self.dy)+1):,:] = 'peridotite'
 
         plot_rock = np.zeros((a,b), dtype = int)
 
         for i in range(a):
             for j in range(b):
-                plot_rock[i,j] = self.lith_plot_dict[rock[i,j]]
+                plot_rock[i,j] = self.sc.lith_plot_dict[rock[i,j]]
 
 
-        labels = [key for key in self.lith_plot_dict]
+        labels = [key for key in self.sc.lith_plot_dict]
+
+        os.makedirs('plots', exist_ok = True)
 
         # Visualize the rock array
-        plt.imshow(plot_rock, cmap='viridis', extent = [0, x/1000, y/1000, 0])
+        plt.imshow(plot_rock, cmap='viridis', extent = [0, self.x/1000, self.y/1000, 0])
         plt.ylabel('Depth (km)')
         plt.xlabel('Lateral extent (km)')
-        cbar = plt.colorbar(ticks=list(self.lith_plot_dict.values()), orientation = 'horizontal')
+        cbar = plt.colorbar(ticks=list(self.sc.lith_plot_dict.values()), orientation = 'horizontal')
         cbar.set_ticklabels(list(labels))
         cbar.set_label('Rock Type')
         plt.title('Bedrock Composition')
@@ -2149,17 +2212,17 @@ class sill_controls:
 
         for i in range(a):
             for j in range(b):
-                porosity[i,j] = self.rock_prop_dict[rock[i,j]]['Porosity']
-                density[i,j] = self.rock_prop_dict[rock[i,j]]['Density']
-                TOC[i,j] = self.rock_prop_dict[rock[i,j]]['TOC'] 
+                porosity[i,j] = self.sc.rock_prop_dict[rock[i,j]]['Porosity']
+                density[i,j] = self.sc.rock_prop_dict[rock[i,j]]['Density']
+                TOC[i,j] = self.sc.rock_prop_dict[rock[i,j]]['TOC'] 
         ###Building the 3d properties array###
         props_array = np.empty((len((self.prop_dict.keys())),a,b), dtype = object)
 
-        props_array[self.Temp_index] = T_field
-        props_array[self.rock_index] = rock
-        props_array[self.poros_index] = porosity
-        props_array[self.dense_index] = density
-        props_array[self.TOC_index] = TOC
+        props_array[self.sc.Temp_index] = T_field
+        props_array[self.sc.rock_index] = rock
+        props_array[self.sc.poros_index] = porosity
+        props_array[self.sc.dense_index] = density
+        props_array[self.sc.TOC_index] = TOC
 
         ###Setting up sill dimensions and locations###
         min_thickness = 900 #m
@@ -2183,14 +2246,14 @@ class sill_controls:
         time_steps = np.arange(0, np.sum(phase_times), dt)
         print(f'Length of time_steps:{len(time_steps)}')
 
-        sillcube, n_sills, emplacement_params = self.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume, flux, n_sills)
+        sillcube, n_sills, emplacement_params = self.build_sillcube(dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [self.x//3, 2*self.x//3, self.x//6], phase_times, tot_volume, flux, n_sills)
         print('sillcube built')
-        params = self.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
+        params = self.sc.get_silli_initial_thermogenic_state(props_array, dt, 'conv smooth', time = thermal_mat_time)
         current_time = params[0]
         print(f'Current time before function: {current_time}')
         carbon_model_params = params[1:]
         print('Got initial emissions state')
-        props_total_array, carbon_model_params = self.emplace_sills(props_array, k, dx, dy, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'silli')
+        props_total_array, carbon_model_params = self.sc.emplace_sills(props_array, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'silli')
         print('Model Run complete')
         tot_RCO2 = carbon_model_params[0]
         plt.plot(time_steps[np.where(time_steps==current_time)[0][0]:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0]:]))

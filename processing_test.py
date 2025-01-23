@@ -1,4 +1,4 @@
-'''
+# %%
 from TuLIP import sill_controls as sc
 from TuLIP import rules as rool
 import numpy as np
@@ -62,7 +62,8 @@ plt.show()
 #for i in trange(sill+1):
 sills_data = sc.check_closest_sill_temp(T_field, sillsquare, 6)
 print(sills_data)
-'''
+
+# %%
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -148,3 +149,4 @@ plt.plot(time_steps, max_T_noH, label = 'T without latent heat')
 plt.plot(time_steps, max_T_totH, label = 'T with latent and radiogenic heat')
 plt.legend()
 plt.show()
+
