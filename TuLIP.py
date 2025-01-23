@@ -263,7 +263,7 @@ class cool:
             Tret[-1,:] = Tret[-2,:]+ (q*dy/k[-1,:])
         return Tret
 
-    def perm_chain_solve(k, a, b, dx, dy, dt, Tnow, q, Af, H):
+    def perm_chain_solve(self, k, a, b, dx, dy, dt, Tnow, q, Af, H):
             """
             Solver for time varying heat diffusion equation building an chain rule (for anisotropic heat diffusion)
             k = Diffusivity field (anisotropic) MxN matrix
@@ -315,7 +315,7 @@ class cool:
             return Tret
 
     @jit(forceobj = True)
-    def conv_chain_solve(k, a, b, dx, dy, dt, Tf, H, q = np.nan):
+    def conv_chain_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
         Solver for the heat diffusion equation (expanded via the chain rule) based on convolution method - faster when inhomogenous time varying permeability is used
         k = Diffusivity field (anisotropic) MxN matrix
@@ -333,7 +333,7 @@ class cool:
         T_bot = Tf[-1,0]
         for i in range(1,a-1):
             for j in range(1,b-1):
-                Tnow[i,j] =  (-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt+(H[i,j]*dt))+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]
+                Tnow[i,j] =  (-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt)+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]+(H[i,j]*dt/(dx**2))
         for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
@@ -364,7 +364,7 @@ class cool:
         T_bot = Tf[-1,0]
         for i in range(1,a-1):
             for j in range(1,b-1):
-                Tnow[i,j] =  (-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2)))+(H[i,j]*dt))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]
+                Tnow[i,j] =  (-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]+(H[i,j]*dt/(dx**2))
         for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
@@ -1168,6 +1168,7 @@ class rules:
             dike_net = dike_net + new_dike
             return T_field, dike_net, rock
     '''
+    @staticmethod
     def get_chemH(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
         """
         Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
@@ -1205,12 +1206,22 @@ class rules:
         return H
     
     @staticmethod
-    def calcF(T_field, T_liquidus=1250, T_solidus=1000):
-        F = 1 - ((T_field-T_solidus)/(T_liquidus-T_solidus))**2.5
+    def calcF(T_field, T_liquidus=1250, T_solidus=800):
+        F = np.zeros_like(T_field)
+        a,b = T_field.shape
+        for i in range(a):
+            for j in range(b):
+                if T_field[i,j]>T_solidus and T_field[i,j]<T_liquidus:
+                    F[i,j] = (((T_field[i,j]-T_solidus)/(T_liquidus-T_solidus))**2.5)
+                elif T_field[i,j]<T_solidus:
+                    F[i,j] = 0
+                elif T_field[i,j]>T_liquidus:
+                    F[i,j] = 1
+        #print(T_field[i,j], F[i,j], i, j)
         return F
 
     @staticmethod
-    def get_latH(T_field, rho, lithology, dx, dy, melt='basalt', rho_melt = 2850, T_liquidus=1250, T_solidus=1000):
+    def get_latH(T_field, lithology, melt='basalt', rho_melt = 2850, T_liquidus=1250, T_solidus=800):
         heat_filter = lithology==melt
         a,b = T_field.shape
         #pressure = np.zeros((a,b))
@@ -1220,9 +1231,8 @@ class rules:
         #rho_melt = 2700 #kg/m3
         phi_cr = rules.calcF(T_field, T_liquidus, T_solidus)
         L = 4e5 #J
-        H_lat = rho_melt*phi_cr*L*heat_filter
+        H_lat = rho_melt*(phi_cr)*L*heat_filter
         return H_lat
-
         
 
 
@@ -1364,13 +1374,16 @@ class rules:
         return props_array, row_push_start, columns_pushed
 
 class sill_controls:
-    def __init__(self, x, y, dx, dy, k, calculate_closest_sill = False):
+    def __init__(self, x, y, dx, dy, k, include_external_heat = True, calculate_closest_sill = False, calculate_all_sills_distances = False, calculate_at_all_times = False):
         self.x = x
         self.y = y
         self.dx = dx
         self.dy = dy
         self.k = k
         self.calculate_closest_sill = calculate_closest_sill
+        self.calculate_all_sill_distances = calculate_all_sills_distances
+        self.calculate_at_all_times = calculate_at_all_times
+        self.include_heat = include_external_heat
         self.cool = cool()
         self.rool = rules() 
         ###Setting up the properties dictionary to translate properties to indices for 3D array###
@@ -1464,7 +1477,7 @@ class sill_controls:
         return result
     
     @staticmethod
-    def check_closest_sill_temp(T_field, sills_array, curr_sill, T_solidus=800, no_sill = ''):
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
         is_sill = np.array((sills_array!=no_sill))
         print('Sill nodes',np.sum(is_sill))
         print('Hot sills', np.sum(T_field>T_solidus))
@@ -1485,33 +1498,61 @@ class sill_controls:
         rows_grid, columns_grid = np.meshgrid(columns, rows, indexing='ij')
         points = np.column_stack((columns_grid.ravel(), rows_grid.ravel()))
         points = points.reshape(-1,2)
-        condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
-        print('Number of conditional points', np.sum((sills_number==curr_sill) & (boundary_finder>0) & (boundary_finder<4)))
-        query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
-        query_points = points[query_condition.ravel()]
-        print('Not sill', sills_number[condition])
-        print('Iterating points', len(query_points))
-        saved_distance = 1e10
-        saved_index = -1
-        saved_temperature = -1
-        saved_sill = -1
-        filtered_points = points[condition.ravel()]
-        print('Leakage in condition', np.sum(T_field[condition]<T_solidus))
-        print('Number of filtered points', len(filtered_points))
-        tree = KDTree(filtered_points)
-        if len(query_points)>0:
-            for curr_point in query_points:
-                distance, index = tree.query(curr_point)
-                if distance<saved_distance:
-                    index1 = filtered_points[index]#np.unravel_index(index, (a,b), order = 'F')
-                    saved_distance = distance
-                    saved_index = str(index1)
-                    saved_temperature = T_field[index1[1], index1[0]]
-                    saved_sill = sills_array[index1[1], index1[0]]
-        sills_data['closest_sill'] = saved_sill
-        sills_data['distance'] = saved_distance
-        sills_data['index'] = saved_index
-        sills_data['temperature'] = saved_temperature
+        if calculate_all:
+            tot_sills = curr_sill
+            all_sills_data = pd.DataFrame(columns=['sills', 'closest_sill', 'distance', 'index', 'temperature'])
+            for curr_sill in range(tot_sills):
+                condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
+                query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
+                query_points = points[query_condition.ravel()]
+                saved_distance = 1e10
+                saved_index = -1
+                saved_temperature = -1
+                saved_sill = -1
+                filtered_points = points[condition.ravel()]
+                tree = KDTree(filtered_points)
+                if len(query_points)>0:
+                    for curr_point in query_points:
+                        distance, index = tree.query(curr_point)
+                        if distance<saved_distance:
+                            index1 = filtered_points[index]
+                            saved_distance = distance
+                            saved_index = str(index1)
+                            saved_temperature = T_field[index1[1], index1[0]]
+                            saved_sill = sills_array[index1[1], index1[0]]
+                sills_data['closest_sill'] = saved_sill
+                sills_data['distance'] = saved_distance
+                sills_data['index'] = saved_index
+                sills_data['temperature'] = saved_temperature
+            pd.concat([all_sills_data, sills_data], reset_index = True)
+            if save_file is None:
+                return all_sills_data
+            else:
+                all_sills_data.to_csv(save_file+'.csv')
+                return all_sills_data
+        else:
+            condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
+            query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
+            query_points = points[query_condition.ravel()]
+            saved_distance = 1e10
+            saved_index = -1
+            saved_temperature = -1
+            saved_sill = -1
+            filtered_points = points[condition.ravel()]
+            tree = KDTree(filtered_points)
+            if len(query_points)>0:
+                for curr_point in query_points:
+                    distance, index = tree.query(curr_point)
+                    if distance<saved_distance:
+                        index1 = filtered_points[index]
+                        saved_distance = distance
+                        saved_index = str(index1)
+                        saved_temperature = T_field[index1[1], index1[0]]
+                        saved_sill = sills_array[index1[1], index1[0]]
+            sills_data['closest_sill'] = saved_sill
+            sills_data['distance'] = saved_distance
+            sills_data['index'] = saved_index
+            sills_data['temperature'] = saved_temperature
         return sills_data
 
 
@@ -1921,15 +1962,22 @@ class sill_controls:
         os.makedirs(save_dir, exist_ok = True)
         sillnet = np.zeros((a,b))
         sillnet[:] = ''
+        if self.calculate_closest_sill and not self.calculate_at_all_times:
+            all_sills_data = pd.DataFrame()
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
-            H_rad = self.rool.get_radH(T_field, density,dx)
-            H_lat = self.rool.get_latH(T_field, density, rock, dx, dy)
-            H = H_rad+H_lat
+            if self.include_heat:
+                H_rad = self.rool.get_radH(T_field, density,dx)
+                H_lat = self.rool.get_latH(T_field, density, rock, dx, dy)
+                H = H_rad+H_lat
+            else:
+                H = np.zeros_like(T_field)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
-
+            if self.calculate_closest_sill and self.calculate_at_all_times:
+                save_file = save_dir+'/sill_distances'+str(time_steps[l])
+                sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, calculate_all=self.calculate_all_sill_distances, save_file=save_file)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
             rock = props_array[self.rock_index]
@@ -1956,8 +2004,11 @@ class sill_controls:
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
                 curr_TOC_silli = props_array[self.TOC_index]
                 sillnet = self.rool.value_pusher2D(sillnet, curr_sill, row_start, col_pushed)
-                if self.calculate_closest_sill:
+                if self.calculate_closest_sill and not self.calculate_at_all_times:
                     sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill)
+                    if all_sills_data.columns!=sills_data.columns:
+                        all_sills_data = sills_data.columns
+                    all_sills_data = pd.concat([all_sills_data, sills_data], reset_index = True)
                 if model=='silli':
                     if (col_pushed!=0).any():
                         curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
@@ -2023,6 +2074,8 @@ class sill_controls:
                         props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                 else:
                     raise ValueError('saving_factor should have either one or two values')
+        if self.calculate_closest_sill and not self.calculate_at_all_times:
+            all_sills_data.to_csv(save_dir+'/sill_distances.csv')
         if model=='silli':
             carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
