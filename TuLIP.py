@@ -956,15 +956,23 @@ class rules:
     def uniform_x(n_sills, x_min, x_max, dx):
         """
         Nodes for x-coordinate space chosen as a random normal distribution
+        n_sills: Number of x-coordinate nodes to generate.
+        x_min: Minimum value of the x-coordinate range.
+        x_max: Maximum value of the x-coordinate range.
+        dx: Grid spacing in the x-direction.
+        Returns x-coordinates in node spacings
         """
         space = np.round(np.random.uniform(x_min, x_max, n_sills)/dx)
         return space
     @staticmethod
     def empirical_CDF(n_sills, xarray, cdf):
-        """Function to give random numbers from a specific empirical distribution
+        """
+        Function to give random numbers from a specific empirical distribution
         n_sills - number of sills needed int
         xarray - array of domain for empirical CDF
-        cdf - array of CDF for the x array"""
+        cdf - array of CDF for the x array
+        Returns distribution in units of inputs
+        """
         why = np.zeros(n_sills)
         for k in range(0,n_sills):
             a = np.random.uniform(0,1)
@@ -1031,6 +1039,14 @@ class rules:
         return major, minor
     @staticmethod
     def value_pusher(array, new_value, push_index, push_value):
+        '''
+        Insert values in specified index and pushed the values down by a specified amount. 
+        This function works, but is a less efficient version of rules.value_pusher2D
+        array: A 2D numpy array to be modified.
+        new_value: The value to be inserted into the array.
+        push_index: A tuple indicating the (x, y) index where the new value will be inserted.
+        push_value: An integer indicating how many positions to shift the existing values downwards.
+        '''
         x,y = push_index
         if push_value<=0:
             raise ValueError("push_value must be greater than 0")
@@ -1044,13 +1060,26 @@ class rules:
     @staticmethod
     def prop_updater(lithology, lith_dict: dict, prop_dict: dict, property: str):
         '''
-        This function updates the associated rock properties once everything has shifted. This is done to avoid thermopgenic carbon generation from popints that are now pure magma'''
+        This function updates the associated rock properties once everything has shifted.
+        lithology: A 2D numpy array representing different rock types.
+        lith_dict: A dictionary mapping integer keys to rock type names.
+        prop_dict: A dictionary mapping rock type names to their properties.
+        property: A string indicating the specific property to update.
+        Returns a 2D array.
+        '''
         prop = np.zeros_like(lithology)
         for rock in lith_dict.keys():
             prop[lithology==rock] = prop_dict[rock][property]
         return prop
     @staticmethod
     def value_pusher2D(array, new_value, row_index, push_amount):
+        '''
+        Modify a 2D numpy array by inserting a new value at specified row indices and shifting existing values downwards by a specified amount for each column.
+        array: A 2D numpy array to be modified.
+        new_value: The value to be inserted into the array.
+        row_index: A list of row indices for each column where the new value will be inserted.
+        push_amount: A list of integers indicating how many positions to shift the existing values downwards for each column.
+        '''
         a,b = array.shape
         if len(row_index) != b or len(push_amount) != b:
             raise ValueError("row_index and push_values must have the same length as the number of columns")
@@ -1062,20 +1091,13 @@ class rules:
         return array
 
 
-    '''
-    def index_finder(array, string):
-        a,b = array.shape
-        string_index = np.empty((a,b), dtype=bool)
-        for i in range(a):
-            for j in range(b):
-                if string in array[i,j]:
-                    string_index[i,j] = True
-                else:
-                    string_index[i,j] = False
-        return string_index
-        '''
     @staticmethod
     def index_finder(array, string):
+        '''
+        Function to check and return the indices of an array that contains the specified string
+        array: A numpy array of strings or elements that can be converted to strings. Prefered dtype is object.
+        string: A string to search for within each element of the array.
+        '''
         if not np.issubdtype(array.dtype, np.str_):
             array = array.astype(str)
         
@@ -1087,6 +1109,24 @@ class rules:
 
 
     def mult_sill(self, T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
+        '''
+        Emplace sills in a 2D temperature array and optionallu update the lithology array with the sills. 
+        Optionally push the rocks downward, or overwrite the rocks in the field.
+        T_field: A 2D numpy array representing the temperature field.
+        majr: Major axis length of the sill.
+        minr: Minor axis length of the sill.
+        height: Y-coordinate for the center of the sill.
+        x_space: X-coordinate for the center of the sill.
+        dx: Spacing in the x-direction.
+        dy: Spacing in the y-direction.
+        rock: Optional 2D numpy array representing rock types.
+        emplace_rock: Type of rock to emplace, default is 'basalt'.
+        T_mag: Temperature magnitude of the sill.
+        shape: Shape of the sill, either 'rect' or 'elli'.
+        dike_empl: Boolean indicating if a dike tail should be emplaced.
+        push: Boolean indicating if the sill should be pushed into the field.
+        Returns the temperature field and an array indicating where the sill was emplaced and optionally the lithology array
+        '''
         a,b = T_field.shape
         new_dike = np.zeros_like(T_field)
         majr = majr//dx
@@ -1146,80 +1186,18 @@ class rules:
             return T_field, new_dike
 
 
-
-
-    '''
-    Broken function
-    #@jit
-    def mult_sill(T_field, majr, minr, height, x_space, dx, dy, dike_net, cm_array = [], cmb = [], rock = np.array([]), T_mag = 1000, shape = 'rect', dike_empl = True, cmb_exists = False):
-        a,b = T_field.shape
-        if dike_empl:
-            T_field[int(height):-1,int(x_space)] = T_mag
-            if rock.size>0:
-                rock.loc[int(height):-1,int(x_space)] = 'basalt'
-
-        if cmb_exists:
-            new_dike = np.zeros_like(T_field)
-            if shape == 'rect':
-                new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
-            elif shape=='elli':
-                x = np.arange(0,b*dx, dx)
-                y = np.arange(0, a*dy, dy)
-                majr = majr*dx
-                minr = minr*dy
-                for m in range(0, a):
-                    for n in range(0, b):
-                        if (x_dist+y_dist)<=1:
-                            T_field[m,n]=T_mag
-                            new_dike[m,n] = 1
-            cm_mov = np.sum(new_dike, axis = 0)
-            cmb = cmb + cm_mov
-            for l in range(0, b):
-                if cm_mov[l]!=0:
-                    for m in range(0,a):
-                        if new_dike[m,l]==1:
-                            T_field = value_pusher(T_field, T_mag,[m,l], cm_mov[l])
-                            rock = value_pusher(rock,'basalt',[m,l],cm_mov[l])
-                            continue
-            for i in range(0, a):
-                for j in range(0, b):
-                    if i>cmb[i]:
-                        cm_array.loc[i,j] = 'mantle'
-            return T_field, dike_net, rock, cm_array
-        else:
-            new_dike = np.zeros_like(T_field)
-            if shape == 'rect':
-                T_field[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = T_mag
-                new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
-            elif shape == 'elli':
-                x = np.arange(0,b*dx, dx)
-                y = np.arange(0, a*dy, dy)
-                majr = majr*dx
-                minr = minr*dy
-                for m in range(0, a):
-                    for n in range(0, b):
-                        x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
-                        y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
-                        if (x_dist+y_dist)<=1:
-                            T_field[m,n]=T_mag
-                            new_dike[m,n] = 1
-                            if rock.size>0:
-                                rock.loc[n,m] = 'basalt'
-            dike_net = dike_net + new_dike
-            return T_field, dike_net, rock
-    '''
     @staticmethod
     def get_chemH(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
         """
-        Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
+        Untested function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
         T_field = Temp field, int
         rho = Density kg/m3
         CU, CTh = U, Th concentrations in ppm, array
         CK = K conc in wt %, array
         T_sol = Solidus temperature
         """
-        J = 0.25 #J/kg latent heat of crystallization
-        Cp = 1450 #J/kgK specific heat capacity
+        J = 4e5 #J/kg latent heat of crystallization
+        Cp = 850 #J/kgK specific heat capacity
         H = np.zeros_like(T_field)
         for i in range(0,a):
             for j in range(0, b):
