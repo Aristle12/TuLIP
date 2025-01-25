@@ -751,39 +751,6 @@ class emit:
         no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
         
         As = [1.58e13, 1.83e18, 4e10, 1e13]  # pre-exponential constants for the different reactions
-        '''
-        mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
-        sd_E = [5e3, 13e3, 41e3, 5e3]  # Standard deviation of the normal distributions of the activation energies
-        no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
-        reaction_energies = np.zeros((n_reactions, max(no_reactions)))
-        
-        for i in range(n_reactions):
-            s_r2 = sd_E[i] * np.sqrt(2)
-            N = no_reactions[i]
-            fraction = 2 / N
-            E_0 = 0
-            E_1 = 0
-            n_middle = N // 2
-            
-            for i_approx in range(n_middle, N):
-                if i_approx == n_middle:
-                    reaction_energies[i, i_approx] = mean_E[i]
-                    if N != 1:
-                        E_0 = mean_E[i] - s_r2 * erfinv(-1.0 / N)
-                    continue
-                if i_approx == N - 1:
-                    reaction_energies[i, i_approx] = N * (sd_E[i] / sqrt_2pi * np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2)) + mean_E[i] / 2.0 * (1.0 + erf((mean_E[i] - E_0) / s_r2)))
-                else:
-                    right_side = erf((mean_E[i] - E_0) / s_r2) - fraction
-                    erf_inv = erfinv(right_side)
-                    E_1 = mean_E[i] - erf_inv * s_r2
-                    reaction_energies[i, i_approx] = N * (-sd_E[i] / sqrt_2pi *
-                        (np.exp(-(mean_E[i] - E_1)**2 / (2.0 * sd_E[i]**2)) - np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))) -
-                        mean_E[i] / 2.0 * (erf((mean_E[i] - E_1) / s_r2) - erf((mean_E[i] - E_0) / s_r2)))
-                
-                reaction_energies[i, N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i, i_approx]
-                E_0 = E_1
-        '''
         if np.isnan(progress_of_reactions).all():
             progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
             progress_of_reactions_old = np.zeros_like(progress_of_reactions)
@@ -855,6 +822,11 @@ class rules:
         pass
     @staticmethod
     def to_emplace(t_now, t_thresh):
+        '''
+        Boolean function that decides whether or not to emplace sills based on if the time since the last sill was emplaced exceeds the threshold
+        t_now - time since last sill was emplaced
+        t_thresh - threhold time for sill emplacement
+        '''
         if (t_now<t_thresh):
             return False
         elif t_now>=t_thresh:
@@ -862,6 +834,9 @@ class rules:
 
     @staticmethod
     def build_lith_dict(lithology):
+        '''
+        Function to build lithology dictionary (str to int) based on the lithology array provided. Values are assigned in order of appearance of new rock types
+        '''
         a,b = lithology.shape
         lith_dict = {0:str(lithology[0,0])}
         n = 1
@@ -874,6 +849,11 @@ class rules:
 
     @staticmethod
     def build_prop_dict(prop, lithology):
+        '''
+        Function to build dictionary assigning the invariant properties with lithology based on the two arrays provided
+        prop - 2D array containing the values of the particular proerty
+        lithology - 2D array containing the rock at each position
+        '''
         a,b = lithology.shape
         prop_dict = {lithology[0,0]: prop[0,0]}
         for i in range(a):
@@ -884,7 +864,13 @@ class rules:
     @staticmethod
     def single_sill(T_field, x_space, height, width, thick, T_mag):
         """
-        Emplacing a simple sill without a dike tail
+        Emplacing a simple rectangular sill without a dike tail
+        T_field: A 2D numpy array representing the temperature field.
+        x_space: The x-coordinate for the center of the sill in nodes.
+        height: The y-coordinate for the center of the sill in nodes.
+        width: The width of the sill in nodes.
+        thick: The thickness of the sill in nodes.
+        T_mag: The temperature of the intruding magma.
         """
         T_field[int(height-(thick//2)):int(height+(thick//2)), int(x_space-(width//2)):int(x_space+(width//2))] = T_mag
         return T_field
@@ -892,6 +878,15 @@ class rules:
     def circle_sill(T_field, x_space, height, r, T_mag, a, b, dx, dy):
         """
         Emplacing a simple circular sill without the dike tail
+        T_field: 2D numpy array representing the temperature field.
+        x_space: x-coordinate for the center of the sill in nodes.
+        height: y-coordinate for the center of the sil in nodes.
+        r: radius of the sill in nodes.
+        T_mag: temperature magnitude of the sill.
+        a: number of nodes in the y-direction.
+        b: number of nodes in the x-direction.
+        dx: spacing in the x-direction in m.
+        dy: spacing in the y-direction in m.
         """
         x = np.arange(0,b*dx, dx)
         y = np.arange(0, a*dy, dy)
@@ -947,7 +942,12 @@ class rules:
     @staticmethod
     def uniform_heights(n_sills, l_sill, h_sill, dy):
         """
-        Get heights spacing randomly picked from a uniform distribution
+        Get heights spacing for sill emplacement randomly picked from a uniform distribution
+        n_sills: Number of heights to generate.
+        l_sill: Lower bound of the height range in m.
+        h_sill: Upper bound of the height range in m.
+        dy: Grid spacing in the y-direction.
+        Returns emplacement depths in node spacings
         """
         heights = np.round(np.random.uniform(l_sill, h_sill, n_sills)/dy)
         return heights
