@@ -752,39 +752,6 @@ class emit:
         no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
         
         As = [1.58e13, 1.83e18, 4e10, 1e13]  # pre-exponential constants for the different reactions
-        '''
-        mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
-        sd_E = [5e3, 13e3, 41e3, 5e3]  # Standard deviation of the normal distributions of the activation energies
-        no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
-        reaction_energies = np.zeros((n_reactions, max(no_reactions)))
-        
-        for i in range(n_reactions):
-            s_r2 = sd_E[i] * np.sqrt(2)
-            N = no_reactions[i]
-            fraction = 2 / N
-            E_0 = 0
-            E_1 = 0
-            n_middle = N // 2
-            
-            for i_approx in range(n_middle, N):
-                if i_approx == n_middle:
-                    reaction_energies[i, i_approx] = mean_E[i]
-                    if N != 1:
-                        E_0 = mean_E[i] - s_r2 * erfinv(-1.0 / N)
-                    continue
-                if i_approx == N - 1:
-                    reaction_energies[i, i_approx] = N * (sd_E[i] / sqrt_2pi * np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2)) + mean_E[i] / 2.0 * (1.0 + erf((mean_E[i] - E_0) / s_r2)))
-                else:
-                    right_side = erf((mean_E[i] - E_0) / s_r2) - fraction
-                    erf_inv = erfinv(right_side)
-                    E_1 = mean_E[i] - erf_inv * s_r2
-                    reaction_energies[i, i_approx] = N * (-sd_E[i] / sqrt_2pi *
-                        (np.exp(-(mean_E[i] - E_1)**2 / (2.0 * sd_E[i]**2)) - np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))) -
-                        mean_E[i] / 2.0 * (erf((mean_E[i] - E_1) / s_r2) - erf((mean_E[i] - E_0) / s_r2)))
-                
-                reaction_energies[i, N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i, i_approx]
-                E_0 = E_1
-        '''
         if np.isnan(progress_of_reactions).all():
             progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
             progress_of_reactions_old = np.zeros_like(progress_of_reactions)
@@ -856,6 +823,11 @@ class rules:
         pass
     @staticmethod
     def to_emplace(t_now, t_thresh):
+        '''
+        Boolean function that decides whether or not to emplace sills based on if the time since the last sill was emplaced exceeds the threshold
+        t_now - time since last sill was emplaced
+        t_thresh - threhold time for sill emplacement
+        '''
         if (t_now<t_thresh):
             return False
         elif t_now>=t_thresh:
@@ -863,6 +835,9 @@ class rules:
 
     @staticmethod
     def build_lith_dict(lithology):
+        '''
+        Function to build lithology dictionary (str to int) based on the lithology array provided. Values are assigned in order of appearance of new rock types
+        '''
         a,b = lithology.shape
         lith_dict = {0:str(lithology[0,0])}
         n = 1
@@ -875,6 +850,11 @@ class rules:
 
     @staticmethod
     def build_prop_dict(prop, lithology):
+        '''
+        Function to build dictionary assigning the invariant properties with lithology based on the two arrays provided
+        prop - 2D array containing the values of the particular proerty
+        lithology - 2D array containing the rock at each position
+        '''
         a,b = lithology.shape
         prop_dict = {lithology[0,0]: prop[0,0]}
         for i in range(a):
@@ -885,7 +865,13 @@ class rules:
     @staticmethod
     def single_sill(T_field, x_space, height, width, thick, T_mag):
         """
-        Emplacing a simple sill without a dike tail
+        Emplacing a simple rectangular sill without a dike tail
+        T_field: A 2D numpy array representing the temperature field.
+        x_space: The x-coordinate for the center of the sill in nodes.
+        height: The y-coordinate for the center of the sill in nodes.
+        width: The width of the sill in nodes.
+        thick: The thickness of the sill in nodes.
+        T_mag: The temperature of the intruding magma.
         """
         T_field[int(height-(thick//2)):int(height+(thick//2)), int(x_space-(width//2)):int(x_space+(width//2))] = T_mag
         return T_field
@@ -893,6 +879,15 @@ class rules:
     def circle_sill(T_field, x_space, height, r, T_mag, a, b, dx, dy):
         """
         Emplacing a simple circular sill without the dike tail
+        T_field: 2D numpy array representing the temperature field.
+        x_space: x-coordinate for the center of the sill in nodes.
+        height: y-coordinate for the center of the sil in nodes.
+        r: radius of the sill in nodes.
+        T_mag: temperature magnitude of the sill.
+        a: number of nodes in the y-direction.
+        b: number of nodes in the x-direction.
+        dx: spacing in the x-direction in m.
+        dy: spacing in the y-direction in m.
         """
         x = np.arange(0,b*dx, dx)
         y = np.arange(0, a*dy, dy)
@@ -948,7 +943,12 @@ class rules:
     @staticmethod
     def uniform_heights(n_sills, l_sill, h_sill, dy):
         """
-        Get heights spacing randomly picked from a uniform distribution
+        Get heights spacing for sill emplacement randomly picked from a uniform distribution
+        n_sills: Number of heights to generate.
+        l_sill: Lower bound of the height range in m.
+        h_sill: Upper bound of the height range in m.
+        dy: Grid spacing in the y-direction.
+        Returns emplacement depths in node spacings
         """
         heights = np.round(np.random.uniform(l_sill, h_sill, n_sills)/dy)
         return heights
@@ -957,15 +957,23 @@ class rules:
     def uniform_x(n_sills, x_min, x_max, dx):
         """
         Nodes for x-coordinate space chosen as a random normal distribution
+        n_sills: Number of x-coordinate nodes to generate.
+        x_min: Minimum value of the x-coordinate range.
+        x_max: Maximum value of the x-coordinate range.
+        dx: Grid spacing in the x-direction.
+        Returns x-coordinates in node spacings
         """
         space = np.round(np.random.uniform(x_min, x_max, n_sills)/dx)
         return space
     @staticmethod
     def empirical_CDF(n_sills, xarray, cdf):
-        """Function to give random numbers from a specific empirical distribution
+        """
+        Function to give random numbers from a specific empirical distribution
         n_sills - number of sills needed int
         xarray - array of domain for empirical CDF
-        cdf - array of CDF for the x array"""
+        cdf - array of CDF for the x array
+        Returns distribution in units of inputs
+        """
         why = np.zeros(n_sills)
         for k in range(0,n_sills):
             a = np.random.uniform(0,1)
@@ -1033,10 +1041,11 @@ class rules:
     @staticmethod
     def value_pusher(array, new_value, push_index, push_value):
         '''
-        Function to push the value in a single column of a 2D array. A less efficient but functional version of value_pusher2D
+        Insert values in specified index and pushed the values down by a specified amount. 
+        This function works, but is a less efficient version of rules.value_pusher2D
         array: A 2D numpy array to be modified.
         new_value: The value to be inserted into the array.
-        push_index: A tuple indicating the (x, y) index in the array where the new value will be inserted.
+        push_index: A tuple indicating the (x, y) index where the new value will be inserted.
         push_value: An integer indicating how many positions to shift the existing values downwards.
         '''
         x,y = push_index
@@ -1052,11 +1061,12 @@ class rules:
     @staticmethod
     def prop_updater(lithology, lith_dict: dict, prop_dict: dict, property: str):
         '''
-        This function updates the associated rock properties once everything has shifted. This is done to avoid thermopgenic carbon generation from popints that are now pure magma
-        lithology: A 2D numpy array representing different lithology types.
-        lith_dict: A dictionary mapping integer keys to lithology type strings.
-        prop_dict: A dictionary mapping lithology type strings to dictionaries of properties.
-        property: A string representing the specific property to update.
+        This function updates the associated rock properties once everything has shifted.
+        lithology: A 2D numpy array representing different rock types.
+        lith_dict: A dictionary mapping integer keys to rock type names.
+        prop_dict: A dictionary mapping rock type names to their properties.
+        property: A string indicating the specific property to update.
+        Returns a 2D array.
         '''
         prop = np.zeros_like(lithology)
         for rock in lith_dict.keys():
@@ -1065,11 +1075,11 @@ class rules:
     @staticmethod
     def value_pusher2D(array, new_value, row_index, push_amount):
         '''
-        Funvtion to modify a 2D numpy array by shifting values in each column downwards by a specified amount and inserting a new value at the top of the shifted section.
+        Modify a 2D numpy array by inserting a new value at specified row indices and shifting existing values downwards by a specified amount for each column.
         array: A 2D numpy array to be modified.
         new_value: The value to be inserted into the array.
-        row_index: A list of starting row indices for each column.
-        push_amount: A list of integers indicating how many positions to shift the existing values downwards in each column.
+        row_index: A list of row indices for each column where the new value will be inserted.
+        push_amount: A list of integers indicating how many positions to shift the existing values downwards for each column.
         '''
         a,b = array.shape
         if len(row_index) != b or len(push_amount) != b:
@@ -1082,13 +1092,12 @@ class rules:
         return array
 
 
-
     @staticmethod
     def index_finder(array, string):
         '''
-        Function to find which elements in the array contain the string as part of the element
-        array: A NumPy array of strings or object dtypes.
-        string: A substring to search for within each element of the array.
+        Function to check and return the indices of an array that contains the specified string
+        array: A numpy array of strings or elements that can be converted to strings. Prefered dtype is object.
+        string: A string to search for within each element of the array.
         '''
         if not np.issubdtype(array.dtype, np.str_):
             array = array.astype(str)
@@ -1102,20 +1111,22 @@ class rules:
 
     def mult_sill(self, T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
         '''
-        The mult_sill method modifies a 2D temperature field by emplacing sills and optionally dikes, either by directly setting values or by shifting existing values downwards. It can handle both rectangular and elliptical shapes and can update an optional rock type array.
-        T_field: 2D numpy array representing the temperature field.
-        majr: Major radius or width of the sill.
-        minr: Minor radius or thickness of the sill.
-        height: Vertical position for the sill emplacement.
-        x_space: Horizontal position for the sill emplacement.
-        dx: Grid spacing in the x-direction.
-        dy: Grid spacing in the y-direction.
-        rock: Optional 2D numpy array for rock types.
-        emplace_rock: String representing the rock type to emplace.
-        T_mag: Temperature magnitude for the sill.
+        Emplace sills in a 2D temperature array and optionallu update the lithology array with the sills. 
+        Optionally push the rocks downward, or overwrite the rocks in the field.
+        T_field: A 2D numpy array representing the temperature field.
+        majr: Major axis length of the sill.
+        minr: Minor axis length of the sill.
+        height: Y-coordinate for the center of the sill.
+        x_space: X-coordinate for the center of the sill.
+        dx: Spacing in the x-direction.
+        dy: Spacing in the y-direction.
+        rock: Optional 2D numpy array representing rock types.
+        emplace_rock: Type of rock to emplace, default is 'basalt'.
+        T_mag: Temperature magnitude of the sill.
         shape: Shape of the sill, either 'rect' or 'elli'.
-        dike_empl: Boolean to determine if a dike should be emplaced.
-        push: Boolean to determine if existing values should be shifted.
+        dike_empl: Boolean indicating if a dike tail should be emplaced.
+        push: Boolean indicating if the sill should be pushed into the field.
+        Returns the temperature field and an array indicating where the sill was emplaced and optionally the lithology array
         '''
         a,b = T_field.shape
         new_dike = np.zeros_like(T_field)
@@ -1175,18 +1186,19 @@ class rules:
         else:
             return T_field, new_dike
 
+
     @staticmethod
     def get_chemH(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
         """
-        Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
+        Untested function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
         T_field = Temp field, int
         rho = Density kg/m3
         CU, CTh = U, Th concentrations in ppm, array
         CK = K conc in wt %, array
         T_sol = Solidus temperature
         """
-        J = 0.25 #J/kg latent heat of crystallization
-        Cp = 1450 #J/kgK specific heat capacity
+        J = 4e5 #J/kg latent heat of crystallization
+        Cp = 850 #J/kgK specific heat capacity
         H = np.zeros_like(T_field)
         for i in range(0,a):
             for j in range(0, b):
