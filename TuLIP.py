@@ -1486,6 +1486,11 @@ class sill_controls:
 
     #Setting up the remaining property arrays#
     def get_physical_properties(self, rock, rock_prop_dict = None):
+        '''
+        Function to return arrays of physical properties of density, porosity, and TOC based on rock type at a given node
+        rock: A 2D numpy array representing the types of rocks at different nodes.
+        rock_prop_dict: An optional dictionary mapping rock types to their properties.
+        '''
         if rock_prop_dict==None:
             rock_prop_dict = self.rock_prop_dict
         a,b = rock.shape
@@ -1500,6 +1505,12 @@ class sill_controls:
                 TOC[i,j] = rock_prop_dict[rock[i,j]]['TOC']
         return porosity, density, TOC
     def func_assigner(self, func, *args, **kwargs):
+        '''
+        Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
+        func: The function to be called.
+        *args: Positional arguments to be passed to the function.
+        **kwargs: Keyword arguments to be passed to the function.
+        '''
         result = func(*args,**kwargs)
         # If the result is a tuple or list, enumerate it
         #if isinstance(result, (tuple, list)):
@@ -1510,6 +1521,17 @@ class sill_controls:
     
     @staticmethod
     def check_closest_sill_temp(T_field, sills_array, curr_sill, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
+        '''
+        Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
+        It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
+        T_field: 2D numpy array representing temperature values.
+        sills_array: 2D numpy array representing sill identifiers.
+        curr_sill: Integer representing the current sill identifier.
+        T_solidus: Float representing the solidus temperature threshold (default is 800).
+        no_sill: Value representing no sill in the array (default is an empty string).
+        calculate_all: Boolean indicating whether to calculate for all sills (default is False).
+        save_file: String representing the file path to save results (default is None).
+        '''
         is_sill = np.array((sills_array!=no_sill))
         print('Sill nodes',np.sum(is_sill))
         print('Hot sills', np.sum(T_field>T_solidus))
@@ -1589,6 +1611,29 @@ class sill_controls:
 
 
     def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+        '''
+        generates a 3D representation of sills in a geological model. It calculates emplacement heights, lateral spacings, and dimensions of sills based on specified distributions and parameters. 
+        The method calculates the emplacement times for each sill based on specified flux rates, considering thermal maturation and cooling phases, and returns the constructed sill cube along with relevant parameters.
+        Inputs - 
+        z: The third dimension extension of the crustal slice.
+        dt: Time step for the simulation.
+        thickness_range: Range for sill thickness.
+        aspect_ratio: Mean and standard deviation for aspect ratio.
+        depth_range: Range for sill emplacement depth.
+        z_range: Range for z-coordinate.
+        lat_range: Range for lateral coordinates.
+        phase_times: Times for thermal maturation and cooling.
+        tot_volume: Total volume of sills to be emplaced.
+        flux: Emplacement flux.
+        n_sills: Number of sills to be emplaced.
+        shape: Shape of the sills, default is 'elli'.
+        depth_function, lat_function, dims_function: Functions to determine distributions.
+        Returns - 
+        sillcube: A 3D numpy array representing the sill emplacement.
+        n_sills: The number of sills emplaced.
+        params: An array containing emplacement times, heights, lateral spacings, widths, and thicknesses.
+
+        '''
         x = self.x
         y = self.y
         dx = self.dx
@@ -1773,6 +1818,26 @@ class sill_controls:
         return sillcube, n_sills, params
     
     def get_silli_initial_thermogenic_state(self, props_array, dt, method, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        '''
+        Function to get the background CO2 release for the silli model over the thermal maturation time before the emplacement fo sills begins
+        Inputs - 
+        props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
+        dt: A scalar representing the time step for the simulation.
+        method: A string indicating the method used for solving the diffusion equation.
+        time: Optional scalar for the total simulation time.
+        lith_plot_dict: Optional dictionary mapping lithology names to indices.
+        rock_prop_dict: Optional dictionary mapping rock types to their properties.
+
+        Returns - 
+        current_time: The current simulation time.
+        tot_RCO2: A list of total CO2 emissions over time.
+        props_array: The updated properties array.
+        RCO2_silli: CO2 emissions from SILLi.
+        Rom_silli: Rate of organic matter conversion.
+        percRo_silli: Vitrinite reflectance percentage.
+        curr_TOC_silli: Current TOC values.
+        W_silli: Weight fractions of remaining reactants.
+        '''
         dx = self.dx
         dy = self.dy
         k = self.k
@@ -1861,6 +1926,29 @@ class sill_controls:
         return current_time, tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
 
     def get_sillburp_initial_thermogenic_state(self, props_array, dt, method, sillburp_weights = None, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        '''
+        Function to get the background CO2 release for the sillburp model over the thermal maturation time before the emplacement fo sills begins
+        Inputs - 
+        props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
+        dt: A scalar representing the time step for the simulation.
+        method: A string indicating the method used for solving the diffusion equation.
+        sillburp_weights: Optional weights for the sillburp model.
+        time: Optional scalar for the total simulation time.
+        lith_plot_dict: Optional dictionary mapping lithology names to indices.
+        rock_prop_dict: Optional dictionary mapping rock types to their properties.
+
+        Returns - 
+        current_time: The current simulation time.
+        tot_RCO2: A list of total CO2 emissions over time.
+        props_array: The updated properties array.
+        RCO2: CO2 emissions from the sillburp model.
+        Rom: Rate of organic matter conversion.
+        progress_of_reactions: Progress of reactions in the sillburp model.
+        oil_production_rate: Rate of oil production.
+        curr_TOC: Current TOC values.
+        rate_of_reactions: Rate of reactions.
+        sillburp_weights: Weights used in the sillburp model.
+        '''
         dx = self.dx
         dy = self.dy
         k = self.k
@@ -1952,6 +2040,27 @@ class sill_controls:
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
     def emplace_sills(self,props_array, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+        '''
+        Function to simulate cooling and associated thermogenic carbon release (optional) and save the properties at the specified intervals optionally
+        Inputs - 
+        props_array: 3D numpy array of geological properties.
+        n_sills: Number of sills to emplace.
+        cool_method: Method for cooling calculation.
+        time_steps: Array of time steps for simulation.
+        current_time: Current simulation time.
+        sillsquare: 2D array representing sill geometry.
+        carbon_model_params: Parameters for carbon emission models.
+        emplacement_params: Parameters for sill emplacement.
+        volume_params: Volume and flux parameters.
+        z_index: Index for vertical dimension.
+        saving_factor: How often should the properties be saved i.e. 1 in how many time steps 
+        save_dir: Directory to save the results in. 
+        model: Which carbon model to use silli or sillburp?
+        dt - Time step, 
+        q - Bottom heat flux, 
+        H - External heat
+        rock_prop_dict, lith_plot_dict, prop_dict, magma_prop_dict: Optional dictionary parameters.
+        '''
         k = self.k
         dx = self.dx
         dy = self.dy
@@ -2137,6 +2246,9 @@ class sill_controls:
     ##########################################################################
     @staticmethod
     def store_objlist_as_hd5f(fileName,cls):
+        '''
+        Function to save class parameters into an HDF5 file
+        '''
         with h5py.File(fileName, 'w') as f:
                 for item in vars(cls).items():
                     #print(item, type(item))
@@ -2153,6 +2265,9 @@ class sill_controls:
         print('Saved the HDF5 file - ',fileName)
         return "Done"
     def load_objlist_from_hd5f_into_class(self,fileName):
+        '''
+        Load class parameters from a saved HDF5 file
+        '''
         ans = {}
         with h5py.File(fileName, 'r') as h5file:
             for key, item in h5file.items():
