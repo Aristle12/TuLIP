@@ -12,6 +12,7 @@ from scipy.spatial import KDTree
 import pandas as pd
 import pyvista as pv
 import os
+import h5py
 
 class cool:
     def __init__(self):
@@ -1031,6 +1032,13 @@ class rules:
         return major, minor
     @staticmethod
     def value_pusher(array, new_value, push_index, push_value):
+        '''
+        Function to push the value in a single column of a 2D array. A less efficient but functional version of value_pusher2D
+        array: A 2D numpy array to be modified.
+        new_value: The value to be inserted into the array.
+        push_index: A tuple indicating the (x, y) index in the array where the new value will be inserted.
+        push_value: An integer indicating how many positions to shift the existing values downwards.
+        '''
         x,y = push_index
         if push_value<=0:
             raise ValueError("push_value must be greater than 0")
@@ -1044,13 +1052,25 @@ class rules:
     @staticmethod
     def prop_updater(lithology, lith_dict: dict, prop_dict: dict, property: str):
         '''
-        This function updates the associated rock properties once everything has shifted. This is done to avoid thermopgenic carbon generation from popints that are now pure magma'''
+        This function updates the associated rock properties once everything has shifted. This is done to avoid thermopgenic carbon generation from popints that are now pure magma
+        lithology: A 2D numpy array representing different lithology types.
+        lith_dict: A dictionary mapping integer keys to lithology type strings.
+        prop_dict: A dictionary mapping lithology type strings to dictionaries of properties.
+        property: A string representing the specific property to update.
+        '''
         prop = np.zeros_like(lithology)
         for rock in lith_dict.keys():
             prop[lithology==rock] = prop_dict[rock][property]
         return prop
     @staticmethod
     def value_pusher2D(array, new_value, row_index, push_amount):
+        '''
+        Funvtion to modify a 2D numpy array by shifting values in each column downwards by a specified amount and inserting a new value at the top of the shifted section.
+        array: A 2D numpy array to be modified.
+        new_value: The value to be inserted into the array.
+        row_index: A list of starting row indices for each column.
+        push_amount: A list of integers indicating how many positions to shift the existing values downwards in each column.
+        '''
         a,b = array.shape
         if len(row_index) != b or len(push_amount) != b:
             raise ValueError("row_index and push_values must have the same length as the number of columns")
@@ -1062,20 +1082,14 @@ class rules:
         return array
 
 
-    '''
-    def index_finder(array, string):
-        a,b = array.shape
-        string_index = np.empty((a,b), dtype=bool)
-        for i in range(a):
-            for j in range(b):
-                if string in array[i,j]:
-                    string_index[i,j] = True
-                else:
-                    string_index[i,j] = False
-        return string_index
-        '''
+
     @staticmethod
     def index_finder(array, string):
+        '''
+        Function to find which elements in the array contain the string as part of the element
+        array: A NumPy array of strings or object dtypes.
+        string: A substring to search for within each element of the array.
+        '''
         if not np.issubdtype(array.dtype, np.str_):
             array = array.astype(str)
         
@@ -1087,6 +1101,22 @@ class rules:
 
 
     def mult_sill(self, T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
+        '''
+        The mult_sill method modifies a 2D temperature field by emplacing sills and optionally dikes, either by directly setting values or by shifting existing values downwards. It can handle both rectangular and elliptical shapes and can update an optional rock type array.
+        T_field: 2D numpy array representing the temperature field.
+        majr: Major radius or width of the sill.
+        minr: Minor radius or thickness of the sill.
+        height: Vertical position for the sill emplacement.
+        x_space: Horizontal position for the sill emplacement.
+        dx: Grid spacing in the x-direction.
+        dy: Grid spacing in the y-direction.
+        rock: Optional 2D numpy array for rock types.
+        emplace_rock: String representing the rock type to emplace.
+        T_mag: Temperature magnitude for the sill.
+        shape: Shape of the sill, either 'rect' or 'elli'.
+        dike_empl: Boolean to determine if a dike should be emplaced.
+        push: Boolean to determine if existing values should be shifted.
+        '''
         a,b = T_field.shape
         new_dike = np.zeros_like(T_field)
         majr = majr//dx
@@ -1145,69 +1175,6 @@ class rules:
         else:
             return T_field, new_dike
 
-
-
-
-    '''
-    Broken function
-    #@jit
-    def mult_sill(T_field, majr, minr, height, x_space, dx, dy, dike_net, cm_array = [], cmb = [], rock = np.array([]), T_mag = 1000, shape = 'rect', dike_empl = True, cmb_exists = False):
-        a,b = T_field.shape
-        if dike_empl:
-            T_field[int(height):-1,int(x_space)] = T_mag
-            if rock.size>0:
-                rock.loc[int(height):-1,int(x_space)] = 'basalt'
-
-        if cmb_exists:
-            new_dike = np.zeros_like(T_field)
-            if shape == 'rect':
-                new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
-            elif shape=='elli':
-                x = np.arange(0,b*dx, dx)
-                y = np.arange(0, a*dy, dy)
-                majr = majr*dx
-                minr = minr*dy
-                for m in range(0, a):
-                    for n in range(0, b):
-                        if (x_dist+y_dist)<=1:
-                            T_field[m,n]=T_mag
-                            new_dike[m,n] = 1
-            cm_mov = np.sum(new_dike, axis = 0)
-            cmb = cmb + cm_mov
-            for l in range(0, b):
-                if cm_mov[l]!=0:
-                    for m in range(0,a):
-                        if new_dike[m,l]==1:
-                            T_field = value_pusher(T_field, T_mag,[m,l], cm_mov[l])
-                            rock = value_pusher(rock,'basalt',[m,l],cm_mov[l])
-                            continue
-            for i in range(0, a):
-                for j in range(0, b):
-                    if i>cmb[i]:
-                        cm_array.loc[i,j] = 'mantle'
-            return T_field, dike_net, rock, cm_array
-        else:
-            new_dike = np.zeros_like(T_field)
-            if shape == 'rect':
-                T_field[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = T_mag
-                new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
-            elif shape == 'elli':
-                x = np.arange(0,b*dx, dx)
-                y = np.arange(0, a*dy, dy)
-                majr = majr*dx
-                minr = minr*dy
-                for m in range(0, a):
-                    for n in range(0, b):
-                        x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
-                        y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
-                        if (x_dist+y_dist)<=1:
-                            T_field[m,n]=T_mag
-                            new_dike[m,n] = 1
-                            if rock.size>0:
-                                rock.loc[n,m] = 'basalt'
-            dike_net = dike_net + new_dike
-            return T_field, dike_net, rock
-    '''
     @staticmethod
     def get_chemH(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
         """
@@ -1228,13 +1195,24 @@ class rules:
         A = rho*1e-5*(9.52*CU + 2.56*CTh + 3.48*CK) #Formula from Rybach and Cermack 1982 - Radioactive heat generation in rocks
         H = H+A
         return H
+    '''
     @staticmethod
     def get_diffusivity(T_field, lithology):
+        
+        Function to get diffusivity based on lithology
+        
         K = 31.536*np.ones_like(T_field)
         return K
-    
+    '''
     @staticmethod
     def get_radH(T_field, rho, dx):
+        '''
+        Function to get radioactive heat release
+        T_field: A 2D numpy array representing the temperature field.
+        rho: A 2D numpy array representing the density at each point in the field.
+        dx: A scalar representing the grid spacing in the vertical direction.
+
+        '''
         a, b = T_field.shape
         Ho = 8e-10 #W/kg
         Lc = 12000 #m
@@ -1247,6 +1225,12 @@ class rules:
     
     @staticmethod
     def calcF(T_field, T_liquidus=1250, T_solidus=800):
+        '''
+        Arbitrary method to calculate the fraction of melt remaining based on temperature
+        T_field: A 2D numpy array representing the temperature field.
+        T_liquidus: An optional float representing the liquidus temperature, default is 1250.
+        T_solidus: An optional float representing the solidus temperature, default is 800.
+        '''
         F = np.zeros_like(T_field)
         a,b = T_field.shape
         for i in range(a):
@@ -1262,6 +1246,15 @@ class rules:
 
     @staticmethod
     def get_latH(T_field, lithology, melt='basalt', rho_melt = 2850, T_liquidus=1250, T_solidus=800):
+        '''
+        Get the latent heat of crystallization based onthe model of Karakas et al. (2017)
+        T_field: A 2D numpy array representing the temperature field.
+        lithology: A 2D numpy array representing the lithology types.
+        melt: A string specifying the type of melt, default is 'basalt'.
+        rho_melt: A float representing the density of the melt, default is 2850 kg/m³.
+        T_liquidus: A float representing the liquidus temperature, default is 1250.
+        T_solidus: A float representing the solidus temperature, default is 800.
+        '''
         heat_filter = lithology==melt
         a,b = T_field.shape
         #pressure = np.zeros((a,b))
@@ -1354,32 +1347,18 @@ class rules:
         rock_2d = sillcube[z_index,:,:]
         rock[rock_2d==rock_type]==rock_type
         return rock
-    @staticmethod
-    def cmb_3Dsill(cm_array, cmb, sillcube, nrep, z_index):
-        new_sill = sillcube==nrep
-        new_sill = new_sill[z_index,:,:]
-        cm_mov = np.sum(new_sill, axis = 0)
-        cmb = cmb+cm_mov
-        for i in range(0, cm_array[:,0]):
-                for j in range(0, cm_array[0,:]):
-                    if i>cmb[i]:
-                        cm_array.loc[i,j] = 'mantle'
-        return cm_array
-
-    '''Broken function
-    def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
-        string_finder = str(n_rep)+'s'+str(curr_empl_time)
-        y_shifts = np.sum(np.array([string_finder in sillcube_z]).astype(int), axis = 0)
-        for i in range(0, len(array_new[:,0])):
-            if y_shifts[i]!=0:
-                for j in range(0, len(array_new[0,:])):
-                    if array_old[i,j]!= array_new[i,j]:
-                        array_new[i,j+y_shifts::-1] = array_old[i,::-y_shifts]
-                        continue
-        return array_new
-        '''
 
     def sill3D_pushy_emplacement(self, props_array, props_dict, sillsquare, n_rep, mag_props_dict, curr_empl_time):
+        '''
+        Function used to modify a 3D properties array including temperature by emplacing a sill and shifting existing values downwards. 
+        It identifies the emplacement location using a string identifier, calculates the necessary shifts, and updates the properties array accordingly.
+        props_array: A 3D NumPy array containing property values.
+        props_dict: A dictionary mapping property names to their indices in props_array.
+        sillsquare: A 2D NumPy array containing string identifiers for emplacement.
+        n_rep: An integer representing the sill number.
+        mag_props_dict: A dictionary mapping property names to new values for emplacement.
+        curr_empl_time: An integer representing the current emplacement time.
+        '''
         string_finder = str(n_rep)+'s'+str(curr_empl_time)
         T_field_index = props_dict['Temperature']
         T_field = props_array[T_field_index]
@@ -1414,6 +1393,7 @@ class rules:
         return props_array, row_push_start, columns_pushed
 
 class sill_controls:
+    #Class that contains functions that make functions from the other classes easier to use for specific use cases.
     def __init__(self, x, y, dx, dy, k, include_external_heat = True, calculate_closest_sill = False, calculate_all_sills_distances = False, calculate_at_all_times = False):
         self.x = x
         self.y = y
@@ -2139,6 +2119,42 @@ class sill_controls:
             return carbon_model_params, sills_data
         else:
             return carbon_model_params
+    
+    ##########################################################################
+    # STORAGE IN HDF5
+    ##########################################################################
+    @staticmethod
+    def store_objlist_as_hd5f(fileName,cls):
+        with h5py.File(fileName, 'w') as f:
+                for item in vars(cls).items():
+                    #print(item, type(item))
+                    if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes,tuple,tuple,list,bool,float,int)) & isinstance(item[1], (np.ndarray, np.int64, np.float64, str, bytes,tuple,list,bool,float,int)):
+                            #print(item[0])
+                            f.create_dataset(item[0], data = item[1])
+                    else:
+                        if isinstance(item[1], (dict)):
+                            for item_dict in item[1].items():
+                                f.create_dataset('params_fixed_'+item_dict[0], data = item_dict[1])
+                        else :
+                            print(item,' is skipped',type(item),type(item[1]))
+                        #raise ValueError('Cannot save %s type'%type(item))
+        print('Saved the HDF5 file - ',fileName)
+        return "Done"
+    def load_objlist_from_hd5f_into_class(self,fileName):
+        ans = {}
+        with h5py.File(fileName, 'r') as h5file:
+            for key, item in h5file.items():
+                #print(key,item)
+                if isinstance(item, h5py._hl.dataset.Dataset):
+                    ans[key] = item[()]
+        for key, value in ans.items():
+            if isinstance(value,bytes):
+                value = value.decode("utf-8")
+                #print(key,value)
+            setattr(self, key, value)
+        self.update_material_prop()
+        self.model_setup()
+        print('Read the HDF5 file - ',fileName,' into the class')
 
 class examples:
 
