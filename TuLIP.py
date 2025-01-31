@@ -2091,8 +2091,10 @@ class sill_controls:
         TOC1 = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
         a,b = T_field.shape
         breakdown_CO2 = np.zeros_like(T_field)
-        if np.isnan(H):
+        if np.isnan(H).any():
             H = np.zeros((a,b))
+        elif H.dtype==np.float64:
+            H = self.rool.get_latH(T_field,rock)+self.rool.get_radH(T_field, density, dx)
         if model=='silli':
             tot_RCO2, props_array_unused, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = carbon_model_params
         elif model =='sillburp':
@@ -2240,7 +2242,7 @@ class sill_controls:
             return carbon_model_params, sills_data
         else:
             return carbon_model_params
-    
+
     ##########################################################################
     # STORAGE IN HDF5
     ##########################################################################
