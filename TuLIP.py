@@ -1520,7 +1520,7 @@ class sill_controls:
         return result
     
     @staticmethod
-    def check_closest_sill_temp(T_field, sills_array, curr_sill, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, dy, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
         '''
         Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
         It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
@@ -1532,7 +1532,17 @@ class sill_controls:
         calculate_all: Boolean indicating whether to calculate for all sills (default is False).
         save_file: String representing the file path to save results (default is None).
         '''
+        def get_width_and_thickness(bool_array):
+            max_row = np.max(np.where(bool_array==True)[1])
+            min_row = np.min(np.where(bool_array==True)[1])
+            width = max_row - min_row + 1
+            max_col = np.max(np.where(bool_array==True)[0])
+            min_col = np.min(np.where(bool_array==True)[0])
+            thickness = max_col - min_col + 1
+            return width, thickness
+    
         is_sill = np.array((sills_array!=no_sill))
+        is_curr_sill = sills_array==curr_sill
         print('Sill nodes',np.sum(is_sill))
         print('Hot sills', np.sum(T_field>T_solidus))
         boundary_finder = np.array(is_sill, dtype=int)
@@ -1547,10 +1557,10 @@ class sill_controls:
         #sills_list = np.arange(0,tot_sills+1, step=1)
         sills_data = pd.DataFrame({'sills':curr_sill}, index = [0])
         a,b = T_field.shape
-        rows = np.arange(b)
-        columns = np.arange(a)
-        rows_grid, columns_grid = np.meshgrid(columns, rows, indexing='ij')
-        points = np.column_stack((columns_grid.ravel(), rows_grid.ravel()))
+        rows = np.arange(a)
+        columns = np.arange(b)
+        rows_grid, columns_grid = np.meshgrid(rows, columns, indexing='ij')
+        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel()))
         points = points.reshape(-1,2)
         if calculate_all:
             tot_sills = curr_sill
@@ -1572,12 +1582,26 @@ class sill_controls:
                             index1 = filtered_points[index]
                             saved_distance = distance
                             saved_index = str(index1)
-                            saved_temperature = T_field[index1[1], index1[0]]
-                            saved_sill = sills_array[index1[1], index1[0]]
+                            saved_temperature = T_field[index1[0], index1[1]]
+                            saved_sill = sills_array[index1[0], index1[1]]
+                            closest_curr_sill = str(curr_point)
+                            is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
+                            closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
+                            is_closest_sill = (sills_array == saved_sill)
+                            closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
+                            curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
                 sills_data['closest_sill'] = saved_sill
                 sills_data['distance'] = saved_distance
-                sills_data['index'] = saved_index
+                sills_data['index of closest sill'] = saved_index
                 sills_data['temperature'] = saved_temperature
+                sills_data['index of current sill'] = closest_curr_sill
+                sills_data['width of current sill'] = curr_sill_width
+                sills_data['thickness of current sill'] = curr_sill_thickness
+                sills_data['width of closest sill'] = closest_sill_width_curr
+                sills_data['thickness of closest sill'] = closest_sill_thickness_curr
+                sills_data['original width of closest sill'] = closest_sill_width
+                sills_data['original thickness of closest sill'] = closest_sill_thickness
+                
             pd.concat([all_sills_data, sills_data], reset_index = True)
             if save_file is None:
                 return all_sills_data
@@ -1601,12 +1625,25 @@ class sill_controls:
                         index1 = filtered_points[index]
                         saved_distance = distance
                         saved_index = str(index1)
-                        saved_temperature = T_field[index1[1], index1[0]]
-                        saved_sill = sills_array[index1[1], index1[0]]
-            sills_data['closest_sill'] = saved_sill
-            sills_data['distance'] = saved_distance
-            sills_data['index'] = saved_index
-            sills_data['temperature'] = saved_temperature
+                        saved_temperature = T_field[index1[0], index1[1]]
+                        saved_sill = sills_array[index1[0], index1[1]]
+                        closest_curr_sill = str(curr_point)
+                        is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
+                        closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
+                        is_closest_sill = (sills_array == saved_sill)
+                        closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
+                        curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
+                sills_data['closest_sill'] = saved_sill
+                sills_data['distance'] = saved_distance
+                sills_data['index of closest sill'] = saved_index
+                sills_data['temperature'] = saved_temperature
+                sills_data['index of current sill'] = closest_curr_sill
+                sills_data['width of current sill'] = curr_sill_width
+                sills_data['thickness of current sill'] = curr_sill_thickness
+                sills_data['width of closest sill'] = closest_sill_width_curr
+                sills_data['thickness of closest sill'] = closest_sill_thickness_curr
+                sills_data['original width of closest sill'] = closest_sill_width
+                sills_data['original thickness of closest sill'] = closest_sill_thickness
         return sills_data
 
 
