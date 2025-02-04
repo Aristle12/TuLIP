@@ -1520,7 +1520,7 @@ class sill_controls:
         return result
     
     @staticmethod
-    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, dy, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
         '''
         Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
         It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
@@ -1591,16 +1591,16 @@ class sill_controls:
                             closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
                             curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
                 sills_data['closest_sill'] = saved_sill
-                sills_data['distance'] = saved_distance
+                sills_data['distance'] = saved_distance*dx
                 sills_data['index of closest sill'] = saved_index
                 sills_data['temperature'] = saved_temperature
                 sills_data['index of current sill'] = closest_curr_sill
-                sills_data['width of current sill'] = curr_sill_width
-                sills_data['thickness of current sill'] = curr_sill_thickness
-                sills_data['width of closest sill'] = closest_sill_width_curr
-                sills_data['thickness of closest sill'] = closest_sill_thickness_curr
-                sills_data['original width of closest sill'] = closest_sill_width
-                sills_data['original thickness of closest sill'] = closest_sill_thickness
+                sills_data['width of current sill'] = curr_sill_width*dx
+                sills_data['thickness of current sill'] = curr_sill_thickness*dx
+                sills_data['width of closest sill'] = closest_sill_width_curr*dx
+                sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
+                sills_data['original width of closest sill'] = closest_sill_width*dx
+                sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
                 
             pd.concat([all_sills_data, sills_data], reset_index = True)
             if save_file is None:
@@ -1634,18 +1634,17 @@ class sill_controls:
                         closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
                         curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
                 sills_data['closest_sill'] = saved_sill
-                sills_data['distance'] = saved_distance
+                sills_data['distance'] = saved_distance*dx
                 sills_data['index of closest sill'] = saved_index
                 sills_data['temperature'] = saved_temperature
                 sills_data['index of current sill'] = closest_curr_sill
-                sills_data['width of current sill'] = curr_sill_width
-                sills_data['thickness of current sill'] = curr_sill_thickness
-                sills_data['width of closest sill'] = closest_sill_width_curr
-                sills_data['thickness of closest sill'] = closest_sill_thickness_curr
-                sills_data['original width of closest sill'] = closest_sill_width
-                sills_data['original thickness of closest sill'] = closest_sill_thickness
+                sills_data['width of current sill'] = curr_sill_width*dx
+                sills_data['thickness of current sill'] = curr_sill_thickness*dx
+                sills_data['width of closest sill'] = closest_sill_width_curr*dx
+                sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
+                sills_data['original width of closest sill'] = closest_sill_width*dx
+                sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
         return sills_data
-
 
     def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
         '''
