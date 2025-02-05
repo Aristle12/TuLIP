@@ -8,9 +8,11 @@ import pypardiso as ps
 from scipy.special import erf, erfinv
 from scipy.io import loadmat
 from scipy.interpolate import RegularGridInterpolator
-import pdb
+from scipy.spatial import KDTree
+import pandas as pd
 import pyvista as pv
 import os
+import h5py
 
 class cool:
     def __init__(self):
@@ -262,7 +264,7 @@ class cool:
             Tret[-1,:] = Tret[-2,:]+ (q*dy/k[-1,:])
         return Tret
 
-    def perm_chain_solve(k, a, b, dx, dy, dt, Tnow, q, Af, H):
+    def perm_chain_solve(self, k, a, b, dx, dy, dt, Tnow, q, Af, H):
             """
             Solver for time varying heat diffusion equation building an chain rule (for anisotropic heat diffusion)
             k = Diffusivity field (anisotropic) MxN matrix
@@ -314,7 +316,7 @@ class cool:
             return Tret
 
     @jit(forceobj = True)
-    def conv_chain_solve(k, a, b, dx, dy, dt, Tf, H, q = np.nan):
+    def conv_chain_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
         Solver for the heat diffusion equation (expanded via the chain rule) based on convolution method - faster when inhomogenous time varying permeability is used
         k = Diffusivity field (anisotropic) MxN matrix
@@ -332,7 +334,7 @@ class cool:
         T_bot = Tf[-1,0]
         for i in range(1,a-1):
             for j in range(1,b-1):
-                Tnow[i,j] =  (-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt+(H[i,j]*dt))+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]
+                Tnow[i,j] =  (-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt)+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]+(H[i,j]*dt/(dx**2))
         for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
@@ -363,7 +365,7 @@ class cool:
         T_bot = Tf[-1,0]
         for i in range(1,a-1):
             for j in range(1,b-1):
-                Tnow[i,j] =  (-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2)))+(H[i,j]*dt))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]
+                Tnow[i,j] =  (-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]+(H[i,j]*dt/(dx**2))
         for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
@@ -474,6 +476,15 @@ class emit:
     
     @staticmethod
     def get_init_CO2_percentages(T_field, lithology, density, dy):
+        '''
+        The get_init_CO2_percentages method calculates the initial exsolved CO2 percentages for different lithologies based on temperature and pressure conditions 
+        i.e., ensuring the CO2 is in equilibrium with the PT conditions. 
+        It uses interpolation to estimate CO2 values from pre-loaded data for specific rock types.
+        T_field: 2D array representing the temperature field.
+        lithology: 2D array indicating the type of rock at each location.
+        density: 2D array of rock densities.
+        dy: Scalar representing the vertical distance between layers.
+        '''
         a,b = lithology.shape
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         dolo = loadmat('dat/Dolostone.mat')
@@ -512,6 +523,15 @@ class emit:
         return init_CO2
     @staticmethod
     def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
+        '''
+        Calculate the amount of CO2 exsolved from the breakdown of carbonate rocks
+        T_field: 2D array representing the temperature field.
+        lithology: 2D array indicating the type of rock at each location.
+        density: 2D array of rock densities.
+        breakdownCO2: 2D array of initial CO2 breakdown values.
+        dy: Scalar representing the vertical distance between layers.
+        dt: Scalar representing the time step.
+        '''
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         a, b = T_field.shape
         dolo = loadmat('dat/Dolostone.mat')
@@ -610,6 +630,9 @@ class emit:
         return RCO2, Rom, percRo, TOC, W
 
     def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
+        '''
+        Untested function for the analytical solution of the Easy Ro model
+        '''
         calc_parser = (lithology=='shale') | (lithology=='sandstone')
         a1 = 2.334733
         a2 = 0.250621
@@ -639,7 +662,7 @@ class emit:
 
     def analyticalRo_I(T_field):
         '''
-        Initialization of I for the SILLi carbon model
+        Initialization of I for the analytical solution of the EasyRo model
         '''
 
         a = len(T_field[:,0])
@@ -660,6 +683,10 @@ class emit:
 
     @staticmethod
     def get_sillburp_reaction_energies():
+        '''
+        Function to create the reaction energies required for sillburp model for thermogenic carbon emissions. 
+        These generate normal distributions of activation energies for each component (Jonees et al. 2019)
+        '''
         sqrt_2pi = np.sqrt(2 * np.pi)
         n_reactions = 4
         mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
@@ -697,6 +724,21 @@ class emit:
     @staticmethod
     @jit(forceobj = True)
     def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=None, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan, weights = None):
+        '''
+        Python implementation of the sillburp model of Jones et al. (2019)
+        T_field - Temperature field array
+        TOC_prev - Total organic content at the previous time step. If the first time step, leave TOCo blank and make this the TOC content
+        density - Density array of the slice
+        lithology - Lithology array of the slice
+        porosity - Porosity field of the slice
+        dt - Time step
+        reaction_energies - Reaction energy arrays. These are most easily generated from the get_sillburp_reaction_energies() function. The model is designed to be used with these energies
+        TOCo - Total organic carbon content of the slice at the initial time
+        oil_production_rate - Rate of oil production as calculated by this model
+        progress_reactions - The progress of reactions at the current time step. Leave blank at the initial time step
+        rate_of_reactions - The rate of reaction progress at the current time step
+        weights - Array containing the distribution of different components of reaction groups - The order of weights is ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
+        '''
         #TOCo = np.array(TOCo, dtype=float)
 
         if TOCo is None:
@@ -710,39 +752,6 @@ class emit:
         no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
         
         As = [1.58e13, 1.83e18, 4e10, 1e13]  # pre-exponential constants for the different reactions
-        '''
-        mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
-        sd_E = [5e3, 13e3, 41e3, 5e3]  # Standard deviation of the normal distributions of the activation energies
-        no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
-        reaction_energies = np.zeros((n_reactions, max(no_reactions)))
-        
-        for i in range(n_reactions):
-            s_r2 = sd_E[i] * np.sqrt(2)
-            N = no_reactions[i]
-            fraction = 2 / N
-            E_0 = 0
-            E_1 = 0
-            n_middle = N // 2
-            
-            for i_approx in range(n_middle, N):
-                if i_approx == n_middle:
-                    reaction_energies[i, i_approx] = mean_E[i]
-                    if N != 1:
-                        E_0 = mean_E[i] - s_r2 * erfinv(-1.0 / N)
-                    continue
-                if i_approx == N - 1:
-                    reaction_energies[i, i_approx] = N * (sd_E[i] / sqrt_2pi * np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2)) + mean_E[i] / 2.0 * (1.0 + erf((mean_E[i] - E_0) / s_r2)))
-                else:
-                    right_side = erf((mean_E[i] - E_0) / s_r2) - fraction
-                    erf_inv = erfinv(right_side)
-                    E_1 = mean_E[i] - erf_inv * s_r2
-                    reaction_energies[i, i_approx] = N * (-sd_E[i] / sqrt_2pi *
-                        (np.exp(-(mean_E[i] - E_1)**2 / (2.0 * sd_E[i]**2)) - np.exp(-(mean_E[i] - E_0)**2 / (2.0 * sd_E[i]**2))) -
-                        mean_E[i] / 2.0 * (erf((mean_E[i] - E_1) / s_r2) - erf((mean_E[i] - E_0) / s_r2)))
-                
-                reaction_energies[i, N - i_approx - 1] = 2.0 * mean_E[i] - reaction_energies[i, i_approx]
-                E_0 = E_1
-        '''
         if np.isnan(progress_of_reactions).all():
             progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
             progress_of_reactions_old = np.zeros_like(progress_of_reactions)
@@ -814,6 +823,11 @@ class rules:
         pass
     @staticmethod
     def to_emplace(t_now, t_thresh):
+        '''
+        Boolean function that decides whether or not to emplace sills based on if the time since the last sill was emplaced exceeds the threshold
+        t_now - time since last sill was emplaced
+        t_thresh - threhold time for sill emplacement
+        '''
         if (t_now<t_thresh):
             return False
         elif t_now>=t_thresh:
@@ -821,6 +835,9 @@ class rules:
 
     @staticmethod
     def build_lith_dict(lithology):
+        '''
+        Function to build lithology dictionary (str to int) based on the lithology array provided. Values are assigned in order of appearance of new rock types
+        '''
         a,b = lithology.shape
         lith_dict = {0:str(lithology[0,0])}
         n = 1
@@ -833,6 +850,11 @@ class rules:
 
     @staticmethod
     def build_prop_dict(prop, lithology):
+        '''
+        Function to build dictionary assigning the invariant properties with lithology based on the two arrays provided
+        prop - 2D array containing the values of the particular proerty
+        lithology - 2D array containing the rock at each position
+        '''
         a,b = lithology.shape
         prop_dict = {lithology[0,0]: prop[0,0]}
         for i in range(a):
@@ -843,7 +865,13 @@ class rules:
     @staticmethod
     def single_sill(T_field, x_space, height, width, thick, T_mag):
         """
-        Emplacing a simple sill without a dike tail
+        Emplacing a simple rectangular sill without a dike tail
+        T_field: A 2D numpy array representing the temperature field.
+        x_space: The x-coordinate for the center of the sill in nodes.
+        height: The y-coordinate for the center of the sill in nodes.
+        width: The width of the sill in nodes.
+        thick: The thickness of the sill in nodes.
+        T_mag: The temperature of the intruding magma.
         """
         T_field[int(height-(thick//2)):int(height+(thick//2)), int(x_space-(width//2)):int(x_space+(width//2))] = T_mag
         return T_field
@@ -851,6 +879,15 @@ class rules:
     def circle_sill(T_field, x_space, height, r, T_mag, a, b, dx, dy):
         """
         Emplacing a simple circular sill without the dike tail
+        T_field: 2D numpy array representing the temperature field.
+        x_space: x-coordinate for the center of the sill in nodes.
+        height: y-coordinate for the center of the sil in nodes.
+        r: radius of the sill in nodes.
+        T_mag: temperature magnitude of the sill.
+        a: number of nodes in the y-direction.
+        b: number of nodes in the x-direction.
+        dx: spacing in the x-direction in m.
+        dy: spacing in the y-direction in m.
         """
         x = np.arange(0,b*dx, dx)
         y = np.arange(0, a*dy, dy)
@@ -906,7 +943,12 @@ class rules:
     @staticmethod
     def uniform_heights(n_sills, l_sill, h_sill, dy):
         """
-        Get heights spacing randomly picked from a uniform distribution
+        Get heights spacing for sill emplacement randomly picked from a uniform distribution
+        n_sills: Number of heights to generate.
+        l_sill: Lower bound of the height range in m.
+        h_sill: Upper bound of the height range in m.
+        dy: Grid spacing in the y-direction.
+        Returns emplacement depths in node spacings
         """
         heights = np.round(np.random.uniform(l_sill, h_sill, n_sills)/dy)
         return heights
@@ -915,15 +957,23 @@ class rules:
     def uniform_x(n_sills, x_min, x_max, dx):
         """
         Nodes for x-coordinate space chosen as a random normal distribution
+        n_sills: Number of x-coordinate nodes to generate.
+        x_min: Minimum value of the x-coordinate range.
+        x_max: Maximum value of the x-coordinate range.
+        dx: Grid spacing in the x-direction.
+        Returns x-coordinates in node spacings
         """
         space = np.round(np.random.uniform(x_min, x_max, n_sills)/dx)
         return space
     @staticmethod
     def empirical_CDF(n_sills, xarray, cdf):
-        """Function to give random numbers from a specific empirical distribution
+        """
+        Function to give random numbers from a specific empirical distribution
         n_sills - number of sills needed int
         xarray - array of domain for empirical CDF
-        cdf - array of CDF for the x array"""
+        cdf - array of CDF for the x array
+        Returns distribution in units of inputs
+        """
         why = np.zeros(n_sills)
         for k in range(0,n_sills):
             a = np.random.uniform(0,1)
@@ -990,6 +1040,14 @@ class rules:
         return major, minor
     @staticmethod
     def value_pusher(array, new_value, push_index, push_value):
+        '''
+        Insert values in specified index and pushed the values down by a specified amount. 
+        This function works, but is a less efficient version of rules.value_pusher2D
+        array: A 2D numpy array to be modified.
+        new_value: The value to be inserted into the array.
+        push_index: A tuple indicating the (x, y) index where the new value will be inserted.
+        push_value: An integer indicating how many positions to shift the existing values downwards.
+        '''
         x,y = push_index
         if push_value<=0:
             raise ValueError("push_value must be greater than 0")
@@ -1003,13 +1061,26 @@ class rules:
     @staticmethod
     def prop_updater(lithology, lith_dict: dict, prop_dict: dict, property: str):
         '''
-        This function updates the associated rock properties once everything has shifted. This is done to avoid thermopgenic carbon generation from popints that are now pure magma'''
+        This function updates the associated rock properties once everything has shifted.
+        lithology: A 2D numpy array representing different rock types.
+        lith_dict: A dictionary mapping integer keys to rock type names.
+        prop_dict: A dictionary mapping rock type names to their properties.
+        property: A string indicating the specific property to update.
+        Returns a 2D array.
+        '''
         prop = np.zeros_like(lithology)
         for rock in lith_dict.keys():
             prop[lithology==rock] = prop_dict[rock][property]
         return prop
     @staticmethod
     def value_pusher2D(array, new_value, row_index, push_amount):
+        '''
+        Modify a 2D numpy array by inserting a new value at specified row indices and shifting existing values downwards by a specified amount for each column.
+        array: A 2D numpy array to be modified.
+        new_value: The value to be inserted into the array.
+        row_index: A list of row indices for each column where the new value will be inserted.
+        push_amount: A list of integers indicating how many positions to shift the existing values downwards for each column.
+        '''
         a,b = array.shape
         if len(row_index) != b or len(push_amount) != b:
             raise ValueError("row_index and push_values must have the same length as the number of columns")
@@ -1021,20 +1092,13 @@ class rules:
         return array
 
 
-    '''
-    def index_finder(array, string):
-        a,b = array.shape
-        string_index = np.empty((a,b), dtype=bool)
-        for i in range(a):
-            for j in range(b):
-                if string in array[i,j]:
-                    string_index[i,j] = True
-                else:
-                    string_index[i,j] = False
-        return string_index
-        '''
     @staticmethod
     def index_finder(array, string):
+        '''
+        Function to check and return the indices of an array that contains the specified string
+        array: A numpy array of strings or elements that can be converted to strings. Prefered dtype is object.
+        string: A string to search for within each element of the array.
+        '''
         if not np.issubdtype(array.dtype, np.str_):
             array = array.astype(str)
         
@@ -1046,6 +1110,24 @@ class rules:
 
 
     def mult_sill(self, T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
+        '''
+        Emplace sills in a 2D temperature array and optionallu update the lithology array with the sills. 
+        Optionally push the rocks downward, or overwrite the rocks in the field.
+        T_field: A 2D numpy array representing the temperature field.
+        majr: Major axis length of the sill.
+        minr: Minor axis length of the sill.
+        height: Y-coordinate for the center of the sill.
+        x_space: X-coordinate for the center of the sill.
+        dx: Spacing in the x-direction.
+        dy: Spacing in the y-direction.
+        rock: Optional 2D numpy array representing rock types.
+        emplace_rock: Type of rock to emplace, default is 'basalt'.
+        T_mag: Temperature magnitude of the sill.
+        shape: Shape of the sill, either 'rect' or 'elli'.
+        dike_empl: Boolean indicating if a dike tail should be emplaced.
+        push: Boolean indicating if the sill should be pushed into the field.
+        Returns the temperature field and an array indicating where the sill was emplaced and optionally the lithology array
+        '''
         a,b = T_field.shape
         new_dike = np.zeros_like(T_field)
         majr = majr//dx
@@ -1105,79 +1187,18 @@ class rules:
             return T_field, new_dike
 
 
-
-
-    '''
-    Broken function
-    #@jit
-    def mult_sill(T_field, majr, minr, height, x_space, dx, dy, dike_net, cm_array = [], cmb = [], rock = np.array([]), T_mag = 1000, shape = 'rect', dike_empl = True, cmb_exists = False):
-        a,b = T_field.shape
-        if dike_empl:
-            T_field[int(height):-1,int(x_space)] = T_mag
-            if rock.size>0:
-                rock.loc[int(height):-1,int(x_space)] = 'basalt'
-
-        if cmb_exists:
-            new_dike = np.zeros_like(T_field)
-            if shape == 'rect':
-                new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
-            elif shape=='elli':
-                x = np.arange(0,b*dx, dx)
-                y = np.arange(0, a*dy, dy)
-                majr = majr*dx
-                minr = minr*dy
-                for m in range(0, a):
-                    for n in range(0, b):
-                        if (x_dist+y_dist)<=1:
-                            T_field[m,n]=T_mag
-                            new_dike[m,n] = 1
-            cm_mov = np.sum(new_dike, axis = 0)
-            cmb = cmb + cm_mov
-            for l in range(0, b):
-                if cm_mov[l]!=0:
-                    for m in range(0,a):
-                        if new_dike[m,l]==1:
-                            T_field = value_pusher(T_field, T_mag,[m,l], cm_mov[l])
-                            rock = value_pusher(rock,'basalt',[m,l],cm_mov[l])
-                            continue
-            for i in range(0, a):
-                for j in range(0, b):
-                    if i>cmb[i]:
-                        cm_array.loc[i,j] = 'mantle'
-            return T_field, dike_net, rock, cm_array
-        else:
-            new_dike = np.zeros_like(T_field)
-            if shape == 'rect':
-                T_field[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = T_mag
-                new_dike[int(height-(minr//2)):int(height+(minr//2)), int(x_space-(majr//2)):int(x_space+(majr//2))] = 1
-            elif shape == 'elli':
-                x = np.arange(0,b*dx, dx)
-                y = np.arange(0, a*dy, dy)
-                majr = majr*dx
-                minr = minr*dy
-                for m in range(0, a):
-                    for n in range(0, b):
-                        x_dist = ((x[m]-x[int(x_space)])**2)/(((majr)//2)**2)
-                        y_dist = ((y[n]-y[int(height)])**2)/(((minr)//2)**2)
-                        if (x_dist+y_dist)<=1:
-                            T_field[m,n]=T_mag
-                            new_dike[m,n] = 1
-                            if rock.size>0:
-                                rock.loc[n,m] = 'basalt'
-            dike_net = dike_net + new_dike
-            return T_field, dike_net, rock
-    '''
-    def get_H(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
+    @staticmethod
+    def get_chemH(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
         """
-        Function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation
+        Untested function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
         T_field = Temp field, int
         rho = Density kg/m3
         CU, CTh = U, Th concentrations in ppm, array
         CK = K conc in wt %, array
         T_sol = Solidus temperature
         """
-        J = 0.25 #J/kg latent heat of crystallization
-        Cp = 1450 #J/kgK specific heat capacity
+        J = 4e5 #J/kg latent heat of crystallization
+        Cp = 850 #J/kgK specific heat capacity
         H = np.zeros_like(T_field)
         for i in range(0,a):
             for j in range(0, b):
@@ -1186,10 +1207,79 @@ class rules:
         A = rho*1e-5*(9.52*CU + 2.56*CTh + 3.48*CK) #Formula from Rybach and Cermack 1982 - Radioactive heat generation in rocks
         H = H+A
         return H
+    '''
     @staticmethod
     def get_diffusivity(T_field, lithology):
+        
+        Function to get diffusivity based on lithology
+        
         K = 31.536*np.ones_like(T_field)
         return K
+    '''
+    @staticmethod
+    def get_radH(T_field, rho, dx):
+        '''
+        Function to get radioactive heat release
+        T_field: A 2D numpy array representing the temperature field.
+        rho: A 2D numpy array representing the density at each point in the field.
+        dx: A scalar representing the grid spacing in the vertical direction.
+
+        '''
+        a, b = T_field.shape
+        Ho = 8e-10 #W/kg
+        Lc = 12000 #m
+        depth = np.array([i*dx for i in range(a)])
+        H = np.zeros((a,b))
+        for i in range(a):
+            for j in range(b):
+                H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
+        return H
+    
+    @staticmethod
+    def calcF(T_field, T_liquidus=1250, T_solidus=800):
+        '''
+        Arbitrary method to calculate the fraction of melt remaining based on temperature
+        T_field: A 2D numpy array representing the temperature field.
+        T_liquidus: An optional float representing the liquidus temperature, default is 1250.
+        T_solidus: An optional float representing the solidus temperature, default is 800.
+        '''
+        F = np.zeros_like(T_field)
+        a,b = T_field.shape
+        for i in range(a):
+            for j in range(b):
+                if T_field[i,j]>T_solidus and T_field[i,j]<T_liquidus:
+                    F[i,j] = (((T_field[i,j]-T_solidus)/(T_liquidus-T_solidus))**2.5)
+                elif T_field[i,j]<T_solidus:
+                    F[i,j] = 0
+                elif T_field[i,j]>T_liquidus:
+                    F[i,j] = 1
+        #print(T_field[i,j], F[i,j], i, j)
+        return F
+
+    @staticmethod
+    def get_latH(T_field, lithology, melt='basalt', rho_melt = 2850, T_liquidus=1250, T_solidus=800):
+        '''
+        Get the latent heat of crystallization based onthe model of Karakas et al. (2017)
+        T_field: A 2D numpy array representing the temperature field.
+        lithology: A 2D numpy array representing the lithology types.
+        melt: A string specifying the type of melt, default is 'basalt'.
+        rho_melt: A float representing the density of the melt, default is 2850 kg/m³.
+        T_liquidus: A float representing the liquidus temperature, default is 1250.
+        T_solidus: A float representing the solidus temperature, default is 800.
+        '''
+        heat_filter = lithology==melt
+        a,b = T_field.shape
+        #pressure = np.zeros((a,b))
+        #for i in range(1,a):
+        #    for j in range(b):
+        #        pressure[i,j] = (pressure[i-1,j]+ rho[i,j]*9.8*i*dy)*1e-9 #GPa
+        #rho_melt = 2700 #kg/m3
+        phi_cr = rules.calcF(T_field, T_liquidus, T_solidus)
+        L = 4e5 #J
+        H_lat = rho_melt*(phi_cr)*L*heat_filter
+        return H_lat
+        
+
 
 
     def sill_3Dcube(self, x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape='elli', dike_tail=False):
@@ -1269,32 +1359,18 @@ class rules:
         rock_2d = sillcube[z_index,:,:]
         rock[rock_2d==rock_type]==rock_type
         return rock
-    @staticmethod
-    def cmb_3Dsill(cm_array, cmb, sillcube, nrep, z_index):
-        new_sill = sillcube==nrep
-        new_sill = new_sill[z_index,:,:]
-        cm_mov = np.sum(new_sill, axis = 0)
-        cmb = cmb+cm_mov
-        for i in range(0, cm_array[:,0]):
-                for j in range(0, cm_array[0,:]):
-                    if i>cmb[i]:
-                        cm_array.loc[i,j] = 'mantle'
-        return cm_array
-
-    '''Broken function
-    def array_shifter(array_old,array_new, sillcube_z, n_rep, curr_empl_time):
-        string_finder = str(n_rep)+'s'+str(curr_empl_time)
-        y_shifts = np.sum(np.array([string_finder in sillcube_z]).astype(int), axis = 0)
-        for i in range(0, len(array_new[:,0])):
-            if y_shifts[i]!=0:
-                for j in range(0, len(array_new[0,:])):
-                    if array_old[i,j]!= array_new[i,j]:
-                        array_new[i,j+y_shifts::-1] = array_old[i,::-y_shifts]
-                        continue
-        return array_new
-        '''
 
     def sill3D_pushy_emplacement(self, props_array, props_dict, sillsquare, n_rep, mag_props_dict, curr_empl_time):
+        '''
+        Function used to modify a 3D properties array including temperature by emplacing a sill and shifting existing values downwards. 
+        It identifies the emplacement location using a string identifier, calculates the necessary shifts, and updates the properties array accordingly.
+        props_array: A 3D NumPy array containing property values.
+        props_dict: A dictionary mapping property names to their indices in props_array.
+        sillsquare: A 2D NumPy array containing string identifiers for emplacement.
+        n_rep: An integer representing the sill number.
+        mag_props_dict: A dictionary mapping property names to new values for emplacement.
+        curr_empl_time: An integer representing the current emplacement time.
+        '''
         string_finder = str(n_rep)+'s'+str(curr_empl_time)
         T_field_index = props_dict['Temperature']
         T_field = props_array[T_field_index]
@@ -1329,8 +1405,17 @@ class rules:
         return props_array, row_push_start, columns_pushed
 
 class sill_controls:
-    def __init__(self):
-        
+    #Class that contains functions that make functions from the other classes easier to use for specific use cases.
+    def __init__(self, x, y, dx, dy, k, include_external_heat = True, calculate_closest_sill = False, calculate_all_sills_distances = False, calculate_at_all_times = False):
+        self.x = x
+        self.y = y
+        self.dx = dx
+        self.dy = dy
+        self.k = k
+        self.calculate_closest_sill = calculate_closest_sill
+        self.calculate_all_sill_distances = calculate_all_sills_distances
+        self.calculate_at_all_times = calculate_at_all_times
+        self.include_heat = include_external_heat
         self.cool = cool()
         self.rool = rules() 
         ###Setting up the properties dictionary to translate properties to indices for 3D array###
@@ -1344,8 +1429,7 @@ class sill_controls:
                         1:'Lithology',
                         2:'Porosity',
                         3:'Density',
-                        4:'TOC'
-        }
+                        4:'TOC'}
 
         #Lithology dictionary to translate rock types into numerical codes for numpy arrays
         self.lith_plot_dict = {'granite':0,
@@ -1402,6 +1486,11 @@ class sill_controls:
 
     #Setting up the remaining property arrays#
     def get_physical_properties(self, rock, rock_prop_dict = None):
+        '''
+        Function to return arrays of physical properties of density, porosity, and TOC based on rock type at a given node
+        rock: A 2D numpy array representing the types of rocks at different nodes.
+        rock_prop_dict: An optional dictionary mapping rock types to their properties.
+        '''
         if rock_prop_dict==None:
             rock_prop_dict = self.rock_prop_dict
         a,b = rock.shape
@@ -1416,6 +1505,12 @@ class sill_controls:
                 TOC[i,j] = rock_prop_dict[rock[i,j]]['TOC']
         return porosity, density, TOC
     def func_assigner(self, func, *args, **kwargs):
+        '''
+        Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
+        func: The function to be called.
+        *args: Positional arguments to be passed to the function.
+        **kwargs: Keyword arguments to be passed to the function.
+        '''
         result = func(*args,**kwargs)
         # If the result is a tuple or list, enumerate it
         #if isinstance(result, (tuple, list)):
@@ -1423,7 +1518,162 @@ class sill_controls:
         #    return enumerated_result
         # If the result is a single value, return it as is
         return result
-    def build_sillcube(self, x, y, z, dx, dy, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+    
+    @staticmethod
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
+        '''
+        Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
+        It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
+        T_field: 2D numpy array representing temperature values.
+        sills_array: 2D numpy array representing sill identifiers.
+        curr_sill: Integer representing the current sill identifier.
+        T_solidus: Float representing the solidus temperature threshold (default is 800).
+        no_sill: Value representing no sill in the array (default is an empty string).
+        calculate_all: Boolean indicating whether to calculate for all sills (default is False).
+        save_file: String representing the file path to save results (default is None).
+        '''
+        def get_width_and_thickness(bool_array):
+            max_row = np.max(np.where(bool_array==True)[1])
+            min_row = np.min(np.where(bool_array==True)[1])
+            width = max_row - min_row + 1
+            max_col = np.max(np.where(bool_array==True)[0])
+            min_col = np.min(np.where(bool_array==True)[0])
+            thickness = max_col - min_col + 1
+            return width, thickness
+    
+        is_sill = np.array((sills_array!=no_sill))
+        is_curr_sill = sills_array==curr_sill
+        print('Sill nodes',np.sum(is_sill))
+        print('Hot sills', np.sum(T_field>T_solidus))
+        boundary_finder = np.array(is_sill, dtype=int)
+        boundary_finder[1:-1, 1:-1] = (
+        boundary_finder[:-2, 1:-1] +  # Above
+        boundary_finder[2:, 1:-1] +   # Below
+        boundary_finder[1:-1, :-2] +  # Left
+        boundary_finder[1:-1, 2:])     # Right
+        sills_number = sills_array.copy()
+        sills_number[sills_array==no_sill] = -1
+        #tot_sills = np.max(sills_array)
+        #sills_list = np.arange(0,tot_sills+1, step=1)
+        sills_data = pd.DataFrame({'sills':curr_sill}, index = [0])
+        a,b = T_field.shape
+        rows = np.arange(a)
+        columns = np.arange(b)
+        rows_grid, columns_grid = np.meshgrid(rows, columns, indexing='ij')
+        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel()))
+        points = points.reshape(-1,2)
+        if calculate_all:
+            tot_sills = curr_sill
+            all_sills_data = pd.DataFrame(columns=['sills', 'closest_sill', 'distance', 'index', 'temperature'])
+            for curr_sill in range(tot_sills):
+                condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
+                query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
+                query_points = points[query_condition.ravel()]
+                saved_distance = 1e10
+                saved_index = -1
+                saved_temperature = -1
+                saved_sill = -1
+                filtered_points = points[condition.ravel()]
+                tree = KDTree(filtered_points)
+                if len(query_points)>0:
+                    for curr_point in query_points:
+                        distance, index = tree.query(curr_point)
+                        if distance<saved_distance:
+                            index1 = filtered_points[index]
+                            saved_distance = distance
+                            saved_index = str(index1)
+                            saved_temperature = T_field[index1[0], index1[1]]
+                            saved_sill = sills_array[index1[0], index1[1]]
+                            closest_curr_sill = str(curr_point)
+                            is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
+                            closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
+                            is_closest_sill = (sills_array == saved_sill)
+                            closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
+                            curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
+                sills_data['closest_sill'] = saved_sill
+                sills_data['distance'] = saved_distance*dx
+                sills_data['index of closest sill'] = saved_index
+                sills_data['temperature'] = saved_temperature
+                sills_data['index of current sill'] = closest_curr_sill
+                sills_data['width of current sill'] = curr_sill_width*dx
+                sills_data['thickness of current sill'] = curr_sill_thickness*dx
+                sills_data['width of closest sill'] = closest_sill_width_curr*dx
+                sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
+                sills_data['original width of closest sill'] = closest_sill_width*dx
+                sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
+                
+            pd.concat([all_sills_data, sills_data], reset_index = True)
+            if save_file is None:
+                return all_sills_data
+            else:
+                all_sills_data.to_csv(save_file+'.csv')
+                return all_sills_data
+        else:
+            condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
+            query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
+            query_points = points[query_condition.ravel()]
+            saved_distance = 1e10
+            saved_index = -1
+            saved_temperature = -1
+            saved_sill = -1
+            filtered_points = points[condition.ravel()]
+            tree = KDTree(filtered_points)
+            if len(query_points)>0:
+                for curr_point in query_points:
+                    distance, index = tree.query(curr_point)
+                    if distance<saved_distance:
+                        index1 = filtered_points[index]
+                        saved_distance = distance
+                        saved_index = str(index1)
+                        saved_temperature = T_field[index1[0], index1[1]]
+                        saved_sill = sills_array[index1[0], index1[1]]
+                        closest_curr_sill = str(curr_point)
+                        is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
+                        closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
+                        is_closest_sill = (sills_array == saved_sill)
+                        closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
+                        curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
+                sills_data['closest_sill'] = saved_sill
+                sills_data['distance'] = saved_distance*dx
+                sills_data['index of closest sill'] = saved_index
+                sills_data['temperature'] = saved_temperature
+                sills_data['index of current sill'] = closest_curr_sill
+                sills_data['width of current sill'] = curr_sill_width*dx
+                sills_data['thickness of current sill'] = curr_sill_thickness*dx
+                sills_data['width of closest sill'] = closest_sill_width_curr*dx
+                sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
+                sills_data['original width of closest sill'] = closest_sill_width*dx
+                sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
+        return sills_data
+
+    def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+        '''
+        generates a 3D representation of sills in a geological model. It calculates emplacement heights, lateral spacings, and dimensions of sills based on specified distributions and parameters. 
+        The method calculates the emplacement times for each sill based on specified flux rates, considering thermal maturation and cooling phases, and returns the constructed sill cube along with relevant parameters.
+        Inputs - 
+        z: The third dimension extension of the crustal slice.
+        dt: Time step for the simulation.
+        thickness_range: Range for sill thickness.
+        aspect_ratio: Mean and standard deviation for aspect ratio.
+        depth_range: Range for sill emplacement depth.
+        z_range: Range for z-coordinate.
+        lat_range: Range for lateral coordinates.
+        phase_times: Times for thermal maturation and cooling.
+        tot_volume: Total volume of sills to be emplaced.
+        flux: Emplacement flux.
+        n_sills: Number of sills to be emplaced.
+        shape: Shape of the sills, default is 'elli'.
+        depth_function, lat_function, dims_function: Functions to determine distributions.
+        Returns - 
+        sillcube: A 3D numpy array representing the sill emplacement.
+        n_sills: The number of sills emplaced.
+        params: An array containing emplacement times, heights, lateral spacings, widths, and thicknesses.
+
+        '''
+        x = self.x
+        y = self.y
+        dx = self.dx
+        dy = self.dy
         dims_empirical = False
         min_thickness = thickness_range[0] #m
         max_thickness = thickness_range[1] #m
@@ -1603,7 +1853,30 @@ class sill_controls:
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
         return sillcube, n_sills, params
     
-    def get_silli_initial_thermogenic_state(self, props_array, dx, dy, dt, method, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+    def get_silli_initial_thermogenic_state(self, props_array, dt, method, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        '''
+        Function to get the background CO2 release for the silli model over the thermal maturation time before the emplacement fo sills begins
+        Inputs - 
+        props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
+        dt: A scalar representing the time step for the simulation.
+        method: A string indicating the method used for solving the diffusion equation.
+        time: Optional scalar for the total simulation time.
+        lith_plot_dict: Optional dictionary mapping lithology names to indices.
+        rock_prop_dict: Optional dictionary mapping rock types to their properties.
+
+        Returns - 
+        current_time: The current simulation time.
+        tot_RCO2: A list of total CO2 emissions over time.
+        props_array: The updated properties array.
+        RCO2_silli: CO2 emissions from SILLi.
+        Rom_silli: Rate of organic matter conversion.
+        percRo_silli: Vitrinite reflectance percentage.
+        curr_TOC_silli: Current TOC values.
+        W_silli: Weight fractions of remaining reactants.
+        '''
+        dx = self.dx
+        dy = self.dy
+        k = self.k
 
         if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
             lith_plot_dict = self.lith_plot_dict
@@ -1688,7 +1961,33 @@ class sill_controls:
         props_array[self.TOC_index] = curr_TOC_silli
         return current_time, tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
 
-    def get_sillburp_initial_thermogenic_state(self, props_array, dx, dy, dt, method, sillburp_weights = None, k=np.nan, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+    def get_sillburp_initial_thermogenic_state(self, props_array, dt, method, sillburp_weights = None, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
+        '''
+        Function to get the background CO2 release for the sillburp model over the thermal maturation time before the emplacement fo sills begins
+        Inputs - 
+        props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
+        dt: A scalar representing the time step for the simulation.
+        method: A string indicating the method used for solving the diffusion equation.
+        sillburp_weights: Optional weights for the sillburp model.
+        time: Optional scalar for the total simulation time.
+        lith_plot_dict: Optional dictionary mapping lithology names to indices.
+        rock_prop_dict: Optional dictionary mapping rock types to their properties.
+
+        Returns - 
+        current_time: The current simulation time.
+        tot_RCO2: A list of total CO2 emissions over time.
+        props_array: The updated properties array.
+        RCO2: CO2 emissions from the sillburp model.
+        Rom: Rate of organic matter conversion.
+        progress_of_reactions: Progress of reactions in the sillburp model.
+        oil_production_rate: Rate of oil production.
+        curr_TOC: Current TOC values.
+        rate_of_reactions: Rate of reactions.
+        sillburp_weights: Weights used in the sillburp model.
+        '''
+        dx = self.dx
+        dy = self.dy
+        k = self.k
         try:
             if not lith_plot_dict or all(value is None for value in lith_plot_dict.values()):
                 lith_plot_dict = self.lith_plot_dict
@@ -1776,7 +2075,31 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, k, dx, dy, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+        '''
+        Function to simulate cooling and associated thermogenic carbon release (optional) and save the properties at the specified intervals optionally
+        Inputs - 
+        props_array: 3D numpy array of geological properties.
+        n_sills: Number of sills to emplace.
+        cool_method: Method for cooling calculation.
+        time_steps: Array of time steps for simulation.
+        current_time: Current simulation time.
+        sillsquare: 2D array representing sill geometry.
+        carbon_model_params: Parameters for carbon emission models.
+        emplacement_params: Parameters for sill emplacement.
+        volume_params: Volume and flux parameters.
+        z_index: Index for vertical dimension.
+        saving_factor: How often should the properties be saved i.e. 1 in how many time steps 
+        save_dir: Directory to save the results in. 
+        model: Which carbon model to use silli or sillburp?
+        dt - Time step, 
+        q - Bottom heat flux, 
+        H - External heat
+        rock_prop_dict, lith_plot_dict, prop_dict, magma_prop_dict: Optional dictionary parameters.
+        '''
+        k = self.k
+        dx = self.dx
+        dy = self.dy
         saving_time_step_index = np.where(time_steps==current_time)[0]
         if len(saving_time_step_index)>0:
             saving_time_step_index = saving_time_step_index[0]
@@ -1804,8 +2127,10 @@ class sill_controls:
         TOC1 = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
         a,b = T_field.shape
         breakdown_CO2 = np.zeros_like(T_field)
-        if np.isnan(H):
+        if np.isnan(H).any():
             H = np.zeros((a,b))
+        elif H.dtype==np.float64:
+            H = self.rool.get_latH(T_field,rock)+self.rool.get_radH(T_field, density, dx)
         if model=='silli':
             tot_RCO2, props_array_unused, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = carbon_model_params
         elif model =='sillburp':
@@ -1827,12 +2152,24 @@ class sill_controls:
         if save_dir is None:
             save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
         os.makedirs(save_dir, exist_ok = True)
-
-        for l in trange(0, len(time_steps)):
+        sillnet = np.zeros((a,b))
+        sillnet[:] = ''
+        if self.calculate_closest_sill and not self.calculate_at_all_times:
+            all_sills_data = pd.DataFrame()
+        for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
+            if self.include_heat:
+                H_rad = self.rool.get_radH(T_field, density,dx)
+                H_lat = self.rool.get_latH(T_field, density, rock, dx, dy)
+                H = H_rad+H_lat
+            else:
+                H = np.zeros_like(T_field)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
+            if self.calculate_closest_sill and self.calculate_at_all_times:
+                save_file = save_dir+'/sill_distances'+str(time_steps[l])
+                sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, calculate_all=self.calculate_all_sill_distances, save_file=save_file)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
             rock = props_array[self.rock_index]
@@ -1858,7 +2195,12 @@ class sill_controls:
                 #print(f'Now emplacing sill {curr_sill}')
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
                 curr_TOC_silli = props_array[self.TOC_index]
-
+                sillnet = self.rool.value_pusher2D(sillnet, curr_sill, row_start, col_pushed)
+                if self.calculate_closest_sill and not self.calculate_at_all_times:
+                    sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill)
+                    if all_sills_data.columns!=sills_data.columns:
+                        all_sills_data = sills_data.columns
+                    all_sills_data = pd.concat([all_sills_data, sills_data], reset_index = True)
                 if model=='silli':
                     if (col_pushed!=0).any():
                         curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
@@ -1924,25 +2266,79 @@ class sill_controls:
                         props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                 else:
                     raise ValueError('saving_factor should have either one or two values')
-
+        if self.calculate_closest_sill and not self.calculate_at_all_times:
+            all_sills_data.to_csv(save_dir+'/sill_distances.csv')
         if model=='silli':
             carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
             carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
         else:
             carbon_model_params = None
-        return carbon_model_params
+        if self.calculate_closest_sill:
+            return carbon_model_params, sills_data
+        else:
+            return carbon_model_params
 
-    def example_run(self):
-        #Dimensions of the 2D grid
-        x = 300000 #m - Horizontal extent of the crust
-        y = 35000 #m - Vertical thickness of the crust
+    ##########################################################################
+    # STORAGE IN HDF5
+    ##########################################################################
+    @staticmethod
+    def store_objlist_as_hd5f(fileName,cls):
+        '''
+        Function to save class parameters into an HDF5 file
+        '''
+        with h5py.File(fileName, 'w') as f:
+                for item in vars(cls).items():
+                    #print(item, type(item))
+                    if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes,tuple,tuple,list,bool,float,int)) & isinstance(item[1], (np.ndarray, np.int64, np.float64, str, bytes,tuple,list,bool,float,int)):
+                            #print(item[0])
+                            f.create_dataset(item[0], data = item[1])
+                    else:
+                        if isinstance(item[1], (dict)):
+                            for item_dict in item[1].items():
+                                f.create_dataset('params_fixed_'+item_dict[0], data = item_dict[1])
+                        else :
+                            print(item,' is skipped',type(item),type(item[1]))
+                        #raise ValueError('Cannot save %s type'%type(item))
+        print('Saved the HDF5 file - ',fileName)
+        return "Done"
+    def load_objlist_from_hd5f_into_class(self,fileName):
+        '''
+        Load class parameters from a saved HDF5 file
+        '''
+        ans = {}
+        with h5py.File(fileName, 'r') as h5file:
+            for key, item in h5file.items():
+                #print(key,item)
+                if isinstance(item, h5py._hl.dataset.Dataset):
+                    ans[key] = item[()]
+        for key, value in ans.items():
+            if isinstance(value,bytes):
+                value = value.decode("utf-8")
+                #print(key,value)
+            setattr(self, key, value)
+        self.update_material_prop()
+        self.model_setup()
+        print('Read the HDF5 file - ',fileName,' into the class')
 
-        dx = 250 #m node spacing in x-direction
-        dy = 250 #m node spacing in y-direction
+class examples:
 
+    def __init__(self, x = 300000, y = 35000, dx = 250, dy = 250):
+        self.x = x
+        self.y = y
+        self.dx = dx
+        self.dy = dy
         a = int(y//dy) #Number of rows
         b = int(x//dx) #Number of columns
+        self.k = np.ones((a,b))*31.536
+        self.cool = cool()
+        self.rool = rules()
+        self.sc = sill_controls(self.x, self.y, self.dx, self.dy, self.k)
+    def example_run(self):
+        #Dimensions of the 2D grid
+
+        a = int(self.y//self.dy) #Number of rows
+        b = int(self.x//self.dx) #Number of columns
 
         #Temp at the surface
         T_surf = 0 #deg C
@@ -1951,9 +2347,8 @@ class sill_controls:
         T_mag = 1000 #deg C
 
         #Initializing diffusivity field
-        k = np.ones((a,b))*31.536 #m2/yr
 
-        dt = (min(dx,dy)**2)/(5*np.max(k))
+        dt = (min(self.dx,self.dy)**2)/(5*np.max(self.k))
 
         #Shape of the sills
         shape = 'elli'
@@ -1961,28 +2356,30 @@ class sill_controls:
         #Initializing the temp field
         T_field = np.zeros((a,b))
         T_field[-1,:] = T_mag
-        T_field = self.cool.heat_flux(k, a, b, dx, dy, T_field, 'straight')
+        T_field = self.cool.heat_flux(self.k, a, b, self.dx, self.dy, T_field, 'straight')
         rock = np.empty((a,b), dtype = object)
 
         rock[:] = 'granite'
-        rock[0:int(5000/dy),:] = 'shale'
-        rock[int((5000/dy)+1):int(15000/dy),:] = 'sandstone'
-        rock[int((30000/dy)+1):,:] = 'peridotite'
+        rock[0:int(5000/self.dy),:] = 'shale'
+        rock[int((5000/self.dy)+1):int(15000/self.dy),:] = 'sandstone'
+        rock[int((30000/self.dy)+1):,:] = 'peridotite'
 
         plot_rock = np.zeros((a,b), dtype = int)
 
         for i in range(a):
             for j in range(b):
-                plot_rock[i,j] = self.lith_plot_dict[rock[i,j]]
+                plot_rock[i,j] = self.sc.lith_plot_dict[rock[i,j]]
 
 
-        labels = [key for key in self.lith_plot_dict]
+        labels = [key for key in self.sc.lith_plot_dict]
+
+        os.makedirs('plots', exist_ok = True)
 
         # Visualize the rock array
-        plt.imshow(plot_rock, cmap='viridis', extent = [0, x/1000, y/1000, 0])
+        plt.imshow(plot_rock, cmap='viridis', extent = [0, self.x/1000, self.y/1000, 0])
         plt.ylabel('Depth (km)')
         plt.xlabel('Lateral extent (km)')
-        cbar = plt.colorbar(ticks=list(self.lith_plot_dict.values()), orientation = 'horizontal')
+        cbar = plt.colorbar(ticks=list(self.sc.lith_plot_dict.values()), orientation = 'horizontal')
         cbar.set_ticklabels(list(labels))
         cbar.set_label('Rock Type')
         plt.title('Bedrock Composition')
@@ -1996,17 +2393,17 @@ class sill_controls:
 
         for i in range(a):
             for j in range(b):
-                porosity[i,j] = self.rock_prop_dict[rock[i,j]]['Porosity']
-                density[i,j] = self.rock_prop_dict[rock[i,j]]['Density']
-                TOC[i,j] = self.rock_prop_dict[rock[i,j]]['TOC'] 
+                porosity[i,j] = self.sc.rock_prop_dict[rock[i,j]]['Porosity']
+                density[i,j] = self.sc.rock_prop_dict[rock[i,j]]['Density']
+                TOC[i,j] = self.sc.rock_prop_dict[rock[i,j]]['TOC'] 
         ###Building the 3d properties array###
         props_array = np.empty((len((self.prop_dict.keys())),a,b), dtype = object)
 
-        props_array[self.Temp_index] = T_field
-        props_array[self.rock_index] = rock
-        props_array[self.poros_index] = porosity
-        props_array[self.dense_index] = density
-        props_array[self.TOC_index] = TOC
+        props_array[self.sc.Temp_index] = T_field
+        props_array[self.sc.rock_index] = rock
+        props_array[self.sc.poros_index] = porosity
+        props_array[self.sc.dense_index] = density
+        props_array[self.sc.TOC_index] = TOC
 
         ###Setting up sill dimensions and locations###
         min_thickness = 900 #m
@@ -2030,14 +2427,14 @@ class sill_controls:
         time_steps = np.arange(0, np.sum(phase_times), dt)
         print(f'Length of time_steps:{len(time_steps)}')
 
-        sillcube, n_sills, emplacement_params = self.build_sillcube(x, y, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [x//3, 2*x//3, x//6], phase_times, tot_volume, flux, n_sills)
+        sillcube, n_sills, emplacement_params = self.build_sillcube(dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], [self.x//3, 2*self.x//3, self.x//6], phase_times, tot_volume, flux, n_sills)
         print('sillcube built')
-        params = self.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
+        params = self.sc.get_silli_initial_thermogenic_state(props_array, dt, 'conv smooth', time = thermal_mat_time)
         current_time = params[0]
         print(f'Current time before function: {current_time}')
         carbon_model_params = params[1:]
         print('Got initial emissions state')
-        props_total_array, carbon_model_params = self.emplace_sills(props_array, k, dx, dy, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'silli')
+        props_total_array, carbon_model_params = self.sc.emplace_sills(props_array, dt, n_sills, b//2, 'conv smooth', time_steps, current_time, sillcube, carbon_model_params, emplacement_params, model = 'silli')
         print('Model Run complete')
         tot_RCO2 = carbon_model_params[0]
         plt.plot(time_steps[np.where(time_steps==current_time)[0][0]:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0]:]))
