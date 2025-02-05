@@ -69,7 +69,7 @@ def cooler(load_dir, z_index, iter):
     
 
     data = pv.read('sillcubes/initial_silli_state_carbon.vtk')
-
+    Hello
 
     props_array_vtk = pv.read('sillcubes/initial_silli_state_properties.vtk')
     props_array = props_array_vtk.point_data['data'].reshape(props_array_vtk.dimensions)

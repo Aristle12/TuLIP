@@ -66,7 +66,7 @@ def cubemaker(tot_volume):
     
     
 
-    thermal_mat_time = int(3e6)
+    thermal_mat_time = np.load('sillcubes/curr_time.npy')
     model_time = tot_volume/flux
     cooling_time = int(1e6)
 
@@ -120,10 +120,13 @@ volume = x*4000*z
 
 
 
-#tot_volume_start = 0.05*volume
-#tot_volume_end = 0.2*volume
-#tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.05*volume)
-tot_volumes = np.array([0.075*volume, 0.125*volume])
+tot_volume_start = 0.05*volume
+tot_volume_end = 0.175*volume
+tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.025*volume)
+tot_volumes = [tot_volumes[4]]
+print(tot_volumes)
+
+
 n_sills_array = Parallel(n_jobs = 2)(delayed(cubemaker)(tot_volume) for tot_volume in tot_volumes)
 n_sills_total = pd.read_csv(save_dir+'/n_sills.csv')
 # Append new data to the DataFrame

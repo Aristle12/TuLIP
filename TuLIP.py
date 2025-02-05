@@ -1782,8 +1782,8 @@ class sill_controls:
             saving_time_step_index = saving_time_step_index[0]
         print(f'Current time: {current_time}')
         print(f'saving_time_step_index: {saving_time_step_index}')
-        #shape_index = [len(time_steps[saving_time_step_index:])]+list(props_array.shape)
-        #props_total_array = np.empty(shape_index, dtype = object)
+        shape_index = [len(time_steps[saving_time_step_index:])]+list(props_array.shape)
+        props_total_array = np.empty(shape_index, dtype = object)
         if lith_plot_dict==None:
             lith_plot_dict = self.lith_plot_dict
         if rock_prop_dict==None:
@@ -1828,7 +1828,7 @@ class sill_controls:
             save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
         os.makedirs(save_dir, exist_ok = True)
 
-        for l in trange(saving_time_step_index, len(time_steps)):
+        for l in trange(0, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
