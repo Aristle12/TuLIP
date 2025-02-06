@@ -3,7 +3,7 @@ import numpy as np
 import pyvista as pv
 import matplotlib.pyplot as plt
 import pandas as pd
-sc = sill_controls()
+
 
 #Dimensions of the 2D grid
 x = 300000/300 #m - Horizontal extent of the crust
@@ -28,11 +28,11 @@ T_mag = 1000 #deg C
 #Initializing diffusivity field
 k = np.ones((a,b))*31.536 #m2/yr
 
-dt = (min(dx,dy)**2)/(5*np.max(k))
+dt = np.round((min(dx,dy)**2)/(5*np.max(k)),3)
 #Shape of the sills
 shape = 'elli'
 
-
+sc = sill_controls(x, y, dx, dy, k)
 
 #Initializing the temp field
 T_field = np.zeros((a,b))
@@ -88,9 +88,10 @@ props_array[sc.poros_index] = porosity
 props_array[sc.dense_index] = density
 props_array[sc.TOC_index] = TOC
 
-thermal_mat_time = int(3e6)
+thermal_mat_time = (int(3e6//dt)+1)*dt
+print(thermal_mat_time)
 
-params = sc.get_silli_initial_thermogenic_state(props_array, dx, dy, dt, 'conv smooth', k, time = thermal_mat_time)
+params = sc.get_silli_initial_thermogenic_state(props_array, dt, 'conv smooth', time = thermal_mat_time)
 
 tiled_props_array = np.empty((len((sc.prop_dict.keys())),a,bee), dtype = object)
 

@@ -11,7 +11,8 @@ from joblib import Parallel, delayed
 
 #@jit
 n_sills_array = []
-flux = int(3e9)#*10**(7.5))
+
+flux = int(3*10**(8.5))
 save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
 
 os.makedirs(save_dir, exist_ok = True)
@@ -25,29 +26,31 @@ def cubemaker(tot_volume):
                         ele = str(sillcube[i,j,g])
                         sillcube[i,j,g] = ele[1:3] if 's' not in ele[1:3] else ele[1]
         return sillcube
-    sc = sill_controls()
+    
 
-    #Dimensions of the 2D grid
     x = 300000 #m - Horizontal extent of the crust
     y = 12000 #m - Vertical thickness of the crust
-    z = 30000 #m - Third dimension for cube
-
     dx = 50 #m node spacing in x-direction
     dy = 50 #m node spacing in y-direction
-
     a = int(y//dy) #Number of rows
     b = int(x//dx) #Number of columns
+    k = np.ones((a,b))*31.536 #m2/yr
+    
 
-    #Temp at the surface
-    T_surf = 0 #deg C
+    sc = sill_controls(x =x,
+    y = y,
+    dx = 50, 
+    dy = 50, 
+    k = k
+    )
 
-    #Magmatic temperature
-    T_mag = 1000 #deg C
+    #Dimensions of the 2D grid
+
+    z = 30000 #m - Third dimension for cube
 
     #Initializing diffusivity field
     k = np.ones((a,b))*31.536 #m2/yr
-
-    dt = (min(dx,dy)**2)/(5*np.max(k))
+    dt = np.round((min(dx,dy)**2)/(5*np.max(k)),3)
     #Shape of the sills
     shape = 'elli'
 
@@ -66,9 +69,10 @@ def cubemaker(tot_volume):
     
     
 
-    thermal_mat_time = np.load('sillcubes/curr_time.npy')
+    thermal_mat_time = (int(3e6//dt)+1)*(dt)
+    print(f'Thermal maturation time is {thermal_mat_time}')
     model_time = tot_volume/flux
-    cooling_time = int(1e6)
+    cooling_time = int(1e6//dt)*dt
 
     
     z_range = [0, z, z//3]
@@ -77,17 +81,15 @@ def cubemaker(tot_volume):
 
     #print(f'Building cube for {tot_volume[l]}: Cube {l} of {len(tot_volume)}')
     phase_times = np.array([thermal_mat_time, model_time, cooling_time])
-    print(phase_times)
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
     lat_range = [x//3, 2*x//3, x//6]
-    sillcube, n_sills1, emplacement_params = sc.build_sillcube(x, y, z, dx, dy, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
+    sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
     print('sillcube built')
     #pdb.set_trace()
     n_sills_array.append(int(n_sills1))
 
     np.save(save_dir+'/sillcube'+str(np.round(tot_volume, 2)), sillcube)
-    mask = sillcube!=0
     sillcube[sillcube==''] = 0
     sillcube = int_maker(sillcube)
     sillcube = sillcube.astype(int)
@@ -123,19 +125,18 @@ volume = x*4000*z
 tot_volume_start = 0.05*volume
 tot_volume_end = 0.175*volume
 tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.025*volume)
-tot_volumes = [tot_volumes[4]]
 print(tot_volumes)
 
 
 n_sills_array = Parallel(n_jobs = 2)(delayed(cubemaker)(tot_volume) for tot_volume in tot_volumes)
-n_sills_total = pd.read_csv(save_dir+'/n_sills.csv')
+#n_sills_total = pd.read_csv(save_dir+'/n_sills.csv')
 # Append new data to the DataFrame
-new_data = pd.DataFrame({
-    'volumes': tot_volumes,
-    'n_sills': n_sills_array
-})
+#new_data = pd.DataFrame({
+#    'volumes': tot_volumes,
+#    'n_sills': n_sills_array
+#})
 
-# Concatenate the existing DataFrame with the new data
-n_sills_total = pd.concat([n_sills_total, new_data], ignore_index=True)
-n_sills_total.to_csv(save_dir+'/n_sills.csv')
-#pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volumes}).to_csv(save_dir+'/n_sills.csv')
+## Concatenate the existing DataFrame with the new data
+#n_sills_total = pd.concat([n_sills_total, new_data], ignore_index=True)
+#n_sills_total.to_csv(save_dir+'/n_sills.csv')
+pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volumes}).to_csv(save_dir+'/n_sills.csv')

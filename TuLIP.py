@@ -1015,12 +1015,16 @@ class rules:
         Returns dims in length units
         """
         aspect_ratio = sar*np.random.randn(n_sills) + mar
+        for i in range(len(aspect_ratio)):
+            if aspect_ratio[i]<0:
+                aspect_ratio[i] = np.abs(aspect_ratio[i])
         minor = np.round(sd_min*np.random.randn(n_sills)+np.mean([min_min, min_max]))
         while ((minor>min_max).any() or (minor<min_min).any()):
                 if (minor>min_max).any():
                     minor[(minor>min_max)] = np.round(sd_min*np.random.randn(np.sum(minor>min_max))+np.mean([min_min, min_max]))
                 if (minor<min_min).any():
                     minor[minor<min_min] = np.round(sd_min*np.random.randn(np.sum(minor<min_min))+np.mean([min_min, min_max]))
+
         major = np.multiply(minor, aspect_ratio)
         return major, minor
     @staticmethod
@@ -1371,7 +1375,7 @@ class rules:
         mag_props_dict: A dictionary mapping property names to new values for emplacement.
         curr_empl_time: An integer representing the current emplacement time.
         '''
-        string_finder = str(n_rep)+'s'+str(curr_empl_time)
+        string_finder = str(n_rep)+'s'
         T_field_index = props_dict['Temperature']
         T_field = props_array[T_field_index]
         a,b = T_field.shape
@@ -1382,7 +1386,7 @@ class rules:
         new_dike = np.zeros_like(T_field)
         new_dike[self.index_finder(sillsquare, string_finder)] = 1
         columns_pushed = np.sum(new_dike, axis =0, dtype=int)
-        #print(columns_pushed[columns_pushed!=0])
+        #print(f'Total columns pushed{columns_pushed[columns_pushed!=0]}')
         #columns_pushed  = columns_pushed.astype(int)
         row_push_start = np.zeros(b, dtype = int)
         for n in range(b):
@@ -1443,7 +1447,7 @@ class sill_controls:
         self.dense_index = self.prop_dict['Density']
         self.TOC_index = self.prop_dict['TOC']
 
-        self.magma_prop_dict = {'Temperature': 1000,
+        self.magma_prop_dict = {'Temperature': 1100,
                     'Lithology': 'basalt',
                     'Porosity': 0.2,
                     'Density': 2850, #kg/m3
@@ -1543,8 +1547,6 @@ class sill_controls:
     
         is_sill = np.array((sills_array!=no_sill))
         is_curr_sill = sills_array==curr_sill
-        print('Sill nodes',np.sum(is_sill))
-        print('Hot sills', np.sum(T_field>T_solidus))
         boundary_finder = np.array(is_sill, dtype=int)
         boundary_finder[1:-1, 1:-1] = (
         boundary_finder[:-2, 1:-1] +  # Above
@@ -1552,7 +1554,7 @@ class sill_controls:
         boundary_finder[1:-1, :-2] +  # Left
         boundary_finder[1:-1, 2:])     # Right
         sills_number = sills_array.copy()
-        sills_number[sills_array==no_sill] = -1
+        #sills_number[sills_array==no_sill] = -1
         #tot_sills = np.max(sills_array)
         #sills_list = np.arange(0,tot_sills+1, step=1)
         sills_data = pd.DataFrame({'sills':curr_sill}, index = [0])
@@ -1566,18 +1568,25 @@ class sill_controls:
             tot_sills = curr_sill
             all_sills_data = pd.DataFrame(columns=['sills', 'closest_sill', 'distance', 'index', 'temperature'])
             for curr_sill in range(tot_sills):
-                condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
+                condition = (T_field>T_solidus) & (sills_number!=curr_sill)
                 query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
                 query_points = points[query_condition.ravel()]
                 saved_distance = 1e10
                 saved_index = -1
                 saved_temperature = -1
                 saved_sill = -1
+                closest_curr_sill = 'N/A'
+                closest_sill_width_curr = 0
+                closest_sill_width = 0
+                closest_sill_thickness = 0
+                closest_sill_width = -1
+                closest_sill_thickness = -1
                 filtered_points = points[condition.ravel()]
                 tree = KDTree(filtered_points)
                 if len(query_points)>0:
                     for curr_point in query_points:
                         distance, index = tree.query(curr_point)
+                        curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
                         if distance<saved_distance:
                             index1 = filtered_points[index]
                             saved_distance = distance
@@ -1589,7 +1598,7 @@ class sill_controls:
                             closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
                             is_closest_sill = (sills_array == saved_sill)
                             closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
-                            curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
+                            
                 sills_data['closest_sill'] = saved_sill
                 sills_data['distance'] = saved_distance*dx
                 sills_data['index of closest sill'] = saved_index
@@ -1609,18 +1618,27 @@ class sill_controls:
                 all_sills_data.to_csv(save_file+'.csv')
                 return all_sills_data
         else:
-            condition = (T_field>T_solidus) & (sills_number!=-1) & (sills_number!=curr_sill)
+            condition = (T_field>T_solidus) & (sills_number!=curr_sill)
             query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
             query_points = points[query_condition.ravel()]
-            saved_distance = 1e10
+            saved_distance = 1e30
             saved_index = -1
             saved_temperature = -1
             saved_sill = -1
+            closest_curr_sill = -1
+            closest_sill_width_curr = 0
+            closest_sill_width = 0
+            closest_sill_thickness = 0
+            closest_sill_width = -1
+            closest_sill_thickness = -1
+            closest_sill_width_curr = -1
+            closest_sill_thickness_curr = -1
             filtered_points = points[condition.ravel()]
             tree = KDTree(filtered_points)
             if len(query_points)>0:
                 for curr_point in query_points:
                     distance, index = tree.query(curr_point)
+                    curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
                     if distance<saved_distance:
                         index1 = filtered_points[index]
                         saved_distance = distance
@@ -1632,7 +1650,7 @@ class sill_controls:
                         closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
                         is_closest_sill = (sills_array == saved_sill)
                         closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
-                        curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
+                        
                 sills_data['closest_sill'] = saved_sill
                 sills_data['distance'] = saved_distance*dx
                 sills_data['index of closest sill'] = saved_index
@@ -1778,7 +1796,7 @@ class sill_controls:
         plt.xlim(left = 0)
         plt.xlabel('Length units (m)')
         plt.legend()
-        plt.savefig('plots/WidthThickness.png', format = 'png', bbox_inches = 'tight')
+        plt.savefig('plots/WidthThickness'+str(format(tot_volume, '.3e'))+'.png', format = 'png', bbox_inches = 'tight')
         plt.close()
         
         thermal_maturation_time = phase_times[0]
@@ -1793,7 +1811,6 @@ class sill_controls:
         cum_volume = []
 
         if shape == 'elli':
-            print(width, thickness)
             volume = (4*np.pi/3)*width*width*thickness
         elif shape=='rect':
             volume = width*width*thickness
@@ -1802,7 +1819,7 @@ class sill_controls:
         #print(f'{np.sum(volume):.5e}, {float(tot_volume):.5e}, {np.sum(volume)<tot_volume}')
         n = 0
         for l in range(len(time_steps)):
-            if time_steps[l]<thermal_maturation_time:
+            if time_steps[l]<thermal_maturation_time+dt:
                 continue
             else:
                 if n>0:
@@ -1831,7 +1848,7 @@ class sill_controls:
 
                 if (n>0) and (np.sum(volume[0:n-1])>tot_volume):
                     print('Total sills emplaced:', n)
-                    n_sills = n
+                    n_sills = int(n)
                     empl_heights = empl_heights[0:n_sills]
                     x_space = x_space[0:n_sills]
                     width = width[0:n_sills]
@@ -1844,7 +1861,7 @@ class sill_controls:
         plt.ylabel(r'Volume emplacemed ($km^3$)')
         plt.xlabel(r'Time (Ma)')
         plt.legend()
-        plt.savefig('plots/VolumeTime.png', format = 'png', bbox_inches = 'tight')
+        plt.savefig('plots/VolumeTime'+str(format(tot_volume, '.3e'))+'.png', format = 'png', bbox_inches = 'tight')
         plt.close()
 
         z_coords = self.func_assigner(lat_function, *z_params)
@@ -2075,7 +2092,7 @@ class sill_controls:
         props_array[self.poros_index] = porosity
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
-    def emplace_sills(self,props_array, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, emplacement_params, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, H = np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
+    def emplace_sills(self,props_array, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
         '''
         Function to simulate cooling and associated thermogenic carbon release (optional) and save the properties at the specified intervals optionally
         Inputs - 
@@ -2127,10 +2144,6 @@ class sill_controls:
         TOC1 = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
         a,b = T_field.shape
         breakdown_CO2 = np.zeros_like(T_field)
-        if np.isnan(H).any():
-            H = np.zeros((a,b))
-        elif H.dtype==np.float64:
-            H = self.rool.get_latH(T_field,rock)+self.rool.get_radH(T_field, density, dx)
         if model=='silli':
             tot_RCO2, props_array_unused, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = carbon_model_params
         elif model =='sillburp':
@@ -2140,7 +2153,6 @@ class sill_controls:
             pass
         else:
             raise ValueError(f'model is {model}, but must be either silli or sillburp')
-        empl_times, empl_heights, x_space, width, thickness = emplacement_params
         empl_times = np.array(empl_times, dtype=float)
         curr_sill = 0
         dV = dx*dx*dy
@@ -2152,7 +2164,7 @@ class sill_controls:
         if save_dir is None:
             save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
         os.makedirs(save_dir, exist_ok = True)
-        sillnet = np.zeros((a,b))
+        sillnet = np.zeros((a,b), dtype = object)
         sillnet[:] = ''
         if self.calculate_closest_sill and not self.calculate_at_all_times:
             all_sills_data = pd.DataFrame()
@@ -2197,10 +2209,12 @@ class sill_controls:
                 curr_TOC_silli = props_array[self.TOC_index]
                 sillnet = self.rool.value_pusher2D(sillnet, curr_sill, row_start, col_pushed)
                 if self.calculate_closest_sill and not self.calculate_at_all_times:
-                    sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill)
-                    if all_sills_data.columns!=sills_data.columns:
-                        all_sills_data = sills_data.columns
-                    all_sills_data = pd.concat([all_sills_data, sills_data], reset_index = True)
+                    if len(col_pushed[col_pushed!=0]>0):
+                        print(f'Checking closest sills for {curr_sill}')
+                        sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, dx, no_sill='')
+                        if all_sills_data.columns.empty:
+                            all_sills_data = pd.DataFrame(columns = sills_data.columns)
+                        all_sills_data = pd.concat([all_sills_data, sills_data], ignore_index = True)
                 if model=='silli':
                     if (col_pushed!=0).any():
                         curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
@@ -2269,15 +2283,18 @@ class sill_controls:
         if self.calculate_closest_sill and not self.calculate_at_all_times:
             all_sills_data.to_csv(save_dir+'/sill_distances.csv')
         if model=='silli':
-            carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
+            if self.calculate_closest_sill:
+                carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli, all_sills_data
+            else:
+                carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
-            carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions
+            if self.calculate_closest_sill:
+                carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, all_sills_data
+            else:
+                carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions 
         else:
-            carbon_model_params = None
-        if self.calculate_closest_sill:
-            return carbon_model_params, sills_data
-        else:
-            return carbon_model_params
+            carbon_model_params = props_array
+        return carbon_model_params
 
     ##########################################################################
     # STORAGE IN HDF5
