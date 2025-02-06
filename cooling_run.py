@@ -131,7 +131,6 @@ def cooler(iter, z_index, flux):
                 print(f'Emplacement time for sill {j} has been readjusted and is now at {np.where(time_steps==empl_times[j])[0]}')
         else:
             print(f'Sill {j} is at {np.where(time_steps==empl_times[j])[0]}')
-    breakpoint
     dir_save = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+'/'+str(z_index)
     os.makedirs(dir_save, exist_ok = True)
     timeframe = pd.DataFrame(time_steps[1:], columns=['time_steps'])
@@ -195,7 +194,7 @@ for flux in fluxy:
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
 '''
-Parallel(n_jobs = 20)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
+Parallel(n_jobs = 1)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
 #Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, fluxy) for z_indexs in z_index)
 
 #cooler(0, 191, int(3e9))
