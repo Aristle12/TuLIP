@@ -127,6 +127,8 @@ def cooler(iter, z_index, flux):
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe['melt10'] = carbon_model_params[1]
     timeframe['melt50'] = carbon_model_params[2]
+    timeframe['area_sills'] = carbon_model_params[4]
+    timeframe['tot_solidus'] = carbon_model_params[3]
     timeframe.to_csv(dir_save+'/times.csv')
 
 

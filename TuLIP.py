@@ -13,6 +13,7 @@ import pandas as pd
 import pyvista as pv
 import os
 import h5py
+import pdb
 
 class cool:
     def __init__(self):
@@ -1715,12 +1716,14 @@ class sill_controls:
             closest_sill_thickness = -1
             closest_sill_width_curr = -1
             closest_sill_thickness_curr = -1
+            closest_sill_center_curr = -1
+            closest_sill_center = -1
             filtered_points = points[condition.ravel()]
             tree = KDTree(filtered_points)
             if len(query_points)>0:
                 for curr_point in query_points:
                     distance, index = tree.query(curr_point)
-                    curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
+                    curr_sill_width, curr_sill_thickness, curr_sill_center = get_width_and_thickness(is_curr_sill)
                     if distance<saved_distance:
                         index1 = filtered_points[index]
                         saved_distance = distance
@@ -1729,9 +1732,9 @@ class sill_controls:
                         saved_sill = sills_array[index1[0], index1[1]]
                         closest_curr_sill = str(curr_point)
                         is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
-                        closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
+                        closest_sill_width_curr, closest_sill_thickness_curr, closest_sill_center_curr = get_width_and_thickness(is_closest_sill_curr)
                         is_closest_sill = (sills_array == saved_sill)
-                        closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
+                        closest_sill_width, closest_sill_thickness, closest_sill_center = get_width_and_thickness(is_closest_sill)
                         
                 sills_data['closest_sill'] = saved_sill
                 sills_data['distance'] = saved_distance*dx
@@ -1740,10 +1743,13 @@ class sill_controls:
                 sills_data['index of current sill'] = closest_curr_sill
                 sills_data['width of current sill'] = curr_sill_width*dx
                 sills_data['thickness of current sill'] = curr_sill_thickness*dx
+                sills_data['index of current sill center'] = curr_sill_center
                 sills_data['width of closest sill'] = closest_sill_width_curr*dx
                 sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
+                sills_data['current center of closest sill'] = closest_sill_center_curr
                 sills_data['original width of closest sill'] = closest_sill_width*dx
                 sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
+                sills_data['original center of closest sill'] = closest_sill_center
         return sills_data
 
     def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
@@ -2249,9 +2255,11 @@ class sill_controls:
         sillnet[:] = ''
         if self.calculate_closest_sill and not self.calculate_at_all_times:
             all_sills_data = pd.DataFrame()
-        sills_emplaced = np.zeros_like((a,b))
+        sills_emplaced = np.zeros((a,b))
         tot_melt10 = []
         tot_melt50 = []
+        tot_solidus = []
+        area_sills = []
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
@@ -2327,8 +2335,10 @@ class sill_controls:
                 Frac_melt = rules.calcF(T_field)
                 melt_50 = np.sum(Frac_melt>0.5)
                 melt_10 = np.sum(Frac_melt>0.1)
-                tot_melt10.append[melt_10]
-                tot_melt50.append(melt_50)
+                tot_melt10.append(melt_10*dx*dy)
+                tot_melt50.append(melt_50*dx*dy)
+                tot_solidus.append(np.sum(T_field>self.T_solidus)*dx*dy)
+                area_sills.append(np.sum(sills_emplaced>0)*dx*dy)
                 if (curr_sill+1)<n_sills:
                     curr_sill +=1
                 else:
@@ -2380,14 +2390,14 @@ class sill_controls:
             all_sills_data.to_csv(save_dir+'/sill_distances.csv')
         if model=='silli':
             if self.calculate_closest_sill:
-                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli, all_sills_data
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, tot_solidus, area_sills, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli, all_sills_data
             else:
-                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, tot_solidus, area_sills, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
             if self.calculate_closest_sill:
-                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, all_sills_data
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, tot_solidus, area_sills, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, all_sills_data
             else:
-                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions 
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, tot_solidus, area_sills, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions 
         else:
             carbon_model_params = props_array
         return carbon_model_params
