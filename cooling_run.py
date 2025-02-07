@@ -109,7 +109,7 @@ def cooler(iter, z_index, flux):
     for j in range(len(empl_times)):
         if len(np.where(time_steps==empl_times[j])[0])==0:
             min_diff = np.min(np.abs(time_steps - empl_times[j]))
-            print(f'Sill {j} is not in time_steps and difference to closest time step is {format(min_diff, '.2e')}')
+            print(f'Sill {j} is not in time_steps and difference to closest time step is {min_diff:.2e}')
             time_index = np.where(min_diff==np.abs(time_steps - empl_times[j]))[0]
             if min_diff<dt:
                 empl_times[j] = time_steps[time_index]
@@ -178,7 +178,7 @@ for flux in fluxy:
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
 '''
-Parallel(n_jobs = 1)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
+Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
 #Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, fluxy) for z_indexs in z_index)
 
-#cooler(0, 191, int(3e9))
+#cooler(2, 191, int(3e9))

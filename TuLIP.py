@@ -7,7 +7,7 @@ import scipy.sparse as sc
 import pypardiso as ps
 from scipy.special import erf, erfinv
 from scipy.io import loadmat
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator, interp1d
 from scipy.spatial import KDTree
 import pandas as pd
 import pyvista as pv
@@ -38,10 +38,10 @@ class cool:
     @jit
     def avg_perm(k):
         ##Function to return the averaged permeabilities required for heat diffusion in an anisotropic medium
-        kiph = k
-        kimh = k
-        kjph = k
-        kjmh = k
+        kiph = k.copy()
+        kimh = k.copy()
+        kjph = k.copy()
+        kjmh = k.copy()
 
         for i in range(0, len(k[:,1])-1):
             for j in range(0, len(k[1,:])-1):
@@ -392,6 +392,8 @@ class cool:
             Tnow=self.conv_chain_solve(k, a, b, dx, dy, dt, Tnow, H, q)
             return Tnow
         elif method=='conv smooth':
+            Tnow = np.zeros((a,b))
+            Tnow.flags.writeable = True
             Tnow=self.conv_smooth_solve(k, a, b, dx, dy, dt, Tnow, H, q)
             return Tnow
         elif method=='smooth':
@@ -1238,9 +1240,19 @@ class rules:
             for j in range(b):
                 H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
         return H
+    @staticmethod
+    def func_assigner(self, func, *args, **kwargs):
+        '''
+        Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
+        func: The function to be called.
+        *args: Positional arguments to be passed to the function.
+        **kwargs: Keyword arguments to be passed to the function.
+        '''
+        result = func(*args,**kwargs)
+        return result
     
     @staticmethod
-    def calcF(T_field, T_liquidus=1250, T_solidus=800):
+    def calcF(T_field, T_liquidus=1100, T_solidus=800):
         '''
         Arbitrary method to calculate the fraction of melt remaining based on temperature
         T_field: A 2D numpy array representing the temperature field.
@@ -1259,9 +1271,27 @@ class rules:
                     F[i,j] = 1
         #print(T_field[i,j], F[i,j], i, j)
         return F
+    
+    def calcF_from_csv(T_field, dir_csv, temp_col: str, fraction_column: str, T_liquidus=1100, T_solidus=800):
+        F = np.zeros_like(T_field)
+        a,b = T_field.shape
+        data = pd.read_csv(dir_csv)
+        temp = data[temp_col]
+        fraction_melt = data[fraction_column]
+        p = interp1d(temp, fraction_melt)
+        for i in range(a):
+            for j in range(b):
+                if T_field[i,j]>T_solidus and T_field[i,j]<T_liquidus:
+                    F[i,j] = p(T_field[i,j])
+                elif T_field[i,j]<T_solidus:
+                    F[i,j] = 0
+                elif T_field[i,j]>T_liquidus:
+                    F[i,j] = 1
+
+
 
     @staticmethod
-    def get_latH(T_field, lithology, melt='basalt', rho_melt = 2850, T_liquidus=1250, T_solidus=800):
+    def get_latH(T_field, lithology, melt='basalt', rho_melt = 2850, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
         '''
         Get the latent heat of crystallization based onthe model of Karakas et al. (2017)
         T_field: A 2D numpy array representing the temperature field.
@@ -1272,21 +1302,43 @@ class rules:
         T_solidus: A float representing the solidus temperature, default is 800.
         '''
         heat_filter = lithology==melt
-        a,b = T_field.shape
-        #pressure = np.zeros((a,b))
-        #for i in range(1,a):
-        #    for j in range(b):
-        #        pressure[i,j] = (pressure[i-1,j]+ rho[i,j]*9.8*i*dy)*1e-9 #GPa
-        #rho_melt = 2700 #kg/m3
-        phi_cr = rules.calcF(T_field, T_liquidus, T_solidus)
+        if args is None:
+            args = (T_field, T_liquidus, T_solidus)
+        if curve_func is None:
+            curve_func = rules.calcF
+        phi_cr = rules.func_assigner(curve_func, *args)
         L = 4e5 #J
         H_lat = rho_melt*(phi_cr)*L*heat_filter
         return H_lat
-        
+
+    @staticmethod
+    def rotate_nodes(coords_array, theta, center = (0,0)):
+        '''
+        Rotate the given coordinates by specified angle clockwise
+        coords_array: array containing the row and column indices'''
+        # Convert theta to radians and adjust for clockwise rotation
+        theta_rad = np.radians(theta + 90)  # Add 90 for N orientation along z-axis
+
+        # Extract coordinates
+        x, y = coords_array
+
+        # Translate coordinates so that the center is at the origin
+        x_translated = x - center[0]
+        y_translated = y - center[1]
+
+        # Perform rotation
+        x_rotated = x_translated * np.cos(theta_rad) + y_translated * np.sin(theta_rad)
+        y_rotated = -x_translated * np.sin(theta_rad) + y_translated * np.cos(theta_rad)
+        # Translate coordinates back to the original reference frame
+        x1 = x_rotated + center[0]
+        y1 = y_rotated + center[1]
+
+        return x1, y1
+            
 
 
 
-    def sill_3Dcube(self, x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape='elli', dike_tail=False):
+    def sill_3Dcube(self, x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape='elli', dike_tail=False, orientations = True):
         '''
         Function to generate sills in 3D space to employ fluxes as a control for sill emplacement.
         Choose any 1 slice for a 2D cooling model, or multiple slices for multiple cooling models
@@ -1310,15 +1362,26 @@ class rules:
         maj_dims = maj_dims/dx
         min_dims = min_dims/dy
 
+        if dike_tail:
+            if orientations is None:
+                orientations = np.random.randn(n_sills)*360
+
         if shape == 'elli':
             for l in trange(n_sills):
                 mask = ((((z_len-z_coords[l])**2)/maj_dims[l]**2)+(((y_len-y_coords[l])**2)/min_dims[l]**2)
                 +(((x_len-x_coords[l])**2)/maj_dims[l]**2))<=1
                 sillcube[mask] += '_' + str(l) + 's' + str(empl_times[l])
                 if dike_tail:
-                    sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
-                #pdb.set_trace()
-
+                    dike_zcoords = np.arange((z_coords[l]-maj_dims[l]//2), (z_coords[l]-maj_dims[l]//2), dx)
+                    dike_xcoords = np.arange((x_coords[l]-maj_dims[l]//2), (x_coords[l]-maj_dims[l]//2), dx)
+                    rot_zcoords = np.zeros_like(dike_zcoords)
+                    rot_xcoords = np.zeros_like(dike_xcoords)
+                    for i_len in len(dike_zcoords):
+                        rot_zcoords[i_len], rot_xcoords[i_len] = self.rotate_nodes([dike_zcoords[i_len], dike_xcoords[i_len]], orientations[l], [z_coords[l], x_coords[l]])
+                    rot_zcoords = np.round(rot_zcoords)
+                    rot_xcoords = np.round(rot_xcoords)
+                    sillcube[int(rot_zcoords), int(y_coords[l]):-1, int(rot_xcoords)] += '_' + str(l) + 's' + str(empl_times[l])
+        
         elif shape == 'rect':
             for l in trange(n_sills):
                 z_start = int(z_coords[l] - (maj_dims[l] // 2))
@@ -1330,7 +1393,15 @@ class rules:
 
                 sillcube[z_start:z_end, y_start:y_end, x_start:x_end] += '_' + str(l) + 's' + str(empl_times[l])
                 if dike_tail:
-                    sillcube[int(z_coords[l]), int(y_coords[l]):-1, int(x_coords[l])] += '_' + str(l) + 's' + str(empl_times[l])
+                    dike_zcoords = np.arange((z_coords[l]-maj_dims[l]//2), (z_coords[l]-maj_dims[l]//2), dx)
+                    dike_xcoords = np.arange((x_coords[l]-maj_dims[l]//2), (x_coords[l]-maj_dims[l]//2), dx)
+                    rot_zcoords = np.zeros_like(dike_zcoords)
+                    rot_xcoords = np.zeros_like(dike_xcoords)
+                    for i_len in len(dike_zcoords):
+                        rot_zcoords[i_len], rot_xcoords[i_len] = self.rotate_nodes([dike_zcoords[i_len], dike_xcoords[i_len]], orientations[l], [z_coords[l], x_coords[l]])
+                    rot_zcoords = np.round(rot_zcoords)
+                    rot_xcoords = np.round(rot_xcoords)
+                    sillcube[int(rot_zcoords), int(y_coords[l]):-1, int(rot_xcoords)] += '_' + str(l) + 's' + str(empl_times[l])
 
         return sillcube
     def emplace_3Dsill(self, T_field, sillcube, n_rep, T_mag, z_index, curr_empl_time):
@@ -1543,7 +1614,10 @@ class sill_controls:
             max_col = np.max(np.where(bool_array==True)[0])
             min_col = np.min(np.where(bool_array==True)[0])
             thickness = max_col - min_col + 1
-            return width, thickness
+            center_row = np.mean([max_row, min_row])
+            center_col = np.mean([max_col, min_col])
+            center = str([center_row, center_col])
+            return width, thickness, center
     
         is_sill = np.array((sills_array!=no_sill))
         is_curr_sill = sills_array==curr_sill
@@ -1581,12 +1655,14 @@ class sill_controls:
                 closest_sill_thickness = 0
                 closest_sill_width = -1
                 closest_sill_thickness = -1
+                closest_sill_center_curr = -1
+                closest_sill_center = -1
                 filtered_points = points[condition.ravel()]
                 tree = KDTree(filtered_points)
                 if len(query_points)>0:
                     for curr_point in query_points:
                         distance, index = tree.query(curr_point)
-                        curr_sill_width, curr_sill_thickness = get_width_and_thickness(is_curr_sill)
+                        curr_sill_width, curr_sill_thickness, curr_sill_center = get_width_and_thickness(is_curr_sill)
                         if distance<saved_distance:
                             index1 = filtered_points[index]
                             saved_distance = distance
@@ -1595,9 +1671,9 @@ class sill_controls:
                             saved_sill = sills_array[index1[0], index1[1]]
                             closest_curr_sill = str(curr_point)
                             is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
-                            closest_sill_width_curr, closest_sill_thickness_curr = get_width_and_thickness(is_closest_sill_curr)
+                            closest_sill_width_curr, closest_sill_thickness_curr, closest_sill_center_curr = get_width_and_thickness(is_closest_sill_curr)
                             is_closest_sill = (sills_array == saved_sill)
-                            closest_sill_width, closest_sill_thickness = get_width_and_thickness(is_closest_sill)
+                            closest_sill_width, closest_sill_thickness, closest_sill_center = get_width_and_thickness(is_closest_sill)
                             
                 sills_data['closest_sill'] = saved_sill
                 sills_data['distance'] = saved_distance*dx
@@ -1606,10 +1682,13 @@ class sill_controls:
                 sills_data['index of current sill'] = closest_curr_sill
                 sills_data['width of current sill'] = curr_sill_width*dx
                 sills_data['thickness of current sill'] = curr_sill_thickness*dx
+                sills_data['index of current sill center'] = curr_sill_center
                 sills_data['width of closest sill'] = closest_sill_width_curr*dx
                 sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
+                sills_data['current center of closest sill'] = closest_sill_center_curr
                 sills_data['original width of closest sill'] = closest_sill_width*dx
                 sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
+                sills_data['original center of closest sill'] = closest_sill_center
                 
             pd.concat([all_sills_data, sills_data], reset_index = True)
             if save_file is None:
@@ -1664,7 +1743,7 @@ class sill_controls:
                 sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
         return sills_data
 
-    def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None):
+    def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
         '''
         generates a 3D representation of sills in a geological model. It calculates emplacement heights, lateral spacings, and dimensions of sills based on specified distributions and parameters. 
         The method calculates the emplacement times for each sill based on specified flux rates, considering thermal maturation and cooling phases, and returns the constructed sill cube along with relevant parameters.
@@ -1865,8 +1944,7 @@ class sill_controls:
         plt.close()
 
         z_coords = self.func_assigner(lat_function, *z_params)
-        sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape)
-
+        sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape, emplace_dike, orientations)
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
         return sillcube, n_sills, params
     
@@ -2203,6 +2281,9 @@ class sill_controls:
                 RCO2_model += breakdown_CO2*dV
                 tot_RCO2.append(np.sum(RCO2_model))
             props_array[self.TOC_index] = curr_TOC_silli
+            if isinstance(n_sills, str):
+                n_sills = n_sills.strip('[]')
+            n_sills = int(n_sills)
             while time_steps[l]==empl_times[curr_sill] and curr_sill<int(n_sills):
                 #print(f'Now emplacing sill {curr_sill}')
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
