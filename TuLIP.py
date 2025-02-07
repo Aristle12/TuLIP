@@ -1481,7 +1481,7 @@ class rules:
 
 class sill_controls:
     #Class that contains functions that make functions from the other classes easier to use for specific use cases.
-    def __init__(self, x, y, dx, dy, k, include_external_heat = True, calculate_closest_sill = False, calculate_all_sills_distances = False, calculate_at_all_times = False):
+    def __init__(self, x, y, dx, dy, k, melt = 'basalt', T_liquidus = 1100, T_solidus = 800, include_external_heat = True, calculate_closest_sill = False, calculate_all_sills_distances = False, calculate_at_all_times = False):
         self.x = x
         self.y = y
         self.dx = dx
@@ -1491,6 +1491,8 @@ class sill_controls:
         self.calculate_all_sill_distances = calculate_all_sills_distances
         self.calculate_at_all_times = calculate_at_all_times
         self.include_heat = include_external_heat
+        self.melt = melt
+        self.T_solidus = T_solidus
         self.cool = cool()
         self.rool = rules() 
         ###Setting up the properties dictionary to translate properties to indices for 3D array###
@@ -1523,7 +1525,7 @@ class sill_controls:
                     'Porosity': 0.2,
                     'Density': 2850, #kg/m3
                     'TOC':0} #wt%
-
+        self.T_liquidus = T_liquidus
         self.rock_prop_dict = {
             "shale":{
                 'Porosity':0.1,
@@ -2246,13 +2248,16 @@ class sill_controls:
         sillnet[:] = ''
         if self.calculate_closest_sill and not self.calculate_at_all_times:
             all_sills_data = pd.DataFrame()
+        sills_emplaced = np.zeros_like((a,b))
+        tot_melt10 = []
+        tot_melt50 = []
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             if self.include_heat:
                 H_rad = self.rool.get_radH(T_field, density,dx)
-                H_lat = self.rool.get_latH(T_field, density, rock, dx, dy)
+                H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                 H = H_rad+H_lat
             else:
                 H = np.zeros_like(T_field)
@@ -2298,6 +2303,7 @@ class sill_controls:
                         all_sills_data = pd.concat([all_sills_data, sills_data], ignore_index = True)
                 if model=='silli':
                     if (col_pushed!=0).any():
+                        sills_emplaced = self.rool.value_pusher2D(sills_emplaced, curr_sill, row_start, col_pushed)
                         curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
                         RCO2_silli = self.rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
                         Rom_silli = self.rool.value_pusher2D(Rom_silli,0, row_start, col_pushed)
@@ -2316,7 +2322,12 @@ class sill_controls:
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
                         col_pushed = np.zeros_like(row_start)
-
+                
+                Frac_melt = rules.calcF(T_field)
+                melt_50 = np.sum(Frac_melt>0.5)
+                melt_10 = np.sum(Frac_melt>0.1)
+                tot_melt10.append[melt_10]
+                tot_melt50.append(melt_50)
                 if (curr_sill+1)<n_sills:
                     curr_sill +=1
                 else:
@@ -2327,6 +2338,7 @@ class sill_controls:
                 if len(saving_factor)>1 and len(saving_factor)<3:
                     if curr_sill<n_sills:
                         if l%saving_factor[0]==0:
+                            props_array_vtk.point_data['Sills'] = np.array(sills_emplaced, dtype = float).flatten()
                             props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
                             props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
                             props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
@@ -2338,6 +2350,7 @@ class sill_controls:
                             props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                         else:
                             if l%saving_factor[1]==0:
+                                props_array_vtk.point_data['Sills'] = np.array(sills_emplaced, dtype = float).flatten()
                                 props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
                                 props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
                                 props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
@@ -2350,6 +2363,7 @@ class sill_controls:
                 elif len(saving_factor)==1:
                     if l%saving_factor[0]==0:
                         print('Saving cube')
+                        props_array_vtk.point_data['Sills'] = np.array(sills_emplaced, dtype = float).flatten()
                         props_array_vtk.point_data['Temperature'] = np.array(props_array[self.Temp_index], dtype = float).flatten()
                         props_array_vtk.point_data['Density'] = np.array(props_array[self.dense_index], dtype = float).flatten()
                         props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
@@ -2365,14 +2379,14 @@ class sill_controls:
             all_sills_data.to_csv(save_dir+'/sill_distances.csv')
         if model=='silli':
             if self.calculate_closest_sill:
-                carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli, all_sills_data
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli, all_sills_data
             else:
-                carbon_model_params = tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
         elif model=='sillburp':
             if self.calculate_closest_sill:
-                carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, all_sills_data
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, all_sills_data
             else:
-                carbon_model_params = tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions 
+                carbon_model_params = tot_RCO2, tot_melt10, tot_melt50, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions 
         else:
             carbon_model_params = props_array
         return carbon_model_params

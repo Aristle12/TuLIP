@@ -125,6 +125,8 @@ def cooler(iter, z_index, flux):
     carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=[100],model = 'silli', q=q)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
+    timeframe['melt10'] = carbon_model_params[1]
+    timeframe['melt50'] = carbon_model_params[2]
     timeframe.to_csv(dir_save+'/times.csv')
 
 
