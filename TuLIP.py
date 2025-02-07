@@ -1241,7 +1241,7 @@ class rules:
                 H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
         return H
     @staticmethod
-    def func_assigner(self, func, *args, **kwargs):
+    def func_assigner(func, *args, **kwargs):
         '''
         Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
         func: The function to be called.
@@ -1272,6 +1272,7 @@ class rules:
         #print(T_field[i,j], F[i,j], i, j)
         return F
     
+    @staticmethod
     def calcF_from_csv(T_field, dir_csv, temp_col: str, fraction_column: str, T_liquidus=1100, T_solidus=800):
         F = np.zeros_like(T_field)
         a,b = T_field.shape
