@@ -1306,6 +1306,7 @@ class rules:
             args = (T_field, T_liquidus, T_solidus)
         if curve_func is None:
             curve_func = rules.calcF
+        print(args)
         phi_cr = rules.func_assigner(curve_func, *args)
         L = 4e5 #J
         H_lat = rho_melt*(phi_cr)*L*heat_filter
