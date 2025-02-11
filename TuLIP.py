@@ -13,6 +13,8 @@ import pandas as pd
 import pyvista as pv
 import os
 import h5py
+import warnings
+from autograd import grad
 import pdb
 
 class cool:
@@ -329,13 +331,14 @@ class cool:
         Tf = temperature field at current time step - MxN matrix
         q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
         """
-        
+        H_rad = H[0]
+        H_lat = H[1]
         Tnow = np.zeros((a,b))
         T_surf = Tf[0,0]
         T_bot = Tf[-1,0]
         for i in range(1,a-1):
             for j in range(1,b-1):
-                Tnow[i,j] =  (-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt)+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]+(H[i,j]*dt/(dx**2))
+                Tnow[i,j] =  ((-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt)+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]+(H_rad[i,j]))/H_lat[i,j]
         for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
@@ -348,6 +351,7 @@ class cool:
         return Tnow
 
     @jit(forceobj = True)
+    
     def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
         Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
@@ -361,12 +365,14 @@ class cool:
         q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
         """
         kiph, kimh, kjph, kjmh = self.avg_perm(k)
+        H_rad = H[0]
+        H_lat = H[1]
         Tnow = np.zeros((a,b))
         T_surf = Tf[0,0]
         T_bot = Tf[-1,0]
         for i in range(1,a-1):
             for j in range(1,b-1):
-                Tnow[i,j] =  (-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]+(H[i,j]*dt/(dx**2))
+                Tnow[i,j] =  ((-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]+(H_rad[i,j]))/H_lat[i,j]
         for i in range(1,a-1):
             Tnow[i,0] = Tnow[i,2]
             Tnow[i,b-1] = Tnow[i,b-3]
@@ -393,8 +399,6 @@ class cool:
             Tnow=self.conv_chain_solve(k, a, b, dx, dy, dt, Tnow, H, q)
             return Tnow
         elif method=='conv smooth':
-            Tnow = np.zeros((a,b))
-            Tnow.flags.writeable = True
             Tnow=self.conv_smooth_solve(k, a, b, dx, dy, dt, Tnow, H, q)
             return Tnow
         elif method=='smooth':
@@ -1079,6 +1083,21 @@ class rules:
         for rock in lith_dict.keys():
             prop[lithology==rock] = prop_dict[rock][property]
         return prop
+    
+    @staticmethod
+    def get_diffusivity(T_field, rock, dy, func_set='linear'):
+        '''
+        Stand-in funciton to get diffusivity based on properties
+        '''
+        if func_set=='linear':
+            aye = 31.536
+            bee = 0.03156
+            diffusivity = aye + bee*T_field
+        else:
+            diffusivity = np.ones_like(T_field)*31.536
+        return diffusivity
+
+
     @staticmethod
     def value_pusher2D(array, new_value, row_index, push_amount):
         '''
@@ -1264,9 +1283,9 @@ class rules:
         a,b = T_field.shape
         for i in range(a):
             for j in range(b):
-                if T_field[i,j]>T_solidus and T_field[i,j]<T_liquidus:
+                if T_field[i,j]>T_solidus and T_field[i,j]<=T_liquidus:
                     F[i,j] = (((T_field[i,j]-T_solidus)/(T_liquidus-T_solidus))**2.5)
-                elif T_field[i,j]<T_solidus:
+                elif T_field[i,j]<=T_solidus:
                     F[i,j] = 0
                 elif T_field[i,j]>T_liquidus:
                     F[i,j] = 1
@@ -1283,9 +1302,9 @@ class rules:
         p = interp1d(temp, fraction_melt)
         for i in range(a):
             for j in range(b):
-                if T_field[i,j]>T_solidus and T_field[i,j]<T_liquidus:
+                if T_field[i,j]>T_solidus and T_field[i,j]<=T_liquidus:
                     F[i,j] = p(T_field[i,j])
-                elif T_field[i,j]<T_solidus:
+                elif T_field[i,j]<=T_solidus:
                     F[i,j] = 0
                 elif T_field[i,j]>T_liquidus:
                     F[i,j] = 1
@@ -1293,9 +1312,9 @@ class rules:
 
 
     @staticmethod
-    def get_latH(T_field, lithology, melt='basalt', rho_melt = 2850, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
+    def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
         '''
-        Get the latent heat of crystallization based onthe model of Karakas et al. (2017)
+        Get the latent heat of crystallization term for the ehat diffusion equation based onthe model of Karakas et al. (2017)
         T_field: A 2D numpy array representing the temperature field.
         lithology: A 2D numpy array representing the lithology types.
         melt: A string specifying the type of melt, default is 'basalt'.
@@ -1303,14 +1322,18 @@ class rules:
         T_liquidus: A float representing the liquidus temperature, default is 1250.
         T_solidus: A float representing the solidus temperature, default is 800.
         '''
-        heat_filter = lithology==melt
+        heat_filter = (lithology==melt) & (T_field<T_liquidus) & (T_field>T_solidus)
         if args is None:
             args = (T_field, T_liquidus, T_solidus)
         if curve_func is None:
             curve_func = rules.calcF
-        phi_cr = rules.func_assigner(curve_func, *args)
+        phi_cr = grad(curve_func)
         L = 4e5 #J
-        H_lat = rho_melt*(phi_cr)*L*heat_filter
+        H_lat = np.zeros_like(T_field)
+        a, b = T_field.shape
+        for i in range(a):
+            for j in range(b):
+                H_lat[i,j] = 1 - (phi_cr(T_field[i,j])*L/specific_heat)
         return H_lat
 
     @staticmethod
@@ -1483,11 +1506,21 @@ class rules:
 
 class sill_controls:
     #Class that contains functions that make functions from the other classes easier to use for specific use cases.
-    def __init__(self, x, y, dx, dy, k, melt = 'basalt', T_liquidus = 1100, T_solidus = 800, include_external_heat = True, calculate_closest_sill = False, calculate_all_sills_distances = False, calculate_at_all_times = False):
+    def __init__(self, x, y, dx, dy, 
+                 melt = 'basalt', T_liquidus = 1100, T_solidus = 800, k_const = True,
+                 k_val = 31.536, include_external_heat = True, calculate_closest_sill = False, 
+                 calculate_all_sills_distances = False, calculate_at_all_times = False):
         self.x = x
         self.y = y
         self.dx = dx
         self.dy = dy
+        self.k_const = k_const
+        a = int(y//dy)
+        b = int(x//dx)
+        if k_const:
+            k = np.ones((a,b))*k_val
+        else:
+            k = np.ones((a,b))*31.536
         self.k = k
         self.calculate_closest_sill = calculate_closest_sill
         self.calculate_all_sill_distances = calculate_all_sills_distances
@@ -1526,6 +1559,7 @@ class sill_controls:
                     'Lithology': 'basalt',
                     'Porosity': 0.2,
                     'Density': 2850, #kg/m3
+                    'Specific Heat': 850,
                     'TOC':0} #wt%
         self.T_liquidus = T_liquidus
         self.rock_prop_dict = {
@@ -1599,7 +1633,7 @@ class sill_controls:
         return result
     
     @staticmethod
-    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, time, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
         '''
         Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
         It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
@@ -1644,7 +1678,7 @@ class sill_controls:
         points = points.reshape(-1,2)
         if calculate_all:
             tot_sills = curr_sill
-            all_sills_data = pd.DataFrame(columns=['sills', 'closest_sill', 'distance', 'index', 'temperature'])
+            all_sills_data = pd.DataFrame()
             for curr_sill in range(tot_sills):
                 condition = (T_field>T_solidus) & (sills_number!=curr_sill)
                 query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
@@ -1693,7 +1727,10 @@ class sill_controls:
                 sills_data['original width of closest sill'] = closest_sill_width*dx
                 sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
                 sills_data['original center of closest sill'] = closest_sill_center
+                sills_data['current time'] = time
                 
+            if all_sills_data.columns is None:
+                all_sills_data.columns==sills_data.columns
             pd.concat([all_sills_data, sills_data], reset_index = True)
             if save_file is None:
                 return all_sills_data
@@ -1750,6 +1787,7 @@ class sill_controls:
                 sills_data['original width of closest sill'] = closest_sill_width*dx
                 sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
                 sills_data['original center of closest sill'] = closest_sill_center
+                sills_data['current time'] = time
         return sills_data
 
     def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
@@ -2224,10 +2262,10 @@ class sill_controls:
             dts = np.append(dts[0],dts)
         else:
             dts = np.repeat(dt,len(time_steps))
-        rock = props_array[self.rock_index]
-        density = props_array[self.dense_index]
-        porosity = props_array[self.poros_index]
-        T_field = props_array[self.Temp_index]
+        rock = np.array(props_array[self.rock_index])
+        density = np.array(props_array[self.dense_index])
+        porosity = np.array(props_array[self.poros_index])
+        T_field = np.array(props_array[self.Temp_index], dtype = float)
         TOC1 = self.rool.prop_updater(rock, lith_plot_dict, rock_prop_dict, 'TOC')
         a,b = T_field.shape
         breakdown_CO2 = np.zeros_like(T_field)
@@ -2268,12 +2306,17 @@ class sill_controls:
                 H_rad = self.rool.get_radH(T_field, density,dx)
                 H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                 H = H_rad+H_lat
+                H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
             else:
                 H = np.zeros_like(T_field)
+            if self.k_const ==False:
+                k = self.rool.get_diffusivity(T_field, rock, dy)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
+            if np.max(T_field)>1.2*self.T_liquidus:
+                warnings.warn(f'Too much latent heat: {np.max(H)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
             if self.calculate_closest_sill and self.calculate_at_all_times:
                 save_file = save_dir+'/sill_distances'+str(time_steps[l])
-                sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, calculate_all=self.calculate_all_sill_distances, save_file=save_file)
+                sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill,dx, time_steps[l], calculate_all=self.calculate_all_sill_distances, save_file=save_file)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
             rock = props_array[self.rock_index]
@@ -2306,7 +2349,7 @@ class sill_controls:
                 if self.calculate_closest_sill and not self.calculate_at_all_times:
                     if len(col_pushed[col_pushed!=0]>0):
                         print(f'Checking closest sills for {curr_sill}')
-                        sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, dx, no_sill='')
+                        sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, dx, time_steps[l], calculate_all=self.calculate_all_sill_distances)
                         if all_sills_data.columns.empty:
                             all_sills_data = pd.DataFrame(columns = sills_data.columns)
                         all_sills_data = pd.concat([all_sills_data, sills_data], ignore_index = True)
@@ -2331,18 +2374,18 @@ class sill_controls:
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
                         col_pushed = np.zeros_like(row_start)
-                
-                Frac_melt = rules.calcF(T_field)
-                melt_50 = np.sum(Frac_melt>0.5)
-                melt_10 = np.sum(Frac_melt>0.1)
-                tot_melt10.append(melt_10*dx*dy)
-                tot_melt50.append(melt_50*dx*dy)
-                tot_solidus.append(np.sum(T_field>self.T_solidus)*dx*dy)
-                area_sills.append(np.sum(sills_emplaced>0)*dx*dy)
                 if (curr_sill+1)<n_sills:
                     curr_sill +=1
                 else:
                     break
+            Frac_melt = rules.calcF(np.array(props_array[self.Temp_index], dtype = float))*(props_array[self.rock_index]==magma_prop_dict['Lithology'])
+            #pdb.set_trace()
+            melt_50 = np.sum(Frac_melt>0.5)
+            melt_10 = np.sum(Frac_melt>0.1)
+            tot_melt10.append(melt_10*dx*dy)
+            tot_melt50.append(melt_50*dx*dy)
+            tot_solidus.append(np.sum(np.array(props_array[self.Temp_index], dtype = float)>self.T_solidus)*dx*dy)
+            area_sills.append(np.sum(sills_emplaced>0)*dx*dy)
             if saving_factor is not None:
                 if type(saving_factor)== int:
                     saving_factor = [saving_factor]

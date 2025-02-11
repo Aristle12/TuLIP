@@ -13,12 +13,13 @@ x = 300000 #m - Horizontal extent of the crust
 y = 12000 #m - Vertical thickness of the crust
 dx = dz = 50 #m node spacing in x-direction
 dy = 50 #m node spacing in y-direction
+
 a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 k = np.ones((a,b))*31.536 #m2/yr
 
 
-sc = sill_controls(x,y, dx, dy, k,
+sc = sill_controls(x,y, dx, dy,
                    include_external_heat=True,
                    calculate_closest_sill=True)
 
@@ -125,10 +126,10 @@ def cooler(iter, z_index, flux):
     carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=[100],model = 'silli', q=q)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
-    timeframe['melt10'] = carbon_model_params[1]
-    timeframe['melt50'] = carbon_model_params[2]
-    timeframe['area_sills'] = carbon_model_params[4]
-    timeframe['tot_solidus'] = carbon_model_params[3]
+    timeframe['melt10'] = carbon_model_params[1][1:]
+    timeframe['melt50'] = carbon_model_params[2][1:]
+    timeframe['area_sills'] = carbon_model_params[4][1:]
+    timeframe['tot_solidus'] = carbon_model_params[3][1:]
     timeframe.to_csv(dir_save+'/times.csv')
 
 
@@ -185,4 +186,4 @@ print(f'slices are {z_index}')
 Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
 #Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, fluxy) for z_indexs in z_index)
 
-#cooler(2, 191, int(3e9))
+#cooler(0, 191, int(3e9))
