@@ -2324,7 +2324,7 @@ class sill_controls:
             if self.k_const ==False:
                 k = self.rool.get_diffusivity(T_field, rock, dy)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
-            if np.max(T_field)>1.2*self.T_liquidus:
+            if np.max(T_field)>self.T_liquidus:
                 warnings.warn(f'Too much latent heat: {np.max(H)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
             if self.calculate_closest_sill and self.calculate_at_all_times:
                 save_file = save_dir+'/sill_distances'+str(time_steps[l])
@@ -2368,7 +2368,6 @@ class sill_controls:
                 if model=='silli':
                     if (col_pushed!=0).any():
                         sills_emplaced = self.rool.value_pusher2D(sills_emplaced, curr_sill, row_start, col_pushed)
-                        curr_TOC_push = self.rool.value_pusher2D(curr_TOC_silli,0, row_start, col_pushed)
                         RCO2_silli = self.rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
                         Rom_silli = self.rool.value_pusher2D(Rom_silli,0, row_start, col_pushed)
                         percRo_silli =self.rool.value_pusher2D(percRo_silli, 0, row_start, col_pushed)
@@ -2391,7 +2390,7 @@ class sill_controls:
                 else:
                     break
             Frac_melt = rules.calcF(np.array(props_array[self.Temp_index], dtype = float))*(props_array[self.rock_index]==magma_prop_dict['Lithology'])
-            #pdb.set_trace()
+            pdb.set_trace()
             melt_50 = np.sum(Frac_melt>0.5)
             melt_10 = np.sum(Frac_melt>0.1)
             tot_melt10.append(melt_10*dx*dy)
