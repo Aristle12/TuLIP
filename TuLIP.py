@@ -1333,7 +1333,19 @@ class rules:
         a, b = T_field.shape
         for i in range(a):
             for j in range(b):
-                H_lat[i,j] = 1 - (phi_cr(T_field[i,j])*L/specific_heat)
+                H_lat[i,j] = (1 - (phi_cr(T_field[i,j])*L/specific_heat))*heat_filter
+        return H_lat
+    
+    @staticmethod
+    def convert_latH_to_J(H_lat, specific_heat, cooling_rate):
+        '''
+        Function to get actual latent heat if needed
+        '''
+        a,b = H_lat.shape
+        for i in range(a):
+            for j in range(b):
+                if H_lat[i,j]!=0:
+                    H_lat[i,j] = (1-H_lat[i,j]*cooling_rate)*specific_heat
         return H_lat
 
     @staticmethod
@@ -2305,8 +2317,8 @@ class sill_controls:
             if self.include_heat:
                 H_rad = self.rool.get_radH(T_field, density,dx)
                 H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
-                H = H_rad+H_lat
-                H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
+                H = [H_rad, H_lat]
+                #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
             else:
                 H = np.zeros_like(T_field)
             if self.k_const ==False:
