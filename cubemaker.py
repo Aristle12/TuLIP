@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 #@jit
 n_sills_array = []
 
-flux = int(3*10**(8.5))
+flux = int(3e9)
 save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
 
 os.makedirs(save_dir, exist_ok = True)
@@ -41,7 +41,6 @@ def cubemaker(tot_volume):
     y = y,
     dx = 50, 
     dy = 50, 
-    k = k
     )
 
     #Dimensions of the 2D grid

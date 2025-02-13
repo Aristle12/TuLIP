@@ -19,7 +19,7 @@ b = int(x//dx) #Number of columns
 k = np.ones((a,b))*31.536 #m2/yr
 
 
-sc = sill_controls(x,y, dx, dy,
+sc = sill_controls(x,y, dx, dy, T_liquidus=1175,
                    include_external_heat=True,
                    calculate_closest_sill=True)
 
@@ -94,7 +94,7 @@ def cooler(iter, z_index, flux):
     #RCO2_vtk = pv.read('sillcubes/RCO2.vtk')
     tot_RCO2 = []#list(pd.read_csv('sillcubes/tot_RCO2.csv'))
     carbon_model_params = [tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli]
-    post_cooling_time = 30000 #years
+    post_cooling_time = 5000 #30000 #years
     end_time = np.array(empl_times)[-1]+post_cooling_time+dt
     print(f'End time is {end_time}')
     time_steps1 = np.arange(current_time,np.array(empl_times)[-1],dt)
@@ -163,7 +163,7 @@ factor = np.random.randint(1, int(0.9*c//2), 4)
 #z_index = [c//2, c//2+factor[0], c//2+factor[1], c//2-factor[2], c//2-factor[3]]
 z_index = [191, 284, 300, 493, 506]
 pairs = itertools.product(iter2, z_index, fluxy)
-'''
+
 #pairs = pairs+pairs2
 for flux in fluxy:
     load_dir = 'sillcubes/'+str(format(flux, '.3e'))
@@ -182,7 +182,7 @@ for flux in fluxy:
             sillsquare = sillcube[z_indexs]
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
-'''
+
 Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
 #Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, fluxy) for z_indexs in z_index)
 

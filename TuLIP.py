@@ -14,7 +14,8 @@ import pyvista as pv
 import os
 import h5py
 import warnings
-from autograd import grad
+from autograd import elementwise_grad
+import autograd.numpy as anp
 import pdb
 
 class cool:
@@ -1272,47 +1273,63 @@ class rules:
         return result
     
     @staticmethod
-    def calcF(T_field, T_liquidus=1100, T_solidus=800):
+    def calcF(T_field, T_solidus, T_liquidus):
         '''
         Arbitrary method to calculate the fraction of melt remaining based on temperature
         T_field: A 2D numpy array representing the temperature field.
         T_liquidus: An optional float representing the liquidus temperature, default is 1250.
         T_solidus: An optional float representing the solidus temperature, default is 800.
         '''
-        F = np.zeros_like(T_field)
-        a,b = T_field.shape
-        for i in range(a):
-            for j in range(b):
-                if T_field[i,j]>T_solidus and T_field[i,j]<=T_liquidus:
-                    F[i,j] = (((T_field[i,j]-T_solidus)/(T_liquidus-T_solidus))**2.5)
-                elif T_field[i,j]<=T_solidus:
-                    F[i,j] = 0
-                elif T_field[i,j]>T_liquidus:
-                    F[i,j] = 1
-        #print(T_field[i,j], F[i,j], i, j)
-        return F
-    
+        def safe_tanh(x):
+            """Clip inputs to tanh to avoid overflow in cosh during gradients."""
+            x_clipped = anp.clip(x, -50, 50)  # Prevents overflow in cosh
+            return anp.tanh(x_clipped)
+
+        def smooth_step(x, lower_bound, upper_bound, steepness=20):
+            """Smoothly transitions between 0 and 1 using tanh."""
+            return 0.5 * (safe_tanh((x - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
+        # Avoid division-by-zero by ensuring T_liquidus > T_solidus
+        delta = max(0.05 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
+        
+        # Smooth masks for transitions around T_solidus and T_liquidus
+        mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
+        delta_liquidus = max(0.25 * (T_liquidus - T_solidus), 1e-6)  # Wider transition (5% vs. 1%)
+        mask_liquidus = smooth_step(T_field, T_liquidus - delta_liquidus, T_liquidus + delta_liquidus, steepness=20)
+        
+        # Safe computation of p_values (non-negative input for exponentiation)
+        k = 1  # Controls steepness of softplus
+        smoothed_term = anp.log(1 + anp.exp(k * (T_field - T_solidus))) / k  # Always ≥ 0
+        smoothed_term_lower = anp.log(1 + anp.exp(k*(T_liquidus - T_solidus)))
+        p_values = (smoothed_term / smoothed_term_lower) ** 2.5
+        p_values = p_values * mask_solidus  # Suppress values below T_solidus
+        
+        # Combine masks to compute F
+        F = (1 - mask_liquidus) * p_values + mask_liquidus *safe_tanh((T_field-T_solidus)/2)
+        return F 
+        
     @staticmethod
-    def calcF_from_csv(T_field, dir_csv, temp_col: str, fraction_column: str, T_liquidus=1100, T_solidus=800):
-        F = np.zeros_like(T_field)
-        a,b = T_field.shape
+    def calcF_from_csv(T_field, dir_csv, temp_col: str, fraction_column: str, T_liquidus, T_solidus):
+        def smooth_step(val, lower_bound, upper_bound, steepness=10):
+            """Smoothly transitions between 0 and 1 using tanh."""
+            return 0.5 * (anp.tanh((val - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
+        # Avoid division-by-zero by ensuring T_liquidus > T_solidus
+        delta = max(0.01 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
+        
+        # Smooth masks for transitions around T_solidus and T_liquidus
+        mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
+        mask_liquidus = smooth_step(T_field, T_liquidus - delta, T_liquidus + delta)
         data = pd.read_csv(dir_csv)
         temp = data[temp_col]
         fraction_melt = data[fraction_column]
         p = interp1d(temp, fraction_melt)
-        for i in range(a):
-            for j in range(b):
-                if T_field[i,j]>T_solidus and T_field[i,j]<=T_liquidus:
-                    F[i,j] = p(T_field[i,j])
-                elif T_field[i,j]<=T_solidus:
-                    F[i,j] = 0
-                elif T_field[i,j]>T_liquidus:
-                    F[i,j] = 1
+        p_values = p(T_field)* mask_solidus  # Suppress values below T_solidus
+        F = (1 - mask_liquidus) * p_values + mask_liquidus 
+        return F
 
 
 
     @staticmethod
-    def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
+    def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, L = 4e5, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
         '''
         Get the latent heat of crystallization term for the ehat diffusion equation based onthe model of Karakas et al. (2017)
         T_field: A 2D numpy array representing the temperature field.
@@ -1322,18 +1339,14 @@ class rules:
         T_liquidus: A float representing the liquidus temperature, default is 1250.
         T_solidus: A float representing the solidus temperature, default is 800.
         '''
-        heat_filter = (lithology==melt) & (T_field<T_liquidus) & (T_field>T_solidus)
+        heat_filter = (lithology==melt) & (T_field>T_liquidus) & (T_field>T_solidus)
         if args is None:
-            args = (T_field, T_liquidus, T_solidus)
+            args = (T_liquidus, T_solidus)
         if curve_func is None:
             curve_func = rules.calcF
-        phi_cr = grad(curve_func)
-        L = 4e5 #J
-        H_lat = np.zeros_like(T_field)
-        a, b = T_field.shape
-        for i in range(a):
-            for j in range(b):
-                H_lat[i,j] = (1 - (phi_cr(T_field[i,j])*L/specific_heat))*heat_filter
+        phi_cr = elementwise_grad(curve_func)
+        H_lat = (1 - (phi_cr(T_field, *args)*L/specific_heat)*heat_filter)
+        H_lat[H_lat>1] = 1
         return H_lat
     
     @staticmethod
@@ -1519,9 +1532,10 @@ class rules:
 class sill_controls:
     #Class that contains functions that make functions from the other classes easier to use for specific use cases.
     def __init__(self, x, y, dx, dy, 
-                 melt = 'basalt', T_liquidus = 1100, T_solidus = 800, k_const = True,
-                 k_val = 31.536, include_external_heat = True, calculate_closest_sill = False, 
-                 calculate_all_sills_distances = False, calculate_at_all_times = False):
+                 T_liquidus = 1250, T_solidus = 800, include_external_heat = True,
+                 k_const = True, k_val = 31.536, calculate_closest_sill = False, 
+                 calculate_all_sills_distances = False, calculate_at_all_times = False, 
+                 rock_prop_dict = None, magma_prop_dict = None):
         self.x = x
         self.y = y
         self.dx = dx
@@ -1538,8 +1552,8 @@ class sill_controls:
         self.calculate_all_sill_distances = calculate_all_sills_distances
         self.calculate_at_all_times = calculate_at_all_times
         self.include_heat = include_external_heat
-        self.melt = melt
-        self.T_solidus = T_solidus
+        
+        
         self.cool = cool()
         self.rool = rules() 
         ###Setting up the properties dictionary to translate properties to indices for 3D array###
@@ -1567,57 +1581,66 @@ class sill_controls:
         self.dense_index = self.prop_dict['Density']
         self.TOC_index = self.prop_dict['TOC']
 
-        self.magma_prop_dict = {'Temperature': 1100,
-                    'Lithology': 'basalt',
-                    'Porosity': 0.2,
-                    'Density': 2850, #kg/m3
-                    'Specific Heat': 850,
-                    'TOC':0} #wt%
+        if magma_prop_dict is None:
+            self.magma_prop_dict = {'Temperature': 1100,
+                        'Lithology': 'basalt',
+                        'Porosity': 0, #Porosity of the rock for calculation of carbon emissions
+                        'Density': 2850, #kg/m3
+                        'Specific Heat': 850, 
+                        'Latent Heat': 4e5,
+                        'TOC':0} #wt%
+        else:
+            self.magma_prop_dict = magma_prop_dict
+
+        #Set up melt properties#
         self.T_liquidus = T_liquidus
-        self.rock_prop_dict = {
-            "shale":{
-                'Porosity':0.1,
-                'Density':2500,
-                'TOC':2
-            },
-            "sandstone":{
-                'Porosity':0.2,
-                'Density':2600,
-                'TOC':2.5
-            },
-            "limestone":{
-                'Porosity':0.2,
-                'Density':2600,
-                'TOC':2.5
-            },
-            "granite":{
-                'Porosity':0.05,
-                'Density':2700,
-                'TOC':0
-            },
-            "basalt":{
-                'Porosity': 0.2,
-                'Density': 2850, #kg/m3
-                'TOC':0
-            },
-            "peridotite":{
-                'Porosity': 0.05,
-                'Density': 3100, #kg/m3
-                'TOC':0
+        self.T_solidus = T_solidus
+        self.melt = self.magma_prop_dict['Lithology']
+
+        if rock_prop_dict is None:
+            self.rock_prop_dict = {
+                "shale":{
+                    'Porosity':0.1,
+                    'Density':2500,
+                    'TOC':2
+                },
+                "sandstone":{
+                    'Porosity':0.2,
+                    'Density':2600,
+                    'TOC':2.5
+                },
+                "limestone":{
+                    'Porosity':0.2,
+                    'Density':2600,
+                    'TOC':2.5
+                },
+                "granite":{
+                    'Porosity':0.05,
+                    'Density':2700,
+                    'TOC':0
+                },
+                "basalt":{
+                    'Porosity': 0.0,
+                    'Density': 2850, #kg/m3
+                    'TOC':0
+                },
+                "peridotite":{
+                    'Porosity': 0.05,
+                    'Density': 3100, #kg/m3
+                    'TOC':0
+                }
             }
-        }
+        else:
+            self.rock_prop_dict = rock_prop_dict
+        
         
 
-
-    #Setting up the remaining property arrays#
-    def get_physical_properties(self, rock, rock_prop_dict = None):
+    def get_physical_properties(self, rock, rock_prop_dict):
         '''
         Function to return arrays of physical properties of density, porosity, and TOC based on rock type at a given node
         rock: A 2D numpy array representing the types of rocks at different nodes.
         rock_prop_dict: An optional dictionary mapping rock types to their properties.
         '''
-        if rock_prop_dict==None:
-            rock_prop_dict = self.rock_prop_dict
         a,b = rock.shape
         porosity = np.zeros_like(rock)
         density = np.zeros_like(rock)
@@ -1629,7 +1652,9 @@ class sill_controls:
                 density[i,j] = rock_prop_dict[rock[i,j]]['Density']
                 TOC[i,j] = rock_prop_dict[rock[i,j]]['TOC']
         return porosity, density, TOC
-    def func_assigner(self, func, *args, **kwargs):
+    
+    @staticmethod
+    def func_assigner(func, *args, **kwargs):
         '''
         Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
         func: The function to be called.
@@ -1645,7 +1670,7 @@ class sill_controls:
         return result
     
     @staticmethod
-    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, time, T_solidus=800, no_sill = '', calculate_all = False, save_file = None):
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, time, T_solidus, no_sill = '', calculate_all = False, save_file = None):
         '''
         Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
         It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
@@ -1658,6 +1683,9 @@ class sill_controls:
         save_file: String representing the file path to save results (default is None).
         '''
         def get_width_and_thickness(bool_array):
+            '''
+            Function to get the width and thickness of a sill inside the check closest sill temp function
+            '''
             max_row = np.max(np.where(bool_array==True)[1])
             min_row = np.min(np.where(bool_array==True)[1])
             width = max_row - min_row + 1
@@ -1669,46 +1697,44 @@ class sill_controls:
             center = str([center_row, center_col])
             return width, thickness, center
     
-        is_sill = np.array((sills_array!=no_sill))
-        is_curr_sill = sills_array==curr_sill
-        boundary_finder = np.array(is_sill, dtype=int)
+        is_sill = np.array((sills_array!=no_sill)) #Boolean of whether or not the node is a sill
+        is_curr_sill = sills_array==curr_sill #Boolean to separate the nodes of the current sill
+        boundary_finder = np.array(is_sill, dtype=int) #Array that counts the boundaries of the sills
         boundary_finder[1:-1, 1:-1] = (
         boundary_finder[:-2, 1:-1] +  # Above
         boundary_finder[2:, 1:-1] +   # Below
         boundary_finder[1:-1, :-2] +  # Left
         boundary_finder[1:-1, 2:])     # Right
         sills_number = sills_array.copy()
-        #sills_number[sills_array==no_sill] = -1
-        #tot_sills = np.max(sills_array)
-        #sills_list = np.arange(0,tot_sills+1, step=1)
-        sills_data = pd.DataFrame({'sills':curr_sill}, index = [0])
+        sills_data = pd.DataFrame({'sills':curr_sill}, index = [0]) #Dataframe containing sill data for the current sill
         a,b = T_field.shape
         rows = np.arange(a)
         columns = np.arange(b)
         rows_grid, columns_grid = np.meshgrid(rows, columns, indexing='ij')
-        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel()))
+        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel())) #Create a list of point coordinates to filter based on econditions
         points = points.reshape(-1,2)
         if calculate_all:
-            tot_sills = curr_sill
-            all_sills_data = pd.DataFrame()
+            #Code block to calculate the closest sills to all currently emplaced sills
+            tot_sills = curr_sill #The last sill emplaced is the currently emplaced sill
+            all_sills_data = pd.DataFrame() #Initialize the dataframe to save the computed information
             for curr_sill in range(tot_sills):
-                condition = (T_field>T_solidus) & (sills_number!=curr_sill)
-                query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
-                query_points = points[query_condition.ravel()]
-                saved_distance = 1e10
-                saved_index = -1
-                saved_temperature = -1
-                saved_sill = -1
-                closest_curr_sill = 'N/A'
-                closest_sill_width_curr = 0
-                closest_sill_width = 0
-                closest_sill_thickness = 0
-                closest_sill_width = -1
-                closest_sill_thickness = -1
-                closest_sill_center_curr = -1
-                closest_sill_center = -1
-                filtered_points = points[condition.ravel()]
-                tree = KDTree(filtered_points)
+                condition = (T_field>T_solidus) & (sills_number!=curr_sill) #Select the nodes in the grid that are sills and are liquid
+                query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4) #Select the nodes that are at the boundary of the currently emplaced sill
+                query_points = points[query_condition.ravel()] #Filter the points based on the condition
+                #Initialize the variables to save in the dataframe
+                saved_distance = 1e10 #Distance to the closest sill
+                saved_index = -1 #Index of the current sill to which the sill is the closest
+                saved_temperature = -1 #Temperature of the closest sill node
+                saved_sill = -1 #The closest sill
+                closest_curr_sill = 'N/A' #Index of the closest sill
+                closest_sill_width_curr = 0 #Current width of the closest sill
+                closest_sill_width = 0 #Original width of the closest sill
+                closest_sill_thickness = 0  #Closest sill thickness
+                closest_sill_thickness_curr = -1 #Current thickness of the closest sill
+                closest_sill_center_curr = -1 #Current center of the closest sill
+                closest_sill_center = -1 #Original center of the closest sill
+                filtered_points = points[condition.ravel()] #Filter the points to query distances of current sill from
+                tree = KDTree(filtered_points) #KDTree to query and find the least distance from a given point
                 if len(query_points)>0:
                     for curr_point in query_points:
                         distance, index = tree.query(curr_point)
@@ -1750,9 +1776,11 @@ class sill_controls:
                 all_sills_data.to_csv(save_file+'.csv')
                 return all_sills_data
         else:
-            condition = (T_field>T_solidus) & (sills_number!=curr_sill)
-            query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4)
-            query_points = points[query_condition.ravel()]
+            #Code block to only calculate the closest sill to the specified sill
+            condition = (T_field>T_solidus) & (sills_number!=curr_sill) #Select nodes that nor the current sill and are above liquidus
+            query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4) #Select nodes that are the boundary of the current sill
+            query_points = points[query_condition.ravel()] #Use the points
+            #Initialize variables to save the dataframe. See above for description
             saved_distance = 1e30
             saved_index = -1
             saved_temperature = -1
@@ -1768,7 +1796,7 @@ class sill_controls:
             closest_sill_center_curr = -1
             closest_sill_center = -1
             filtered_points = points[condition.ravel()]
-            tree = KDTree(filtered_points)
+            tree = KDTree(filtered_points) #KDTree to query and find shortes distance
             if len(query_points)>0:
                 for curr_point in query_points:
                     distance, index = tree.query(curr_point)
@@ -1862,6 +1890,8 @@ class sill_controls:
         elif depth_function=='empirical':
             depth_function = self.rool.empirical_CDF
             depth_input_params = (n_sills, depth_range[0], depth_range[1])
+        else:
+            raise ValueError('depth_function should be either normal or uniform or empirical')
 
         empl_heights = self.func_assigner(depth_function, *depth_input_params)
         
@@ -1877,6 +1907,8 @@ class sill_controls:
             lat_function = self.rool.empirical_CDF
             lat_input_params = (n_sills, lat_range[0], lat_range[1])
             z_params = (n_sills, z_range[0], z_range[1])
+        else:
+            raise ValueError('lat_function should be either normal or uniform or emipirical')
         
         if dims_function==None or dims_function== 'normal':
             dims_function = self.rool.randn_dims
@@ -1891,6 +1923,8 @@ class sill_controls:
             dims_empirical = True
             dims_function = self.rool.empirical_CDF
             dims_input_params = (n_sills, aspect_ratio[0], aspect_ratio[1])
+        else:
+            raise ValueError('dims_function should be either normal or uniform or scaled or empirical')
         
 
         '''
@@ -1908,7 +1942,7 @@ class sill_controls:
         '''
         sns.kdeplot(empl_heights*dy/1000, label = 'Depth distribution', color = 'red', linewidth = 1.75)
         plt.ylabel('Depth distribution (km)')
-        plt.savefig('plots/Depth.png', format = 'png', bbox_inches = 'tight')
+        plt.savefig('plots/Depth'+str(format(flux, '.3e'))+'_'+str(format(tot_volume, '.3e'))+'.png', format = 'png', bbox_inches = 'tight')
         plt.close()
         x_space = self.func_assigner(lat_function, *lat_input_params)
         '''
@@ -1934,7 +1968,7 @@ class sill_controls:
         plt.xlim(left = 0)
         plt.xlabel('Length units (m)')
         plt.legend()
-        plt.savefig('plots/WidthThickness'+str(format(tot_volume, '.3e'))+'.png', format = 'png', bbox_inches = 'tight')
+        plt.savefig('plots/WidthThickness'+str(format(tot_volume, '.3e'))+'_'+str(format(flux, '.3e'))+'.png', format = 'png', bbox_inches = 'tight')
         plt.close()
         
         thermal_maturation_time = phase_times[0]
@@ -1999,7 +2033,7 @@ class sill_controls:
         plt.ylabel(r'Volume emplacemed ($km^3$)')
         plt.xlabel(r'Time (Ma)')
         plt.legend()
-        plt.savefig('plots/VolumeTime'+str(format(tot_volume, '.3e'))+'.png', format = 'png', bbox_inches = 'tight')
+        plt.savefig('plots/VolumeTime'+str(format(tot_volume, '.3e'))+'_'+str(format(flux, '.3e'))+'.png', format = 'png', bbox_inches = 'tight')
         plt.close()
 
         z_coords = self.func_assigner(lat_function, *z_params)
@@ -2315,7 +2349,7 @@ class sill_controls:
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             if self.include_heat:
-                H_rad = self.rool.get_radH(T_field, density,dx)
+                H_rad = self.rool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
                 H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                 H = [H_rad, H_lat]
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
@@ -2324,11 +2358,12 @@ class sill_controls:
             if self.k_const ==False:
                 k = self.rool.get_diffusivity(T_field, rock, dy)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
-            if np.max(T_field)>self.T_liquidus:
-                warnings.warn(f'Too much latent heat: {np.max(H)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
+            if np.max(T_field)>1.05*1100:
+                warnings.warn(f'Too much latent heat: {np.min(H_lat)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
+                #pdb.set_trace()
             if self.calculate_closest_sill and self.calculate_at_all_times:
                 save_file = save_dir+'/sill_distances'+str(time_steps[l])
-                sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill,dx, time_steps[l], calculate_all=self.calculate_all_sill_distances, save_file=save_file)
+                sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill,dx, time_steps[l], T_solidus=self.T_solidus, calculate_all=self.calculate_all_sill_distances, save_file=save_file)
             props_array[self.Temp_index] = T_field
             curr_TOC_silli = props_array[self.TOC_index]
             rock = props_array[self.rock_index]
@@ -2361,7 +2396,7 @@ class sill_controls:
                 if self.calculate_closest_sill and not self.calculate_at_all_times:
                     if len(col_pushed[col_pushed!=0]>0):
                         print(f'Checking closest sills for {curr_sill}')
-                        sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, dx, time_steps[l], calculate_all=self.calculate_all_sill_distances)
+                        sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill, dx, time_steps[l], T_solidus=self.T_solidus, calculate_all=self.calculate_all_sill_distances)
                         if all_sills_data.columns.empty:
                             all_sills_data = pd.DataFrame(columns = sills_data.columns)
                         all_sills_data = pd.concat([all_sills_data, sills_data], ignore_index = True)
@@ -2389,10 +2424,9 @@ class sill_controls:
                     curr_sill +=1
                 else:
                     break
-            Frac_melt = rules.calcF(np.array(props_array[self.Temp_index], dtype = float))*(props_array[self.rock_index]==magma_prop_dict['Lithology'])
-            pdb.set_trace()
-            melt_50 = np.sum(Frac_melt>0.5)
-            melt_10 = np.sum(Frac_melt>0.1)
+            Frac_melt = rules.calcF(np.array(props_array[self.Temp_index], dtype = float), self.T_solidus, self.T_liquidus)*(props_array[self.rock_index]==magma_prop_dict['Lithology'])
+            melt_50 = np.sum(Frac_melt>0.5)*dx*dy
+            melt_10 = np.sum(Frac_melt>0.1)*dx*dy
             tot_melt10.append(melt_10*dx*dy)
             tot_melt50.append(melt_50*dx*dy)
             tot_solidus.append(np.sum(np.array(props_array[self.Temp_index], dtype = float)>self.T_solidus)*dx*dy)
