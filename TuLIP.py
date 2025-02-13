@@ -1422,15 +1422,19 @@ class rules:
                 +(((x_len-x_coords[l])**2)/maj_dims[l]**2))<=1
                 sillcube[mask] += '_' + str(l) + 's' + str(empl_times[l])
                 if dike_tail:
-                    dike_zcoords = np.arange((z_coords[l]-maj_dims[l]//2), (z_coords[l]-maj_dims[l]//2), dx)
-                    dike_xcoords = np.arange((x_coords[l]-maj_dims[l]//2), (x_coords[l]-maj_dims[l]//2), dx)
+                    dike_zcoords = np.arange((z_coords[l]-maj_dims[l]//2), (z_coords[l]+maj_dims[l]//2))
+                    dike_xcoords = np.arange((x_coords[l]-maj_dims[l]//2), (x_coords[l]+maj_dims[l]//2))
                     rot_zcoords = np.zeros_like(dike_zcoords)
                     rot_xcoords = np.zeros_like(dike_xcoords)
-                    for i_len in len(dike_zcoords):
+                    for i_len in range(len(dike_zcoords)):
                         rot_zcoords[i_len], rot_xcoords[i_len] = self.rotate_nodes([dike_zcoords[i_len], dike_xcoords[i_len]], orientations[l], [z_coords[l], x_coords[l]])
-                    rot_zcoords = np.round(rot_zcoords)
-                    rot_xcoords = np.round(rot_xcoords)
-                    sillcube[int(rot_zcoords), int(y_coords[l]):-1, int(rot_xcoords)] += '_' + str(l) + 's' + str(empl_times[l])
+                    rot_zcoords = np.round(rot_zcoords).astype(int)
+                    rot_xcoords = np.round(rot_xcoords).astype(int)
+                    mask_z = (rot_zcoords >= 0) & (rot_zcoords < c)
+                    rot_zcoords = rot_zcoords[mask_z]
+                    rot_xcoords = rot_xcoords[mask_z]
+                    #pdb.set_trace()
+                    sillcube[rot_zcoords, int(y_coords[l]):-1, rot_xcoords] += '_' + str(l) + 's' + str(empl_times[l])
         
         elif shape == 'rect':
             for l in trange(n_sills):
@@ -1443,11 +1447,11 @@ class rules:
 
                 sillcube[z_start:z_end, y_start:y_end, x_start:x_end] += '_' + str(l) + 's' + str(empl_times[l])
                 if dike_tail:
-                    dike_zcoords = np.arange((z_coords[l]-maj_dims[l]//2), (z_coords[l]-maj_dims[l]//2), dx)
-                    dike_xcoords = np.arange((x_coords[l]-maj_dims[l]//2), (x_coords[l]-maj_dims[l]//2), dx)
+                    dike_zcoords = np.arange(z_start, z_end)
+                    dike_xcoords = np.arange(x_start, x_end)
                     rot_zcoords = np.zeros_like(dike_zcoords)
                     rot_xcoords = np.zeros_like(dike_xcoords)
-                    for i_len in len(dike_zcoords):
+                    for i_len in range(len(dike_zcoords)):
                         rot_zcoords[i_len], rot_xcoords[i_len] = self.rotate_nodes([dike_zcoords[i_len], dike_xcoords[i_len]], orientations[l], [z_coords[l], x_coords[l]])
                     rot_zcoords = np.round(rot_zcoords)
                     rot_xcoords = np.round(rot_xcoords)
