@@ -26,7 +26,7 @@ class cool:
     @staticmethod
     def is_nan(q):
         '''
-        Native implementation of numpy's numpy.isnan. Originally created to allow for a nopython implementation in numba.
+        Alternative implementation of numpy's numpy.isnan. Originally created to allow for a nopython implementation in numba.
         '''
         r = 0
         for i in range(0, len(q)):
@@ -49,13 +49,13 @@ class cool:
 
         for i in range(0, len(k[:,1])-1):
             for j in range(0, len(k[1,:])-1):
-                kiph[i,j] = (k[i,j]+k[i+1,j])/2
-                kjph[i,j] = (k[i,j]+k[i,j+1])/2
+                kiph[i,j] = (k[i,j]+k[i+1,j])/2 #Averaging permeabilities beterrn i and i+1
+                kjph[i,j] = (k[i,j]+k[i,j+1])/2 #Averaging permeabilities between j and j+1
 
         for i in range(1,len(k[:,1])-1):
             for j in range(1,len(k[1,:])-1):
-                kimh[i,j] = (k[i,j]+k[i+1,j])/2
-                kjmh[i,j] = (k[i,j]+k[i,j+1])/2
+                kimh[i,j] = (k[i,j]+k[i+1,j])/2 #Averaging permeabilities between i and i-1
+                kjmh[i,j] = (k[i,j]+k[i,j+1])/2 #Averaging permeabilities between j and j-1
 
         return kiph, kimh, kjph, kjmh
 
@@ -65,7 +65,7 @@ class cool:
         """
         if self.is_nan(q):
             T_top = Tf[0,0]
-            grad = (Tf[-1,0]-Tf[0,0])/a
+            grad = (Tf[-1,0]-Tf[0,0])/a #Solve for temperature based on thermal gradient and depth
             for i in range(0,a):
                 Tf[i,:] = T_top + i*grad
         else:
@@ -81,10 +81,10 @@ class cool:
         a = number of rows - M int
         b = number of columns N int
         """
-        Tf = np.array(ps.spsolve(sc.csc_matrix(Ab), dee))
+        Tf = np.array(ps.spsolve(sc.csc_matrix(Ab), dee)) #Matrix multiplication for solving for temperature
         Tf = Tf.reshape((a,b), order = 'F')
         return Tf
-
+    ###Alternative functions to get initial thermal state. it is important to note that the straight solver will always be the fastest since there is only one matrix multiplication to perforn###
     def JacobianIt(self, Ab, dee, a, b):
         """
         Iterative solver for heat flux equation based on Jacobian iterative method - Slowest convergence rate, but sure to eventually converge
@@ -97,16 +97,16 @@ class cool:
         D = sc.csc_matrix(sc.diags(Ab.diagonal(),0))#np.diag(np.diag(Ab))
         E = -(sc.tril(Ab, k=-1))
         F = -(sc.triu(Ab, k=1))
-        do = sc.csc_matrix(sc.linalg.spsolve(D, sc.csc_matrix((E+F))))
+        do = sc.csc_matrix(ps.spsolve(D, sc.csc_matrix((E+F)))) #If ps.spsolve does not work, change to sp.linalg.spsolve (the scipy non-parallelized implementation)
         T = dee
         err = 1e10
         iter = 10000
         c = 0
         while c<iter and err>1e-3:
             c = c+1
-            T_new = do.dot(T)+ sc.linalg.spsolve(D, dee)
+            T_new = do.dot(T)+ ps.spsolve(D, dee) #Same here: Change to ps.spsolve
             err = np.max(T_new - T)
-            print(err)
+            print(err, 'ln 109')
             T = T_new
 
         T = T.reshape((a,b), order = 'F')
@@ -144,7 +144,7 @@ class cool:
 
     def heat_flux(self, k, a, b, dx, dy, Tnow, method, q = np.nan):
         """
-        Fourier's law solver
+        Fourier's law solver switch function. Choos between the straight, Jacobian, Gauss-Seidell and cheat implementations
         method = straight/ Jacobian
         k = Diffusivity field (anisotropic) MxN matrix
         a = number of rows - M int
@@ -159,7 +159,7 @@ class cool:
             if ~np.isnan(q).any():
                 Tnow[-1,:] = q*dy/k[-1,:]
             bee = Tnow.reshape((a*b), order = 'F')
-
+            #Set up the weight matrix for each node that takes into account the boundary conditions and the temperature of the adjacenet nodes
             main_diag = np.zeros(a*b)
             p1_diag = np.zeros(a*b - 1)
             m1_diag = np.zeros(a*b-1)
@@ -196,13 +196,8 @@ class cool:
             Af.setdiag(main_diag, k=0)
             Af.setdiag(p1_diag, k=1)
             Af.setdiag(m1_diag,k=-1)
-            #Af.setdiag(p2_diag,k=2*a)
-            #Af.setdiag(m2_diag,k=-2*a)
             Af.setdiag(pa_diag, k=a)
             Af.setdiag(ma_diag, k=-a)
-
-            #pd.DataFrame(Af.toarray()).to_csv('Af_new.csv')
-            #exit()
 
             if method =='straight':
                 return self.straight_solver(Af, bee, a, b)
@@ -210,6 +205,8 @@ class cool:
                 return self.JacobianIt(Af, bee, a, b)
             elif method == 'GS':
                 return self.GSIt(Af, bee, a, b)
+            else:
+                raise ValueError(f'method must be one of straight, Jacobian, GS or cheat, but is {method}')
 
 
 
@@ -226,7 +223,10 @@ class cool:
         Tnow = temperature field at current time step MxN matrix
         q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
         """
+        H_rad = H[0]
+        H_lat = H[1] #This is the latent heat solution that should be divided and not the actual latent heat of crystalization. See get_latH for details
         if np.isnan(Af):
+            #Generate the weight matrix if the thermal diffusivity is not constant and needs to be changed at every time step
             kiph, kimh, kjph, kjmh = self.avg_perm(k)
             main_diag = np.zeros(a*b)
             p1_diag = np.zeros(a*b - 1)
@@ -235,12 +235,10 @@ class cool:
             ma_diag = np.zeros(a*b-a)
             index = 0
 
-
-
             for j in range(0,b):
                 for i in range(0,a):
                     if i>0 and i<a-1 and j>0 and j<b-1:
-                        main_diag[index] = -(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2)))+ (H[i,j]*dt))+1
+                        main_diag[index] = -((((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2)))+ (H_rad[i,j]))+1)/H_lat[i,j]
                         pa_diag[index] = kiph[i,j]*(dt/(dx**2))
                         ma_diag[index-a] = kimh[i,j]*(dt/(dx**2))
                         p1_diag[index] = kjph[i,j]*(dt/(dy**2))
@@ -260,7 +258,7 @@ class cool:
             Af.setdiag(ma_diag, k=-a)
 
         bee = Tnow.reshape((a*b), order = 'F')
-        Tret = np.array(Af.dot(bee))
+        Tret = np.array(Af.dot(bee)) #Perform the matrix multiplication
         Tret = Tret.reshape((a,b), order = 'F')
         Tret[:,0] = Tret[:,2]
         Tret[:,-1] = Tret[:,-3]
@@ -269,55 +267,57 @@ class cool:
         return Tret
 
     def perm_chain_solve(self, k, a, b, dx, dy, dt, Tnow, q, Af, H):
-            """
-            Solver for time varying heat diffusion equation building an chain rule (for anisotropic heat diffusion)
-            k = Diffusivity field (anisotropic) MxN matrix
-            a = number of rows - M int
-            b = number of columns N int
-            dx = spacing in x direction int
-            dy = spacing in y direction int
-            Tnow = temperature field at current time step MxN matrix
-            q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
-            """
-            if np.isnan(Af):
-                main_diag = np.zeros(a*b)
-                p1_diag = np.zeros(a*b - 1)
-                m1_diag = np.zeros(a*b-1)
-                pa_diag = np.zeros(a*b-a)
-                ma_diag = np.zeros(a*b-a)
+        """
+        Solver for time varying heat diffusion equation building an chain rule (for anisotropic heat diffusion)
+        k = Diffusivity field (anisotropic) MxN matrix
+        a = number of rows - M int
+        b = number of columns N int
+        dx = spacing in x direction int
+        dy = spacing in y direction int
+        Tnow = temperature field at current time step MxN matrix
+        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
+        """
+        H_rad = H[0]
+        H_lat = H[1] #This is the latent heat solution that should be divided and not the actual latent heat of crystalization. See get_latH for details
+        if np.isnan(Af):
+            #Generate the weight matrix if the thermal diffusivity is not constant and needs to be changed at every time step
+            main_diag = np.zeros(a*b)
+            p1_diag = np.zeros(a*b - 1)
+            m1_diag = np.zeros(a*b-1)
+            pa_diag = np.zeros(a*b-a)
+            ma_diag = np.zeros(a*b-a)
 
-                index = 0
+            index = 0
 
-                for j in range(0,b):
-                    for i in range(0,a):
-                        if i>0 and i<a-1 and j>0 and j<b-1:
-                            main_diag[index] = -((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2)+ H[i,j])*dt)+1 
-                            pa_diag[index] = ((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
-                            ma_diag[index-a] = ((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
-                            p1_diag[index] = ((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
-                            m1_diag[index-1] = ((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
-                        if i==0 or i==a-1:
-                            main_diag[index] = 1
-                        if j==0 and i!=0 and i!=a-1:
-                            main_diag[index] = 1
-                        if j==b-1 and i!=0 and i!=a-1:
-                            main_diag[index] = 1
-                        index = index+1
-                Af = sc.lil_matrix((a*b,a*b))
-                Af.setdiag(main_diag, k=0)
-                Af.setdiag(p1_diag, k=1)
-                Af.setdiag(m1_diag,k=-1)
-                Af.setdiag(pa_diag, k=a)
-                Af.setdiag(ma_diag, k=-a)
-
-            bee = Tnow.reshape((a*b), order = 'F')
-            Tret = np.array(Af.dot(bee))
-            Tret = Tret.reshape((a,b), order = 'F')
-            Tret[:,0] = Tret[:,2]
-            Tret[:,-1] = Tret[:,-3]
-            if ~np.isnan(q).any():
-                Tret[-1,:] = Tret[-2,:]+ (q*dy/k[-1,:])
-            return Tret
+            for j in range(0,b):
+                for i in range(0,a):
+                    if i>0 and i<a-1 and j>0 and j<b-1:
+                        main_diag[index] = -(((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2)+ H_rad[i,j]))+1)/H_lat[i,j] 
+                        pa_diag[index] = ((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
+                        ma_diag[index-a] = ((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
+                        p1_diag[index] = ((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
+                        m1_diag[index-1] = ((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
+                    if i==0 or i==a-1:
+                        main_diag[index] = 1
+                    if j==0 and i!=0 and i!=a-1:
+                        main_diag[index] = 1
+                    if j==b-1 and i!=0 and i!=a-1:
+                        main_diag[index] = 1
+                    index = index+1
+            Af = sc.lil_matrix((a*b,a*b))
+            Af.setdiag(main_diag, k=0)
+            Af.setdiag(p1_diag, k=1)
+            Af.setdiag(m1_diag,k=-1)
+            Af.setdiag(pa_diag, k=a)
+            Af.setdiag(ma_diag, k=-a)
+        bee = Tnow.reshape((a*b), order = 'F')
+        Tret = np.array(Af.dot(bee)) #Perform matrix multiplication
+        Tret = Tret.reshape((a,b), order = 'F')
+        Tret[:,0] = Tret[:,2]
+        Tret[:,-1] = Tret[:,-3]
+        if ~np.isnan(q).any():
+            Tret[-1,:] = Tret[-2,:]+ (q*dy/k[-1,:])
+        return Tret
 
     @jit(forceobj = True)
     def conv_chain_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
