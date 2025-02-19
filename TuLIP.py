@@ -383,6 +383,138 @@ class cool:
         else:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
+    
+    @staticmethod
+    def func_assigner(func, *args, **kwargs):
+        '''
+        Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
+        func: The function to be called.
+        *args: Positional arguments to be passed to the function.
+        **kwargs: Keyword arguments to be passed to the function.
+        '''
+        result = func(*args,**kwargs)
+        return result
+    
+    @staticmethod
+    def calcF(T_field, T_solidus, T_liquidus):
+        '''
+        Arbitrary method to calculate the fraction of melt remaining based on temperature
+        T_field: A 2D numpy array representing the temperature field.
+        T_liquidus: An optional float representing the liquidus temperature, default is 1250.
+        T_solidus: An optional float representing the solidus temperature, default is 800.
+        '''
+        def safe_tanh(x):
+            """Clip inputs to tanh to avoid overflow in cosh during gradients."""
+            x_clipped = anp.clip(x, -50, 50)  # Prevents overflow in cosh
+            return anp.tanh(x_clipped)
+
+        def smooth_step(x, lower_bound, upper_bound, steepness=20):
+            """Smoothly transitions between 0 and 1 using tanh."""
+            return 0.5 * (safe_tanh((x - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
+        # Avoid division-by-zero by ensuring T_liquidus > T_solidus
+        delta = max(0.05 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
+        
+        # Smooth masks for transitions around T_solidus and T_liquidus
+        mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
+        delta_liquidus = max(0.25 * (T_liquidus - T_solidus), 1e-6)  # Wider transition (5% vs. 1%)
+        mask_liquidus = smooth_step(T_field, T_liquidus - delta_liquidus, T_liquidus + delta_liquidus, steepness=20)
+        
+        # Safe computation of p_values (non-negative input for exponentiation)
+        k = 1  # Controls steepness of softplus
+        smoothed_term = anp.log(1 + anp.exp(k * (T_field - T_solidus))) / k  # Always ≥ 0
+        smoothed_term_lower = anp.log(1 + anp.exp(k*(T_liquidus - T_solidus)))
+        p_values = (smoothed_term / smoothed_term_lower) ** 2.5
+        p_values = p_values * mask_solidus  # Suppress values below T_solidus
+        
+        # Combine masks to compute F
+        F = (1 - mask_liquidus) * p_values + mask_liquidus *safe_tanh((T_field-T_solidus)/2)
+        return F 
+        
+    @staticmethod
+    def calcF_from_csv(T_field, dir_csv, temp_col: str, fraction_column: str, T_liquidus, T_solidus):
+        def smooth_step(val, lower_bound, upper_bound, steepness=10):
+            """Smoothly transitions between 0 and 1 using tanh."""
+            return 0.5 * (anp.tanh((val - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
+        # Avoid division-by-zero by ensuring T_liquidus > T_solidus
+        delta = max(0.01 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
+        
+        # Smooth masks for transitions around T_solidus and T_liquidus
+        mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
+        mask_liquidus = smooth_step(T_field, T_liquidus - delta, T_liquidus + delta)
+        data = pd.read_csv(dir_csv)
+        temp = data[temp_col]
+        fraction_melt = data[fraction_column]
+        p = interp1d(temp, fraction_melt)
+        p_values = p(T_field)* mask_solidus  # Suppress values below T_solidus
+        F = (1 - mask_liquidus) * p_values + mask_liquidus 
+        return F
+
+
+
+    @staticmethod
+    def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, L = 4e5, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
+        '''
+        Get the latent heat of crystallization term for the ehat diffusion equation based onthe model of Karakas et al. (2017)
+        T_field: A 2D numpy array representing the temperature field.
+        lithology: A 2D numpy array representing the lithology types.
+        melt: A string specifying the type of melt, default is 'basalt'.
+        rho_melt: A float representing the density of the melt, default is 2850 kg/m³.
+        T_liquidus: A float representing the liquidus temperature, default is 1250.
+        T_solidus: A float representing the solidus temperature, default is 800.
+        '''
+        heat_filter = (lithology==melt) & (T_field>T_liquidus) & (T_field>T_solidus)
+        if args is None:
+            args = (T_liquidus, T_solidus)
+        if curve_func is None:
+            curve_func = cool.calcF
+        phi_cr = elementwise_grad(curve_func)
+        H_lat = (1 - (phi_cr(T_field, *args)*L/specific_heat)*heat_filter)
+        H_lat[H_lat>1] = 1
+        return H_lat
+    
+    @staticmethod
+    def convert_latH_to_J(H_lat, specific_heat, cooling_rate):
+        '''
+        Function to get actual latent heat if needed
+        '''
+        a,b = H_lat.shape
+        for i in range(a):
+            for j in range(b):
+                if H_lat[i,j]!=0:
+                    H_lat[i,j] = (1-H_lat[i,j]*cooling_rate)*specific_heat
+        return H_lat
+    
+    @staticmethod
+    def get_radH(T_field, rho, dx):
+        '''
+        Function to get radioactive heat release
+        T_field: A 2D numpy array representing the temperature field.
+        rho: A 2D numpy array representing the density at each point in the field.
+        dx: A scalar representing the grid spacing in the vertical direction.
+
+        '''
+        a, b = T_field.shape
+        Ho = 8e-10 #W/kg
+        Lc = 12000 #m
+        depth = np.array([i*dx for i in range(a)])
+        H = np.zeros((a,b))
+        for i in range(a):
+            for j in range(b):
+                H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
+        return H
+    
+    @staticmethod
+    def get_diffusivity(T_field, rock, dy, func_set='linear'):
+        '''
+        Stand-in funciton to get diffusivity based on properties
+        '''
+        if func_set=='linear':
+            aye = 31.536
+            bee = 0.03156
+            diffusivity = aye + bee*T_field
+        else:
+            diffusivity = np.ones_like(T_field)*31.536
+        return diffusivity
 
     def diff_solve(self, k, a, b, dx, dy, dt, Tnow, q, method, H, k_const=False):
         """
@@ -1085,18 +1217,7 @@ class rules:
             prop[lithology==rock] = prop_dict[rock][property]
         return prop
     
-    @staticmethod
-    def get_diffusivity(T_field, rock, dy, func_set='linear'):
-        '''
-        Stand-in funciton to get diffusivity based on properties
-        '''
-        if func_set=='linear':
-            aye = 31.536
-            bee = 0.03156
-            diffusivity = aye + bee*T_field
-        else:
-            diffusivity = np.ones_like(T_field)*31.536
-        return diffusivity
+
 
 
     @staticmethod
@@ -1234,132 +1355,8 @@ class rules:
         A = rho*1e-5*(9.52*CU + 2.56*CTh + 3.48*CK) #Formula from Rybach and Cermack 1982 - Radioactive heat generation in rocks
         H = H+A
         return H
-    '''
-    @staticmethod
-    def get_diffusivity(T_field, lithology):
-        
-        Function to get diffusivity based on lithology
-        
-        K = 31.536*np.ones_like(T_field)
-        return K
-    '''
-    @staticmethod
-    def get_radH(T_field, rho, dx):
-        '''
-        Function to get radioactive heat release
-        T_field: A 2D numpy array representing the temperature field.
-        rho: A 2D numpy array representing the density at each point in the field.
-        dx: A scalar representing the grid spacing in the vertical direction.
 
-        '''
-        a, b = T_field.shape
-        Ho = 8e-10 #W/kg
-        Lc = 12000 #m
-        depth = np.array([i*dx for i in range(a)])
-        H = np.zeros((a,b))
-        for i in range(a):
-            for j in range(b):
-                H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
-        return H
-    @staticmethod
-    def func_assigner(func, *args, **kwargs):
-        '''
-        Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
-        func: The function to be called.
-        *args: Positional arguments to be passed to the function.
-        **kwargs: Keyword arguments to be passed to the function.
-        '''
-        result = func(*args,**kwargs)
-        return result
     
-    @staticmethod
-    def calcF(T_field, T_solidus, T_liquidus):
-        '''
-        Arbitrary method to calculate the fraction of melt remaining based on temperature
-        T_field: A 2D numpy array representing the temperature field.
-        T_liquidus: An optional float representing the liquidus temperature, default is 1250.
-        T_solidus: An optional float representing the solidus temperature, default is 800.
-        '''
-        def safe_tanh(x):
-            """Clip inputs to tanh to avoid overflow in cosh during gradients."""
-            x_clipped = anp.clip(x, -50, 50)  # Prevents overflow in cosh
-            return anp.tanh(x_clipped)
-
-        def smooth_step(x, lower_bound, upper_bound, steepness=20):
-            """Smoothly transitions between 0 and 1 using tanh."""
-            return 0.5 * (safe_tanh((x - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
-        # Avoid division-by-zero by ensuring T_liquidus > T_solidus
-        delta = max(0.05 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
-        
-        # Smooth masks for transitions around T_solidus and T_liquidus
-        mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
-        delta_liquidus = max(0.25 * (T_liquidus - T_solidus), 1e-6)  # Wider transition (5% vs. 1%)
-        mask_liquidus = smooth_step(T_field, T_liquidus - delta_liquidus, T_liquidus + delta_liquidus, steepness=20)
-        
-        # Safe computation of p_values (non-negative input for exponentiation)
-        k = 1  # Controls steepness of softplus
-        smoothed_term = anp.log(1 + anp.exp(k * (T_field - T_solidus))) / k  # Always ≥ 0
-        smoothed_term_lower = anp.log(1 + anp.exp(k*(T_liquidus - T_solidus)))
-        p_values = (smoothed_term / smoothed_term_lower) ** 2.5
-        p_values = p_values * mask_solidus  # Suppress values below T_solidus
-        
-        # Combine masks to compute F
-        F = (1 - mask_liquidus) * p_values + mask_liquidus *safe_tanh((T_field-T_solidus)/2)
-        return F 
-        
-    @staticmethod
-    def calcF_from_csv(T_field, dir_csv, temp_col: str, fraction_column: str, T_liquidus, T_solidus):
-        def smooth_step(val, lower_bound, upper_bound, steepness=10):
-            """Smoothly transitions between 0 and 1 using tanh."""
-            return 0.5 * (anp.tanh((val - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
-        # Avoid division-by-zero by ensuring T_liquidus > T_solidus
-        delta = max(0.01 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
-        
-        # Smooth masks for transitions around T_solidus and T_liquidus
-        mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
-        mask_liquidus = smooth_step(T_field, T_liquidus - delta, T_liquidus + delta)
-        data = pd.read_csv(dir_csv)
-        temp = data[temp_col]
-        fraction_melt = data[fraction_column]
-        p = interp1d(temp, fraction_melt)
-        p_values = p(T_field)* mask_solidus  # Suppress values below T_solidus
-        F = (1 - mask_liquidus) * p_values + mask_liquidus 
-        return F
-
-
-
-    @staticmethod
-    def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, L = 4e5, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
-        '''
-        Get the latent heat of crystallization term for the ehat diffusion equation based onthe model of Karakas et al. (2017)
-        T_field: A 2D numpy array representing the temperature field.
-        lithology: A 2D numpy array representing the lithology types.
-        melt: A string specifying the type of melt, default is 'basalt'.
-        rho_melt: A float representing the density of the melt, default is 2850 kg/m³.
-        T_liquidus: A float representing the liquidus temperature, default is 1250.
-        T_solidus: A float representing the solidus temperature, default is 800.
-        '''
-        heat_filter = (lithology==melt) & (T_field>T_liquidus) & (T_field>T_solidus)
-        if args is None:
-            args = (T_liquidus, T_solidus)
-        if curve_func is None:
-            curve_func = rules.calcF
-        phi_cr = elementwise_grad(curve_func)
-        H_lat = (1 - (phi_cr(T_field, *args)*L/specific_heat)*heat_filter)
-        H_lat[H_lat>1] = 1
-        return H_lat
-    
-    @staticmethod
-    def convert_latH_to_J(H_lat, specific_heat, cooling_rate):
-        '''
-        Function to get actual latent heat if needed
-        '''
-        a,b = H_lat.shape
-        for i in range(a):
-            for j in range(b):
-                if H_lat[i,j]!=0:
-                    H_lat[i,j] = (1-H_lat[i,j]*cooling_rate)*specific_heat
-        return H_lat
 
     @staticmethod
     def rotate_nodes(coords_array, theta, center = (0,0)):
@@ -2088,7 +2085,7 @@ class sill_controls:
         H = np.zeros((a,b))
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
         if np.isnan(k).all():
-            k = self.rool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
+            k = self.cool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
         if np.isnan(time):
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
             props_array[self.Temp_index] = T_field
@@ -2199,7 +2196,7 @@ class sill_controls:
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
         reaction_energies = emit.get_sillburp_reaction_energies()
         if np.isnan(k).all():
-            k = self.rool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
+            k = self.cool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index],dy)
         if np.isnan(time):
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
             props_array[self.Temp_index] = T_field
@@ -2353,14 +2350,14 @@ class sill_controls:
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             if self.include_heat:
-                H_rad = self.rool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
-                H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+                H_rad = self.cool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
+                H_lat = self.cool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                 H = [H_rad, H_lat]
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
             else:
                 H = np.zeros_like(T_field)
             if self.k_const ==False:
-                k = self.rool.get_diffusivity(T_field, rock, dy)
+                k = self.cool.get_diffusivity(T_field, rock, dy)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             if np.max(T_field)>1.05*1100:
                 warnings.warn(f'Too much latent heat: {np.min(H_lat)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
@@ -2428,7 +2425,7 @@ class sill_controls:
                     curr_sill +=1
                 else:
                     break
-            Frac_melt = rules.calcF(np.array(props_array[self.Temp_index], dtype = float), self.T_solidus, self.T_liquidus)*(props_array[self.rock_index]==magma_prop_dict['Lithology'])
+            Frac_melt = cool.calcF(np.array(props_array[self.Temp_index], dtype = float), self.T_solidus, self.T_liquidus)*(props_array[self.rock_index]==magma_prop_dict['Lithology'])
             melt_50 = np.sum(Frac_melt>0.5)*dx*dy
             melt_10 = np.sum(Frac_melt>0.1)*dx*dy
             tot_melt10.append(melt_10*dx*dy)
