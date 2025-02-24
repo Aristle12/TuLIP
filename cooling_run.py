@@ -94,7 +94,7 @@ def cooler(iter, z_index, flux):
     #RCO2_vtk = pv.read('sillcubes/RCO2.vtk')
     tot_RCO2 = []#list(pd.read_csv('sillcubes/tot_RCO2.csv'))
     carbon_model_params = [tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli]
-    post_cooling_time = 5000 #30000 #years
+    post_cooling_time = 30000 #years
     end_time = np.array(empl_times)[-1]+post_cooling_time+dt
     print(f'End time is {end_time}')
     time_steps1 = np.arange(current_time,np.array(empl_times)[-1],dt)
@@ -137,7 +137,7 @@ x = 300000 #m - Horizontal extent of the crust
 y = 8000 #m - Vertical thickness of the crust
 z = 30000 #m - Third dimension for cube
 
-fluxy = [int(3e9), int(3e8), int(3e7), int(3*10**(7.5)), int(3*10**(8.5))]
+fluxy = [int(3e9)]#, int(3e8), int(3e7), int(3*10**(7.5)), int(3*10**(8.5))]
 #flux2 = [int(3*10**7.5), int(3*10**8.5)]
 
 dx = dz = 50 #m node spacing in x-direction
@@ -147,9 +147,8 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-iter = [3, 4]
 
-iter2 = [0, 1, 2, 3, 4]
+iter2 = [0]#, 1, 2, 3, 4]
 '''
 redo_flux = [int(3e9), int(3*10**8.5), int(3e8), int(3e8)]
 redo_iter = [3, 0, 1, 2]
@@ -183,7 +182,7 @@ for flux in fluxy:
             np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
 print(f'slices are {z_index}')
 
-Parallel(n_jobs = 30)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
+Parallel(n_jobs = 20)(delayed(cooler)(iter, z_indexs, fluxy) for iter, z_indexs, fluxy in pairs)
 #Parallel(n_jobs = 30)(delayed(cooler)(iter2, z_indexs, fluxy) for z_indexs in z_index)
 
 #cooler(0, 191, int(3e9))

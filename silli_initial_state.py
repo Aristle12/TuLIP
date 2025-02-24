@@ -32,7 +32,7 @@ dt = np.round((min(dx,dy)**2)/(5*np.max(k)),3)
 #Shape of the sills
 shape = 'elli'
 
-sc = sill_controls(x, y, dx, dy, k)
+sc = sill_controls(x, y, dx, dy, k_const = True, include_external_heat = False)
 
 #Initializing the temp field
 T_field = np.zeros((a,b))

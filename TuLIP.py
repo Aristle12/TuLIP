@@ -351,8 +351,7 @@ class cool:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
 
-    @jit(forceobj = True)
-    
+    #@jit(forceobj = True)
     def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
         Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
@@ -2041,7 +2040,7 @@ class sill_controls:
         plt.close()
 
         z_coords = self.func_assigner(lat_function, *z_params)
-        sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape, emplace_dike, orientations)
+        sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape, dike_tail=emplace_dike, orientations=orientations)
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
         return sillcube, n_sills, params
     
@@ -2075,7 +2074,6 @@ class sill_controls:
         
         if not rock_prop_dict or all(value is None for value in rock_prop_dict.values()):
             rock_prop_dict = self.rock_prop_dict
-        
 
 
         density = props_array[self.dense_index]
@@ -2083,9 +2081,19 @@ class sill_controls:
         rock = props_array[self.rock_index]
         T_field = props_array[self.Temp_index]
         breakdown_CO2 = np.zeros_like(T_field)
+
+        if self.include_heat:
+            H_rad = self.rool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+            H_lat = self.rool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+            H = np.array([H_rad, H_lat])
+            #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
+        else:
+            H_rad = np.zeros_like(T_field)
+            H_lat = np.ones_like(T_field)
+            H = np.array([H_rad, H_lat])
+
         t = 0
         a, b = props_array[0].shape
-        H = np.zeros((a,b))
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
         if np.isnan(k).all():
             k = self.rool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
@@ -2187,6 +2195,7 @@ class sill_controls:
                 rock_prop_dict = self.rock_prop_dict
         except AttributeError:
             pass
+
         density = np.array(props_array[self.dense_index], dtype = float)
         porosity = np.array(props_array[self.poros_index], dtype = float)
         rock = props_array[self.rock_index]
@@ -2195,7 +2204,16 @@ class sill_controls:
         dV = dx*dx*dy
         t = 0
         a, b = props_array[0].shape
-        H = np.zeros((a,b))
+        if self.include_heat:
+            H_rad = self.rool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+            H_lat = self.rool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+            H = np.array([H_rad, H_lat])
+            #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
+        else:
+            H_rad = np.zeros_like(T_field)
+            H_lat = np.ones_like(T_field)
+            H = np.array([H_rad, H_lat])
+
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
         reaction_energies = emit.get_sillburp_reaction_energies()
         if np.isnan(k).all():
@@ -2355,10 +2373,12 @@ class sill_controls:
             if self.include_heat:
                 H_rad = self.rool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
                 H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
-                H = [H_rad, H_lat]
+                H = np.array([H_rad, H_lat])
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
             else:
-                H = np.zeros_like(T_field)
+                H_rad = np.zeros_like(T_field)
+                H_lat = np.ones_like(T_field)
+                H = np.array([H_rad, H_lat])
             if self.k_const ==False:
                 k = self.rool.get_diffusivity(T_field, rock, dy)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)

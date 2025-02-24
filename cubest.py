@@ -25,11 +25,13 @@ save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
 os.makedirs(save_dir, exist_ok = True)
 
 
-x = 300000
-y = 4000
-z = x//10
-dx = 50
-dy = 50
+x = 300000 #m - Horizontal extent of the crust
+y = 12000 #m - Vertical thickness of the crust
+
+z = 30000 #m - Third dimension for cube
+
+dx = dz = 50 #m node spacing in x-direction
+dy = 50 #m node spacing in y-direction
 
 a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
@@ -43,11 +45,11 @@ mar = 19.23
 sar = 9.74
 
 min_emplacement = 500 #m
-max_emplacement = 4000 #m
+max_emplacement = 3000 #m
 n_sills = 2000
 
 
-tot_volume = 0.1*x*y*z  
+tot_volume = 0.1*x*4000*z  
     
 
 thermal_mat_time = (int(3e6//dt)+1)*(dt)
@@ -72,11 +74,9 @@ sillcube , n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thicknes
 
 
 
+n_sills_array.append(int(n_sills1))
+
 np.save(save_dir+'/sillcube'+str(np.round(tot_volume, 2)), sillcube)
-
-emplace_frame = pd.DataFrame(np.transpose(emplacement_params), columns=['empl_times', 'empl_heights', 'x_space', 'width', 'thickness'])
-emplace_frame.to_csv(save_dir+'/emplacement_params'+str(tot_volume)+'.csv')
-
 sillcube[sillcube==''] = 0
 sillcube = int_maker(sillcube)
 sillcube = sillcube.astype(int)
@@ -85,3 +85,6 @@ grid = pv.ImageData()
 grid.dimensions = sillcube.shape
 grid.point_data["sillcube"] = sillcube.flatten(order="F")
 grid.save(save_dir+'/sillcube'+str(tot_volume)+'.vtk')
+emplace_frame = pd.DataFrame(np.transpose(emplacement_params), columns=['empl_times', 'empl_heights', 'x_space', 'width', 'thickness'])
+emplace_frame.to_csv(save_dir+'/emplacement_params'+str(tot_volume)+'.csv')
+pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volume}).to_csv(save_dir+'/n_sills.csv')
