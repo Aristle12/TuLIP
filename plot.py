@@ -6,5 +6,5 @@ z_indexs = [191, 284, 300, 493, 506]
 for flux in fluxs:
     load_dir = str('sillcubes/'+format(flux, '.3e'))+'/'
 
-    bloom.scale_emissions(flux, z_indexs, 50, 50, load_dir)
+    bloom.scale_emissions(z_indexs, 50, 50, load_dir)
 

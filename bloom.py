@@ -50,7 +50,7 @@ def plot_time_history(flux, iter, save_dir):
     filename = 'emissions_'+str(format(flux, '.3e'))+'flux'+str(format(volume, '.3e'))
     plt.savefig(save_dir+'/'+filename+'.png', format = 'png')
 
-def scale_emissions(flux, z_indexs, dx, dy, load_dir):
+def scale_emissions(z_indexs, dx, dy, load_dir):
     dv = dx*dx*dy
     #load_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
     n_sills = pd.read_csv(load_dir+'n_sills.csv')
