@@ -147,9 +147,8 @@ a = int(y//dy) #Number of rows
 b = int(x//dx) #Number of columns
 c = int(z//dz) # Number of columns in z direction
 
-iter = [3, 4]
 
-iter2 = [0, 1, 2, 3, 4]
+iter2 = [0]#, 1, 2, 3, 4]
 '''
 redo_flux = [int(3e9), int(3*10**8.5), int(3e8), int(3e8)]
 redo_iter = [3, 0, 1, 2]

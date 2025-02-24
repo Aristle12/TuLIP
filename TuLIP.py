@@ -84,7 +84,7 @@ class cool:
         Tf = np.array(ps.spsolve(sc.csc_matrix(Ab), dee)) #Matrix multiplication for solving for temperature
         Tf = Tf.reshape((a,b), order = 'F')
         return Tf
-    ###Alternative functions to get initial thermal state. it is important to note that the straight solver will always be the fastest since there is only one matrix multiplication to perforn###
+    ###Alternative functions to get initial thermal state. it is important to note that the straight solver will always be the fastest since there is only one matrix multiplication to perform###
     def JacobianIt(self, Ab, dee, a, b):
         """
         Iterative solver for heat flux equation based on Jacobian iterative method - Slowest convergence rate, but sure to eventually converge
@@ -351,8 +351,7 @@ class cool:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
 
-    @jit(forceobj = True)
-    
+    #@jit(forceobj = True)
     def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
         Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
@@ -612,6 +611,7 @@ class cool:
 
 class emit:
     def __init__(self):
+        #Initilize the class. No variables needed
         pass
     
     @staticmethod
@@ -627,6 +627,7 @@ class emit:
         '''
         a,b = lithology.shape
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
+        #Read in the data for temeprature pressure stability
         dolo = loadmat('dat/Dolostone.mat')
         evap = loadmat('dat/DolostoneEvaporite.mat')
         marl = loadmat('dat/Marl.mat')
@@ -636,10 +637,13 @@ class emit:
         dolo_CO2 = np.array(dolo['Dolo']['CO2'][0][0])
         evap_CO2 = np.array(evap['Dol_ev']['CO2'][0][0])
         marl_CO2 = np.array(marl['Marl']['CO2'][0][0])
-
-        dolo_inter = RegularGridInterpolator((T,P), dolo_CO2)
-        evap_inter = RegularGridInterpolator((T,P), evap_CO2)
-        marl_inter = RegularGridInterpolator((T,P), marl_CO2)
+        #Create the regular grid only if the rock type exists. This is to speed up the operation
+        if lithology.any()=='dolostone' or lithology.any()=='limestone':
+            dolo_inter = RegularGridInterpolator((T,P), dolo_CO2)
+        if lithology.any()=='evaporite':
+            evap_inter = RegularGridInterpolator((T,P), evap_CO2)
+        if lithology.any()=='marl':
+            marl_inter = RegularGridInterpolator((T,P), marl_CO2)
         init_CO2 = np.zeros_like(T_field)
         for i in range(a):
             for j in range(b):
@@ -654,7 +658,7 @@ class emit:
                             init_CO2[i,j] = dolo_inter([T_field[i,j],pressure])
                         except ValueError:
                             init_CO2[i,j] = 0
-                            print('Warning: Limestone pressure out of bounds. Skipping')
+                            print('Warning: Limestone or dolostone pressure out of bounds. Skipping')
 
                     elif lithology[i,j] == 'evaporite':
                         init_CO2[i,j] = evap_inter([T_field[i,j],pressure])
@@ -674,6 +678,7 @@ class emit:
         '''
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         a, b = T_field.shape
+        #Read in the data for percentage CO2 released at the temeprature and pressure grid
         dolo = loadmat('dat/Dolostone.mat')
         evap = loadmat('dat/DolostoneEvaporite.mat')
         marl = loadmat('dat/Marl.mat')
@@ -683,7 +688,7 @@ class emit:
         dolo_CO2 = np.array(dolo['Dolo']['CO2'][0][0])
         evap_CO2 = np.array(evap['Dol_ev']['CO2'][0][0])
         marl_CO2 = np.array(marl['Marl']['CO2'][0][0])
-
+        #Create the P, T grid for for interpolation
         dolo_inter = RegularGridInterpolator((T,P), dolo_CO2)
         evap_inter = RegularGridInterpolator((T,P), evap_CO2)
         marl_inter = RegularGridInterpolator((T,P), marl_CO2)
@@ -691,30 +696,31 @@ class emit:
         for i in range(a):
             for j in range(b):
                 if break_parser[i,j]:
+                    #Calculate breakdown CO2, only for carbonate lithology nodes
                     pressure = 0
                     for l in range(0,i):
                         pressure = pressure + (density[l,j]*9.8*dy) #Getting lithostatic pressure upto this point
                     pressure = pressure*1e-5 #conversion from Pa to bar
-                    pressure = 1 if pressure==0 else pressure
+                    pressure = 1 if pressure==0 else pressure #Change pressure on the surface to a small non-zero value
                     if lithology[i,j]=='dolostone' or lithology[i,j]=='limestone':
                         try:
-                            curr_breakdown_CO2[i,j] = dolo_inter([T_field[i,j],pressure])
+                            curr_breakdown_CO2[i,j] = dolo_inter([T_field[i,j],pressure]) #Get breakdown CO2 using interpolation
                         except ValueError:
                             curr_breakdown_CO2[i,j] = 0
-                            print(f'Warning: Limestone pressure out of bounds at {i} {j}. Skipping')
+                            print(f'Warning: Limestone pressure out of bounds at {i} {j}. Skipping') #Change value to zero if the T and P are out of the grid range. This usually happens at deeper conditions, where limestone is not stable.
 
                     elif lithology[i,j] == 'evaporite':
                         try:
                             curr_breakdown_CO2[i,j] = evap_inter([T_field[i,j],pressure])
                         except ValueError:
                             curr_breakdown_CO2[i,j] = 0
-                            print(f'Warning: Evaporite pressure out of bounds at {i} {j}. Skipping')
+                            print(f'Warning: Evaporite pressure out of bounds at {i} {j}. Skipping') #Change value to zero if the T and P are out of the grid range. This usually happens at deeper conditions, where evaporite is not stable.
                     elif lithology[i,j]=='marl':
                         try:
                             curr_breakdown_CO2[i,j]== marl_inter([T_field[i,j],pressure])
                         except ValueError:
                             curr_breakdown_CO2[i,j] = 0
-                            print(f'Warning: Marl pressure out of bounds at {i} {j}. Skipping')
+                            print(f'Warning: Marl pressure out of bounds at {i} {j}. Skipping') #Change value to zero if the T and P are out of the grid range. This usually happens at deeper conditions, where marl is not stable.
         max_breakdown_co2 = np.maximum(breakdownCO2, curr_breakdown_CO2)
         try:
             for i in range(a):
@@ -725,9 +731,6 @@ class emit:
             print('Function outputs two arrays')
         RCO2_breakdown = (curr_breakdown_CO2)/dt
         return RCO2_breakdown, max_breakdown_co2
-
-
-
 
     
     @staticmethod
@@ -2038,7 +2041,7 @@ class sill_controls:
         plt.close()
 
         z_coords = self.func_assigner(lat_function, *z_params)
-        sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape, emplace_dike, orientations)
+        sillcube = self.rool.sill_3Dcube(x,y,z,dx,dy,n_sills, x_space, empl_heights, z_coords, width, thickness, empl_times,shape, dike_tail=emplace_dike, orientations=orientations)
         params = np.array([empl_times, empl_heights, x_space, width, thickness])
         return sillcube, n_sills, params
     
@@ -2072,7 +2075,6 @@ class sill_controls:
         
         if not rock_prop_dict or all(value is None for value in rock_prop_dict.values()):
             rock_prop_dict = self.rock_prop_dict
-        
 
 
         density = props_array[self.dense_index]
@@ -2080,9 +2082,19 @@ class sill_controls:
         rock = props_array[self.rock_index]
         T_field = props_array[self.Temp_index]
         breakdown_CO2 = np.zeros_like(T_field)
+
+        if self.include_heat:
+            H_rad = self.rool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+            H_lat = self.rool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+            H = np.array([H_rad, H_lat])
+            #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
+        else:
+            H_rad = np.zeros_like(T_field)
+            H_lat = np.ones_like(T_field)
+            H = np.array([H_rad, H_lat])
+
         t = 0
         a, b = props_array[0].shape
-        H = np.zeros((a,b))
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
         if np.isnan(k).all():
             k = self.cool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
@@ -2184,6 +2196,7 @@ class sill_controls:
                 rock_prop_dict = self.rock_prop_dict
         except AttributeError:
             pass
+
         density = np.array(props_array[self.dense_index], dtype = float)
         porosity = np.array(props_array[self.poros_index], dtype = float)
         rock = props_array[self.rock_index]
@@ -2192,7 +2205,16 @@ class sill_controls:
         dV = dx*dx*dy
         t = 0
         a, b = props_array[0].shape
-        H = np.zeros((a,b))
+        if self.include_heat:
+            H_rad = self.rool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+            H_lat = self.rool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+            H = np.array([H_rad, H_lat])
+            #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
+        else:
+            H_rad = np.zeros_like(T_field)
+            H_lat = np.ones_like(T_field)
+            H = np.array([H_rad, H_lat])
+
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
         reaction_energies = emit.get_sillburp_reaction_energies()
         if np.isnan(k).all():
@@ -2350,12 +2372,14 @@ class sill_controls:
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             if self.include_heat:
-                H_rad = self.cool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
-                H_lat = self.cool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
-                H = [H_rad, H_lat]
+                H_rad = self.rool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
+                H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+                H = np.array([H_rad, H_lat])
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
             else:
-                H = np.zeros_like(T_field)
+                H_rad = np.zeros_like(T_field)
+                H_lat = np.ones_like(T_field)
+                H = np.array([H_rad, H_lat])
             if self.k_const ==False:
                 k = self.cool.get_diffusivity(T_field, rock, dy)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
