@@ -1,19 +1,9 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from TuLIP import sill_controls
 import pandas as pd
-from tqdm import trange
-import pdb
-from numba import jit
-import pyvista as pv
-import os
 from joblib import Parallel, delayed
 import utilities as util
-
-
-
-
-
+import os
 
 
 flux = int(3e9) #km3/yr
