@@ -4,13 +4,14 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 import pandas as pd
 
+slice = 300 #Factor by which to cut and then tile the horizontal crust
 
 #Dimensions of the 2D grid
-x = 300000/300 #m - Horizontal extent of the crust
+x = 300000/slice #m - Horizontal extent of the crust Reduced for faster completion of the time step
 y = 12000 #m - Vertical thickness of the crust
 z = 30000 #m - Third dimension for cube
 
-ecks = x*300
+ecks = x*slice #Original thickness of the timestep
 
 dx = 50 #m node spacing in x-direction
 dy = 50 #m node spacing in y-direction
@@ -36,7 +37,6 @@ sc = sill_controls(x, y, dx, dy, k_const = True, include_external_heat = False)
 
 #Initializing the temp field
 T_field = np.zeros((a,b))
-#T_field[-1,:] = T_magpre
 q = k[-1,:]*(30/1000)
 T_field = sc.cool.heat_flux(k, a, b, dx, dy, T_field, 'straight', q)
 
@@ -66,7 +66,7 @@ cbar = plt.colorbar(ticks=list(sc.lith_plot_dict.values()), orientation = 'horiz
 cbar.set_ticklabels(list(labels))
 cbar.set_label('Rock Type')
 plt.title('Bedrock Composition')
-plt.savefig('plots/bedrock_distribution.png', format = 'png')
+plt.show()
 plt.close()
 
 #Setting up the remaining property arrays#
@@ -95,11 +95,11 @@ params = sc.get_silli_initial_thermogenic_state(props_array, dt, 'conv smooth', 
 
 tiled_props_array = np.empty((len((sc.prop_dict.keys())),a,bee), dtype = object)
 
-tiled_props_array[sc.Temp_index] = np.tile(props_array[sc.Temp_index],(1,300))
-tiled_props_array[sc.rock_index] = np.tile(props_array[sc.rock_index],(1,300))
-tiled_props_array[sc.poros_index] = np.tile(props_array[sc.poros_index],(1,300))
-tiled_props_array[sc.dense_index] = np.tile(props_array[sc.dense_index],(1,300))
-tiled_props_array[sc.TOC_index] = np.tile(props_array[sc.TOC_index],(1,300))
+tiled_props_array[sc.Temp_index] = np.tile(props_array[sc.Temp_index],(1,slice))
+tiled_props_array[sc.rock_index] = np.tile(props_array[sc.rock_index],(1,slice))
+tiled_props_array[sc.poros_index] = np.tile(props_array[sc.poros_index],(1,slice))
+tiled_props_array[sc.dense_index] = np.tile(props_array[sc.dense_index],(1,slice))
+tiled_props_array[sc.TOC_index] = np.tile(props_array[sc.TOC_index],(1,slice))
 
 curr_time = params[0]
 #csv = pd.read_csv('sillcubes/n_sills.csv')
@@ -109,17 +109,17 @@ curr_time = params[0]
 np.save('sillcubes/curr_time', np.array(curr_time))
 tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = params[1:]
 ace = np.array([RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli])
-tiled_RCO2 = np.tile(RCO2_silli,(1,300))
-tiled_Rom = np.tile(Rom_silli,(1,300))
-tiled_percRo = np.tile(percRo_silli,(1,300))
-tiled_TOC = np.tile(curr_TOC_silli,(1,300))
-tiled_props_array[sc.TOC_index] = np.tile(curr_TOC_silli,(1,300))
-tot_RCO2 = tot_RCO2*300
+tiled_RCO2 = np.tile(RCO2_silli,(1,slice))
+tiled_Rom = np.tile(Rom_silli,(1,slice))
+tiled_percRo = np.tile(percRo_silli,(1,slice))
+tiled_TOC = np.tile(curr_TOC_silli,(1,slice))
+tiled_props_array[sc.TOC_index] = np.tile(curr_TOC_silli,(1,slice))
+tot_RCO2 = tot_RCO2*slice
 
 
 tiled_W = np.empty((W_silli.shape[0],a,bee))
 for i in range(W_silli.shape[0]):
-    tiled_W[i] = np.tile(W_silli[i],(1,300))
+    tiled_W[i] = np.tile(W_silli[i],(1,slice))
 
 data = pv.ImageData()
 # Set the dimensions and spacing
