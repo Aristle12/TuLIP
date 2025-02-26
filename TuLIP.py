@@ -1543,11 +1543,18 @@ class sill_controls:
                  rock_prop_dict = None, magma_prop_dict = None,lith_plot_dict=None,
                  sill_cube_dir='sillcubes/',k_func=None):
         '''
+        x - Horizontal extent of the crust m
+        y - Vertical extent of the crust m
+        T_liquidus - Liquidus of thr magma
+        T_solidus - Solidus of the magma
         k_val = 31.536 #m^2/yr
         calculate_closest_sill = False (is done at the time of sill emplacement)
         calculate_all_sills_distances = False (is not used if calculate_closest_sill = False)
         calculate_at_all_times = False (calculate this at each timestep in the simulation)
-
+        rock_prop_dict - Properties dictionary of ythe rocks in the crust
+        magma_prop_dict - Properties dictionary of the magma
+        Properties to include in the rock properties dictionary - Each dictionary entry should be the name of the rock, with further dictionary entries including the density, porosity, and total organic content (labelled as TOC)
+        lith_plot_dict - Translation of rock valuies from strings to arbitrary integers for plotting purposes.
         '''
         ###
         self.x = x
@@ -1661,6 +1668,12 @@ class sill_controls:
 
 
     def generate_sill_2D_slices(self,fluxy_list,iter_list,z_index_list):
+        '''
+        Function to generate 2D slices from the 3D cube
+        fluxy_list - List of fluxes
+        iter_list - Integer list of volumes of sills from the n_sills file
+        z_index_list - List of z indices of the cubes to extract
+        '''
         for flux in fluxy_list:
             load_dir = self.sill_cube_dir+str(format(flux, '.3e'))
             os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
@@ -1884,7 +1897,7 @@ class sill_controls:
         aspect_ratio: Mean and standard deviation for aspect ratio.
         depth_range: Range for sill emplacement depth - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required 
         z_range: Range for z-coordinate - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
-        lat_range: Range for lateral coordinates - - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
+        lat_range: Range for lateral coordinates - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
         phase_times: Times for thermal maturation and cooling.
         tot_volume: Total volume of sills to be emplaced.
         flux: Emplacement flux.
@@ -2411,8 +2424,8 @@ class sill_controls:
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             if self.include_heat:
-                H_rad = self.rool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
-                H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+                H_rad = self.cool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
+                H_lat = self.cool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                 H = np.array([H_rad, H_lat])
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
             else:

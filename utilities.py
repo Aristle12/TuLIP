@@ -3,6 +3,7 @@ import scipy as scp
 import pyvista as pv
 import pandas as pd
 import os
+from tqdm import trange
 
 def truncate(number):
         # Convert the number to a string
@@ -21,10 +22,73 @@ def truncate(number):
         # Convert the truncated string back to a float
         return float(truncated_str)
 
+def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None):
+    def int_maker(sillcube):
+        for i in trange(sillcube.shape[0]):
+            for j in range(sillcube.shape[1]):
+                for g in range(sillcube.shape[2]):
+                    if sillcube[i,j,g] != 0:
+                        ele = str(sillcube[i,j,g])
+                        sillcube[i,j,g] = ele[1:3] if 's' not in ele[1:3] else ele[1]
+        return sillcube    
+
+    n_sills_array = []
+    #Initializing time_steps
+    k = 31.536
+    dt = np.round((min(dx,dy)**2)/(5*k),3)
+
+
+    ###Setting up sill dimensions and locations###
+    min_thickness = 100 #m
+    max_thickness = 600 #m
+
+    mar = 19.23
+    sar = 9.74
+
+    min_emplacement = 500 #m
+    max_emplacement = 4000 #m
+    n_sills = 2000
+
+
+    
+    
+
+    thermal_mat_time = (maturation_time//dt+1)*(dt)
+    print(f'Thermal maturation time is {thermal_mat_time}')
+    model_time = tot_volume/flux
+    cooling_time = int(1e6//dt)*dt
+
+    
+    z_range = [0, z, z//3]
+
+
+
+    #print(f'Building cube for {tot_volume[l]}: Cube {l} of {len(tot_volume)}')
+    phase_times = np.array([thermal_mat_time, model_time, cooling_time])
+    time_steps = np.arange(0, np.sum(phase_times), dt)
+    print(f'Length of time_steps:{len(time_steps)}')
+    lat_range = [x//3, 2*x//3, x//6]
+    sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
+    print('sillcube built')
+    #pdb.set_trace()
+    n_sills_array.append(int(n_sills1))
+
+    np.save(save_dir+'/sillcube'+str(np.round(tot_volume, 2)), sillcube)
+    sillcube[sillcube==''] = 0
+    sillcube = int_maker(sillcube)
+    sillcube = sillcube.astype(int)
+    #pdb.set_trace()
+    grid = pv.ImageData()
+    grid.dimensions = sillcube.shape
+    grid.point_data["sillcube"] = sillcube.flatten(order="F")
+    grid.save(save_dir+'/sillcube'+str(tot_volume)+'.vtk')
+    emplace_frame = pd.DataFrame(np.transpose(emplacement_params), columns=['empl_times', 'empl_heights', 'x_space', 'width', 'thickness'])
+    emplace_frame.to_csv(save_dir+'/emplacement_params'+str(tot_volume)+'.csv')
+    return n_sills_array
 
 
 def cooler(iter, z_index, flux,sc=None,k_val=31.536,temp_grad_base = 30/1000,
-           file_path_dir='sillcubes/',post_cooling_time = 60000,x=None,y=None,dx=None,dy=None):
+           file_path_dir='sillcubes/',post_cooling_time = 100000,saving_factor = [100], x=None,y=None,dx=None,dy=None):
     '''
     temp_grad_base == 30/1000 # Temperature gradient at the base of the modeled section (in C/m)
     k_val = Typical value of thermal diffusivity in the model
@@ -112,7 +176,7 @@ def cooler(iter, z_index, flux,sc=None,k_val=31.536,temp_grad_base = 30/1000,
     #timeframe.to_csv(dir_save+'/times.csv')
 
     current_time = np.round(current_time, 3)
-    carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=[100],model = 'silli', q=q)
+    carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=saving_factor,model = 'silli', q=q)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe['melt10'] = carbon_model_params[1][1:]

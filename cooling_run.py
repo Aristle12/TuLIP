@@ -22,7 +22,7 @@ file_path_dir = sc.sill_cube_dir
 
 
 fluxy_list = [int(3e9)]#, int(3e8), int(3e7), int(3*10**(7.5)), int(3*10**(8.5))]
-iter_list = [0]#, 1, 2, 3, 4]
+iter_list = [0, 1, 2, 3, 4]
 z_index_list = [191, 284, 300, 493, 506]
 pairs = itertools.product(iter_list, z_index_list, fluxy_list)
 
