@@ -17,6 +17,8 @@ import warnings
 from autograd import elementwise_grad
 import autograd.numpy as anp
 import pdb
+import utilities as util
+
 
 class cool:
     def __init__(self):
@@ -503,17 +505,18 @@ class cool:
         return H
     
     @staticmethod
-    def get_diffusivity(T_field, rock, dy, func_set='linear'):
+    def get_diffusivity(T_field, rock, dy):
         '''
         Stand-in funciton to get diffusivity based on properties
         '''
-        if func_set=='linear':
-            aye = 31.536
-            bee = 0.03156
-            diffusivity = aye + bee*T_field
-        else:
-            diffusivity = np.ones_like(T_field)*31.536
+        aye = 31.536
+        bee = 0.03156
+        diffusivity = aye + bee*T_field
+
         return diffusivity
+
+
+
 
     def diff_solve(self, k, a, b, dx, dy, dt, Tnow, q, method, H, k_const=False):
         """
@@ -1221,8 +1224,6 @@ class rules:
         return prop
     
 
-
-
     @staticmethod
     def value_pusher2D(array, new_value, row_index, push_amount):
         '''
@@ -1539,7 +1540,23 @@ class sill_controls:
                  T_liquidus = 1250, T_solidus = 800, include_external_heat = True,
                  k_const = True, k_val = 31.536, calculate_closest_sill = False, 
                  calculate_all_sills_distances = False, calculate_at_all_times = False, 
-                 rock_prop_dict = None, magma_prop_dict = None):
+                 rock_prop_dict = None, magma_prop_dict = None,lith_plot_dict=None,
+                 sill_cube_dir='sillcubes/',k_func=None):
+        '''
+        x - Horizontal extent of the crust m
+        y - Vertical extent of the crust m
+        T_liquidus - Liquidus of thr magma
+        T_solidus - Solidus of the magma
+        k_val = 31.536 #m^2/yr
+        calculate_closest_sill = False (is done at the time of sill emplacement)
+        calculate_all_sills_distances = False (is not used if calculate_closest_sill = False)
+        calculate_at_all_times = False (calculate this at each timestep in the simulation)
+        rock_prop_dict - Properties dictionary of ythe rocks in the crust
+        magma_prop_dict - Properties dictionary of the magma
+        Properties to include in the rock properties dictionary - Each dictionary entry should be the name of the rock, with further dictionary entries including the density, porosity, and total organic content (labelled as TOC)
+        lith_plot_dict - Translation of rock valuies from strings to arbitrary integers for plotting purposes.
+        '''
+        ###
         self.x = x
         self.y = y
         self.dx = dx
@@ -1550,8 +1567,9 @@ class sill_controls:
         if k_const:
             k = np.ones((a,b))*k_val
         else:
-            k = np.ones((a,b))*31.536
+            k = np.ones((a,b)) # default initialization to be overwritten later by chosen k_func
         self.k = k
+        
         self.calculate_closest_sill = calculate_closest_sill
         self.calculate_all_sill_distances = calculate_all_sills_distances
         self.calculate_at_all_times = calculate_at_all_times
@@ -1560,6 +1578,11 @@ class sill_controls:
         
         self.cool = cool()
         self.rool = rules() 
+
+        if k_func is None:
+            self.k_func = self.cool.get_diffusivity
+        else:
+            self.k_func = k_func
         ###Setting up the properties dictionary to translate properties to indices for 3D array###
         self.prop_dict = {'Temperature':0,
                     'Lithology':1,
@@ -1574,32 +1597,14 @@ class sill_controls:
                         4:'TOC'}
 
         #Lithology dictionary to translate rock types into numerical codes for numpy arrays
-        self.lith_plot_dict = {'granite':0,
-                        'shale':1,
-                        'sandstone':2,
-                        'peridotite':3,
-                        'basalt':4}
-        self.Temp_index = self.prop_dict['Temperature']
-        self.rock_index = self.prop_dict['Lithology']
-        self.poros_index = self.prop_dict['Porosity']
-        self.dense_index = self.prop_dict['Density']
-        self.TOC_index = self.prop_dict['TOC']
-
-        if magma_prop_dict is None:
-            self.magma_prop_dict = {'Temperature': 1100,
-                        'Lithology': 'basalt',
-                        'Porosity': 0, #Porosity of the rock for calculation of carbon emissions
-                        'Density': 2850, #kg/m3
-                        'Specific Heat': 850, 
-                        'Latent Heat': 4e5,
-                        'TOC':0} #wt%
+        if lith_plot_dict is None:
+            self.lith_plot_dict = {'granite':0,
+                            'shale':1,
+                            'sandstone':2,
+                            'peridotite':3,
+                            'basalt':4}
         else:
-            self.magma_prop_dict = magma_prop_dict
-
-        #Set up melt properties#
-        self.T_liquidus = T_liquidus
-        self.T_solidus = T_solidus
-        self.melt = self.magma_prop_dict['Lithology']
+            self.lith_plot_dict = lith_plot_dict
 
         if rock_prop_dict is None:
             self.rock_prop_dict = {
@@ -1636,8 +1641,55 @@ class sill_controls:
             }
         else:
             self.rock_prop_dict = rock_prop_dict
-        
-        
+
+        if magma_prop_dict is None:
+            self.magma_prop_dict = {'Temperature': 1100,
+                        'Lithology': 'basalt',
+                        'Porosity': 0, #Porosity of the rock for calculation of carbon emissions
+                        'Density': 2850, #kg/m3
+                        'Specific Heat': 850, 
+                        'Latent Heat': 4e5,
+                        'TOC':0} #wt%
+        else:
+            self.magma_prop_dict = magma_prop_dict
+
+        self.sill_cube_dir = sill_cube_dir
+        ### Assigning some useful variables for usage later
+        self.Temp_index = self.prop_dict['Temperature']
+        self.rock_index = self.prop_dict['Lithology']
+        self.poros_index = self.prop_dict['Porosity']
+        self.dense_index = self.prop_dict['Density']
+        self.TOC_index = self.prop_dict['TOC']
+
+        #Set up melt properties#
+        self.T_liquidus = T_liquidus
+        self.T_solidus = T_solidus
+        self.melt = self.magma_prop_dict['Lithology']
+
+
+    def generate_sill_2D_slices(self,fluxy_list,iter_list,z_index_list):
+        '''
+        Function to generate 2D slices from the 3D cube
+        fluxy_list - List of fluxes
+        iter_list - Integer list of volumes of sills from the n_sills file
+        z_index_list - List of z indices of the cubes to extract
+        '''
+        for flux in fluxy_list:
+            load_dir = self.sill_cube_dir+str(format(flux, '.3e'))
+            os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
+            for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
+                file_path = os.path.join(load_dir, 'slice_volumes', filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            n_sills_dataframe = pd.read_csv(load_dir+'/n_sills.csv')
+            for iters in iter_list:
+                volumes = float(n_sills_dataframe['volumes'][iters])
+
+                sillcube = np.load(load_dir+'/sillcube'+str(volumes)+'.npy', allow_pickle=True)
+                for z_indexs in z_index_list:
+                    sillsquare = sillcube[z_indexs]
+                    np.save(load_dir+'/slice_volumes/sillcube'+str(volumes)+'_'+str(z_indexs)+'.npy', sillsquare)
+        print(f"Done generate_sill_2D_slices with {z_index_list} slices")
 
     def get_physical_properties(self, rock, rock_prop_dict):
         '''
@@ -1843,9 +1895,9 @@ class sill_controls:
         dt: Time step for the simulation.
         thickness_range: Range for sill thickness.
         aspect_ratio: Mean and standard deviation for aspect ratio.
-        depth_range: Range for sill emplacement depth.
-        z_range: Range for z-coordinate.
-        lat_range: Range for lateral coordinates.
+        depth_range: Range for sill emplacement depth - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required 
+        z_range: Range for z-coordinate - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
+        lat_range: Range for lateral coordinates - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
         phase_times: Times for thermal maturation and cooling.
         tot_volume: Total volume of sills to be emplaced.
         flux: Emplacement flux.
@@ -2096,8 +2148,8 @@ class sill_controls:
         t = 0
         a, b = props_array[0].shape
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
-        if np.isnan(k).all():
-            k = self.cool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index])
+        if not self.k_const:
+            k = self.k_func(props_array[self.Temp_index], props_array[self.rock_index])
         if np.isnan(time):
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
             props_array[self.Temp_index] = T_field
@@ -2217,8 +2269,8 @@ class sill_controls:
 
         TOC = self.rool.prop_updater(props_array[self.rock_index], lith_plot_dict, rock_prop_dict, 'TOC')
         reaction_energies = emit.get_sillburp_reaction_energies()
-        if np.isnan(k).all():
-            k = self.cool.get_diffusivity(props_array[self.Temp_index], props_array[self.rock_index],dy)
+        if not self.k_const:
+            k = self.k_func(props_array[self.Temp_index], props_array[self.rock_index],dy)
         if np.isnan(time):
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
             props_array[self.Temp_index] = T_field
@@ -2372,16 +2424,16 @@ class sill_controls:
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
             if self.include_heat:
-                H_rad = self.rool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
-                H_lat = self.rool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
+                H_rad = self.cool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
+                H_lat = self.cool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                 H = np.array([H_rad, H_lat])
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
             else:
                 H_rad = np.zeros_like(T_field)
                 H_lat = np.ones_like(T_field)
                 H = np.array([H_rad, H_lat])
-            if self.k_const ==False:
-                k = self.cool.get_diffusivity(T_field, rock, dy)
+            if not self.k_const:
+                k = self.k_func(T_field, rock, dy)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             if np.max(T_field)>1.05*1100:
                 warnings.warn(f'Too much latent heat: {np.min(H_lat)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
@@ -2450,10 +2502,10 @@ class sill_controls:
                 else:
                     break
             Frac_melt = cool.calcF(np.array(props_array[self.Temp_index], dtype = float), self.T_solidus, self.T_liquidus)*(props_array[self.rock_index]==magma_prop_dict['Lithology'])
-            melt_50 = np.sum(Frac_melt>0.5)*dx*dy
-            melt_10 = np.sum(Frac_melt>0.1)*dx*dy
-            tot_melt10.append(melt_10*dx*dy)
-            tot_melt50.append(melt_50*dx*dy)
+            melt_50 = np.sum(Frac_melt<=0.5)*dx*dy*dx
+            melt_10 = np.sum(Frac_melt<=0.1)*dx*dy*dx
+            tot_melt10.append(melt_10)
+            tot_melt50.append(melt_50)
             tot_solidus.append(np.sum(np.array(props_array[self.Temp_index], dtype = float)>self.T_solidus)*dx*dy)
             area_sills.append(np.sum(sills_emplaced>0)*dx*dy)
             if saving_factor is not None:
@@ -2570,6 +2622,7 @@ class examples:
         self.cool = cool()
         self.rool = rules()
         self.sc = sill_controls(self.x, self.y, self.dx, self.dy, self.k)
+
     def example_run(self):
         #Dimensions of the 2D grid
 
