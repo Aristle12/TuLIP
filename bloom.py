@@ -100,7 +100,7 @@ def scale_emissions(z_indexs, dx, dy, load_dir):
                     print(f'Difference between empl_time and time is {np.min(np.abs(time - empl_time))}')
                     raise ValueError(f'Emplacement time {empl_time} is not in time steps')
             tot_time.append(len(time)*dts[0])
-            empl_end_time.append(float(time[empl_index])-int(3e6))
+            empl_end_time.append(float(time.iloc[empl_index])-int(3e6))  ####Fix for 3e6. It should be curr_time from the sillcubes. Make a parameter####
             
             dts = np.append(dts, [dts[-1]])
             tot_RCO2 = np.array(times['tot_RCO2']-times['tot_RCO2'][0])
@@ -141,7 +141,8 @@ def scale_emissions(z_indexs, dx, dy, load_dir):
         #plt.plot(cum_volume, z, 'g-')
         #plt.title(format(volume,'.3e'))
         #plt.show()
-    scales = pd.DataFrame({'tot_volume': sill_volumes, 'tot_CO2': vol_CO2s, 'empl_CO2s':empl_CO2s, 'scale': scale_factors, 'intercept': scale_ints, 'tot_slope': tot_slopes, 'tot_ints': tot_ints})
+    #print(len(sill_volumes), len(vol_CO2s), len(empl_CO2s), len(scale_factors), len(scale_ints), len(tot_slopes), len(tot_ints))
+    scales = pd.DataFrame({'tot_volume': sill_volumes, 'tot_CO2': vol_CO2s, 'scale': scale_factors, 'intercept': scale_ints, 'tot_slope': tot_slopes, 'tot_ints': tot_ints})
     scales.to_csv(load_dir+'scales.csv')
 
 
