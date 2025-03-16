@@ -87,8 +87,8 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     return n_sills_array
 
 
-def cooler(iter, z_index, flux,sc=None,k_val=31.536,temp_grad_base = 30/1000,
-           file_path_dir='sillcubes/',post_cooling_time = 100000,saving_factor = [100], x=None,y=None,dx=None,dy=None):
+def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
+           file_path_dir='sillcubes/',post_cooling_time = 30000,saving_factor = [100], x=None,y=None,dx=None,dy=None, save_dir_footnote = None):
     '''
     temp_grad_base == 30/1000 # Temperature gradient at the base of the modeled section (in C/m)
     k_val = Typical value of thermal diffusivity in the model
@@ -104,7 +104,7 @@ def cooler(iter, z_index, flux,sc=None,k_val=31.536,temp_grad_base = 30/1000,
     b = int(x//dx) #Number of columns
 
     #Initializing diffusivity field
-    k = np.ones((a,b))*k_val # m2/yr (Set a baseline value of constant diffusivity)
+    k = np.ones((a,b))*diff_val # m2/yr (Set a baseline value of constant diffusivity)
     dt = np.round((min(dx,dy)**2)/(5*np.max(k)),3)
     dt_change_factor = 1 ## For change in dt after emplacement of the last sill
     print(f'Time step: {dt} years')
@@ -115,6 +115,46 @@ def cooler(iter, z_index, flux,sc=None,k_val=31.536,temp_grad_base = 30/1000,
 
     data = pv.read(file_path_dir+'/initial_silli_state_carbon.vtk')
     
+    rock_prop_dict = {
+                "shale":{
+                    'Porosity':0.1,
+                    'Density':2500,
+                    'TOC':2,
+                    'Specific Heat': 800
+                },
+                "sandstone":{
+                    'Porosity':0.2,
+                    'Density':2600,
+                    'TOC':2.5,
+                    'Specific Heat': 800
+                },
+                "limestone":{
+                    'Porosity':0.2,
+                    'Density':2600,
+                    'TOC':2.5,
+                    'Specific Heat': 800
+                },
+                "granite":{
+                    'Porosity':0.05,
+                    'Density':2700,
+                    'TOC':0,
+                    'Specific Heat': 800
+                },
+                "basalt":{
+                    'Porosity': 0.0,
+                    'Density': 2850, #kg/m3
+                    'TOC':0,
+                    'Specific Heat': 850
+                },
+                "peridotite":{
+                    'Porosity': 0.05,
+                    'Density': 3100, #kg/m3
+                    'TOC':0,
+                    'Specific Heat': 1200
+                }
+            }
+
+
     props_array_vtk = pv.read(file_path_dir+'initial_silli_state_properties.vtk')
     props_array = props_array_vtk.point_data['data'].reshape(props_array_vtk.dimensions)
     props_array = np.array(props_array, dtype = object)
@@ -122,6 +162,11 @@ def cooler(iter, z_index, flux,sc=None,k_val=31.536,temp_grad_base = 30/1000,
     props_array[sc.dense_index] = np.array(props_array[sc.dense_index], dtype = float)
     props_array[sc.poros_index] = np.array(props_array[sc.poros_index], dtype = float)
     props_array[sc.TOC_index] = np.array(props_array[sc.TOC_index], dtype = float)
+    specific_heat = np.vectorize(
+                    lambda rt: rock_prop_dict[rt]['Specific Heat'], 
+                    otypes=[float]  # Ensure output is float
+                )(props_array[sc.rock_index])
+    props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
 
     W_vtk = pv.read(file_path_dir+'W_data.vtk')
     W_silli = W_vtk.point_data['data'].reshape(W_vtk.dimensions)
@@ -169,14 +214,16 @@ def cooler(iter, z_index, flux,sc=None,k_val=31.536,temp_grad_base = 30/1000,
                 print(f'Emplacement time for sill {j} has been readjusted and is now at {np.where(time_steps==empl_times[j])[0]}')
         else:
             print(f'Sill {j} is at {np.where(time_steps==empl_times[j])[0]}')
-
-    dir_save = file_path_dir+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+'/'+str(z_index)
+    if save_dir_footnote is None:
+        dir_save = file_path_dir+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+'/'+str(z_index)
+    else:
+        dir_save = file_path_dir+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+str(save_dir_footnote)+'/'+str(z_index)
     os.makedirs(dir_save, exist_ok = True)
     timeframe = pd.DataFrame(time_steps[1:], columns=['time_steps'])
     #timeframe.to_csv(dir_save+'/times.csv')
 
     current_time = np.round(current_time, 3)
-    carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=saving_factor,model = 'silli', q=q)
+    carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=saving_factor,model = 'silli', q=q, save_dir = dir_save)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe['melt10'] = carbon_model_params[1][1:]
