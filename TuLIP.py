@@ -508,10 +508,10 @@ class cool:
     @staticmethod
     def get_conductivity(T_field, rock, density, dy):
         '''
-        Stand-in funciton to get diffusivity based on properties
+        Stand-in funciton to get conductivity based on properties
         '''
-        diffusivity = 1/(0.24094+(4.6019e-4*(T_field+273.15)))
-        return diffusivity
+        conductivity = 1/(0.24094+(4.6019e-4*(T_field+273.15)))
+        return conductivity
     
     @staticmethod
     def get_specific_heat(T_field, rock, density, dy):
@@ -1760,11 +1760,11 @@ class sill_controls:
     
     def sill_controls_get_k(self, T_field, rock, density, dy, return_all = False):
         if not self.k_const:
-            thermal_conductivity = self.cool.get_conductivity(T_field, rock, density, dy)
+            thermal_conductivity = self.k_func(T_field, rock, density, dy)
         else:
             thermal_conductivity = self.thermal_conductivity
         if not self.cp_const:
-            specific_heat = self.cool.get_specific_heat(T_field, rock, density, dy)
+            specific_heat = self.cp_func(T_field, rock, density, dy)
         else:
             specific_heat = self.rool.prop_updater(rock, self.lith_plot_dict, self.rock_prop_dict, 'Specific Heat')
         k = np.array(thermal_conductivity/density/specific_heat, dtype = float)
@@ -2225,12 +2225,12 @@ class sill_controls:
         )(rock)
         if self.include_heat:
                 if self.melt_fraction_function is None:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
                     H_lat = self.cool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                     H = np.array([H_rad, H_lat])
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
                     H_lat = self.cool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function, args = self.args)
                     H = np.array([H_rad, H_lat])
         else:
@@ -2356,12 +2356,12 @@ class sill_controls:
         )(rock)
         if self.include_heat:
                 if self.melt_fraction_function is None:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
                     H_lat = self.cool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                     H = np.array([H_rad, H_lat])
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/self.magma_prop_dict['Specific Heat']
+                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
                     H_lat = self.cool.get_latH(T_field, rock, self.melt, self.magma_prop_dict['Density'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function, args = self.args)
                     H = np.array([H_rad, H_lat])
         else:
@@ -2531,19 +2531,19 @@ class sill_controls:
             porosity = np.array(props_array[self.poros_index])
             if self.include_heat:
                 if self.melt_fraction_function is None:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
+                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
                     H_lat = self.cool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus)
                     H = np.array([H_rad, H_lat])
                 #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/magma_prop_dict['Specific Heat']
+                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
                     H_lat = self.cool.get_latH(T_field, rock, self.melt, magma_prop_dict['Density'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function, args = self.args)
                     H = np.array([H_rad, H_lat])
             else:
                 H_rad = np.zeros_like(T_field)
                 H_lat = np.ones_like(T_field)
                 H = np.array([H_rad, H_lat])
-            k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, dy, return_all=True)
+            k = self.sill_controls_get_k(T_field, rock, density, dy, return_all=False)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
             if np.max(T_field)>1.05*1100:
                 warnings.warn(f'Too much latent heat: {np.min(H_lat)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
