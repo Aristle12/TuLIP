@@ -410,7 +410,7 @@ class cool:
             x_clipped = anp.clip(x, -50, 50)  # Prevents overflow in cosh
             return anp.tanh(x_clipped)
 
-        def smooth_step(x, lower_bound, upper_bound, steepness=20):
+        def smooth_step(x, lower_bound, upper_bound, steepness=40):
             """Smoothly transitions between 0 and 1 using tanh."""
             return 0.5 * (safe_tanh((x - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
         # Avoid division-by-zero by ensuring T_liquidus > T_solidus
@@ -418,7 +418,7 @@ class cool:
         
         # Smooth masks for transitions around T_solidus and T_liquidus
         mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
-        delta_liquidus = max(0.25 * (T_liquidus - T_solidus), 1e-6)  # Wider transition (5% vs. 1%)
+        delta_liquidus = max(0.1 * (T_liquidus - T_solidus), 1e-6)  # Wider transition (5% vs. 1%)
         mask_liquidus = smooth_step(T_field, T_liquidus - delta_liquidus, T_liquidus + delta_liquidus, steepness=20)
         
         # Safe computation of p_values (non-negative input for exponentiation)
@@ -466,10 +466,13 @@ class cool:
         '''
         H_lat = np.ones_like(T_field)
         if args is None:
-            args = (T_liquidus, T_solidus)
+            args = (T_solidus, T_liquidus)
         if curve_func is None:
             curve_func = cool.calcF
         phi_cr = elementwise_grad(curve_func)
+        if np.isnan(phi_cr(T_field[lithology==melt] , *args)).any():
+            print(T_field[phi_cr(T_field[lithology==melt] , *args)==np.nan])
+            raise ValueError('Invalid value encountered in melt fraction function')
         H_lat[lithology==melt] = (1 + (phi_cr(T_field[lithology==melt] , *args)*L/specific_heat))
         H_lat[lithology!=melt] = 1
         return H_lat
@@ -2539,15 +2542,13 @@ class sill_controls:
             porosity = np.array(props_array[self.poros_index])
             if self.include_heat:
                 if self.melt_fraction_function is None:
-                    print('We are here')
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus)
-                    print(H_lat[H_lat>1])
+                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)
                     H = np.array([H_rad, H_lat])
                     #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus)                    
+                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)                    
                     H = np.array([H_rad, H_lat])
             else:
                 H_rad = np.zeros_like(T_field)
@@ -2558,15 +2559,17 @@ class sill_controls:
             is_magma = rock==self.magma_prop_dict['Lithology']
             mask = np.logical_and(T_field<self.T_solidus, is_magma)
             rock[mask] = self.melt
+            #if (T_field[rock==self.magma_prop_dict['Lithology']]<self.T_solidus).any():
+            #pdb.set_trace()
             if np.max(T_field)>1.05*1100:
                 warnings.warn(f'Too much latent heat: {np.min(H_lat)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
-                #pdb.set_trace()
+
             if self.calculate_closest_sill and self.calculate_at_all_times:
                 save_file = save_dir+'/sill_distances'+str(time_steps[l])
                 sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill,dx, time_steps[l], T_solidus=self.T_solidus, calculate_all=self.calculate_all_sill_distances, save_file=save_file)
             props_array[self.Temp_index] = T_field
+            props_array[self.rock_index] = rock
             curr_TOC_silli = props_array[self.TOC_index]
-            rock = props_array[self.rock_index]
             
 
             if model=='silli':
@@ -2642,6 +2645,7 @@ class sill_controls:
                             props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
                             props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                             props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
+                            props_array_vtk.point_data['Specific Heat'] = np.array(props_array[self.sph_index], dtype = float).flatten()
                             props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
                             props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
                             props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
@@ -2654,6 +2658,7 @@ class sill_controls:
                                 props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
                                 props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                                 props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
+                                props_array_vtk.point_data['Specific Heat'] = np.array(props_array[self.sph_index], dtype = float).flatten()
                                 props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
                                 props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
                                 props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
@@ -2667,6 +2672,7 @@ class sill_controls:
                         props_array_vtk.point_data['Porosity'] = np.array(props_array[self.poros_index],dtype = float).flatten()
                         props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                         props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
+                        props_array_vtk.point_data['Specific Heat'] = np.array(props_array[self.sph_index], dtype = float).flatten()
                         props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
                         props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
                         props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
