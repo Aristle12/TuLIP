@@ -425,7 +425,7 @@ class cool:
         k = 1  # Controls steepness of softplus
         smoothed_term = anp.log(1 + anp.exp(k * (T_field - T_solidus))) / k  # Always ≥ 0
         smoothed_term_lower = anp.log(1 + anp.exp(k*(T_liquidus - T_solidus)))
-        p_values = (smoothed_term / smoothed_term_lower) ** 1
+        p_values = (smoothed_term / smoothed_term_lower) ** 2.5
         p_values = p_values * mask_solidus  # Suppress values below T_solidus
         
         # Combine masks to compute F
