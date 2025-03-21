@@ -7,6 +7,7 @@ Thermally understanding Large Igneous Provinces (TuLIP)
 ## Description
 
 This project combines heat transfer solvers with functions for emplacing sills in geological models. The solvers handle steady-state and time-varying heat diffusion in anisotropic media, while the sill emplacement functions allow for the simulation of magmatic intrusions. The project is implemented in Python and utilizes libraries such as NumPy, SciPy, Pandas, and PyPardiso for efficient computation.
+Documentation is outdated and funky. Currently working on updating the documentaiton!!
 
 ## Table of Contents
 
