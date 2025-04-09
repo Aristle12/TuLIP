@@ -30,7 +30,7 @@ magma_prop_dict2 = {'Temperature': 1100,
 sc_latent_heat = sill_controls(x,y, dx, dy, T_liquidus=1175,T_solidus=800,
                    magma_prop_dict=magma_prop_dict,
                    include_external_heat=True,
-                   calculate_closest_sill=False)
+                   calculate_closest_sill=True)
 
 sc_nolatent_heat = sill_controls(x,y, dx, dy, T_liquidus=1175,T_solidus=800,
                    magma_prop_dict=magma_prop_dict,
@@ -45,11 +45,12 @@ file_path_dir = 'sillcubes/'
 footnote1 = 'LH_2'
 footnote2 = 'noLH_2'
 footnote3 = 'noLHCP2_2'
-post_cooling_time = 30000 #years
-fluxy_list = [int(3e9), int(3e8), int(3e7), int(3*10**(7.5)), int(3*10**(8.5))]
-iter_list = [0, 1, 2, 3, 4]
-z_index_list = [191, 284, 300, 493, 506]
-pairs = itertools.product(iter_list, z_index_list, fluxy_list)
+post_cooling_time = 3000 #years
+fluxy_list = [int(3e9)]#, int(3e8), int(3e7), int(3*10**(7.5)), int(3*10**(8.5))]
+iter_list = [0, 1, 2]#, 3, 4]
+z_index_list = [160, 191,  278, 284, 300, 303, 493, 506, 515]
+z_index_list2 = [191, 284, 300, 493, 506]
+pairs = itertools.product(iter_list, z_index_list2, fluxy_list)
 saving_factor = [100]
 
 '''
@@ -61,14 +62,14 @@ z_index = [191, 284, 300, 493, 506]
 tiled_z = np.tile(z_index, 5)
 pairs = zip(redo_iter, tiled_z, redo_flux)
 '''
+
 Parallel(n_jobs = 30)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1,sc=sc_latent_heat,diff_val=diff_val,
                                       temp_grad_base = temp_grad_base,
                                       file_path_dir=file_path_dir, post_cooling_time = post_cooling_time,
                                       x=x,y=y,dx=dx,dy=dy, saving_factor = saving_factor) for iter_1, z_index_1, fluxy_1 in pairs)
 
-
 ### Run this only once for a model set###
-#sc.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list)
+#sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list)
 '''
 
 Parallel(n_jobs = 30)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1,sc=sc_latent_heat,diff_val=diff_val,

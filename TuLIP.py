@@ -2531,7 +2531,6 @@ class sill_controls:
         tot_melt50 = []
         tot_solidus = []
         area_sills = []
-        TOC1 = self.rool.prop_updater(rock, rock_prop_dict, 'TOC')
         for l in trange(saving_time_step_index, len(time_steps)):
             #curr_time = time_steps[l]
             dt = dts[l]          
@@ -2540,6 +2539,10 @@ class sill_controls:
             density = np.array(props_array[self.dense_index])
             rock = np.array(props_array[self.rock_index])
             porosity = np.array(props_array[self.poros_index])
+            if model=='silli':
+                curr_TOC_silli = props_array[self.TOC_index]
+            elif model=='sillburp':
+                curr_TOC = props_array[self.TOC_index]
             if self.include_heat:
                 if self.melt_fraction_function is None:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
@@ -2569,7 +2572,6 @@ class sill_controls:
                 sills_data = self.check_closest_sill_temp(props_array[self.Temp_index], sillnet, curr_sill,dx, time_steps[l], T_solidus=self.T_solidus, calculate_all=self.calculate_all_sill_distances, save_file=save_file)
             props_array[self.Temp_index] = T_field
             props_array[self.rock_index] = rock
-            curr_TOC_silli = props_array[self.TOC_index]
             
 
             if model=='silli':
@@ -2586,14 +2588,25 @@ class sill_controls:
             if l!=saving_time_step_index:
                 RCO2_model += breakdown_CO2*dV
                 tot_RCO2.append(np.sum(RCO2_model))
-            props_array[self.TOC_index] = curr_TOC_silli
+            if model=='silli':
+                props_array[self.TOC_index] = curr_TOC_silli
+            elif model == 'sillburp':
+                props_array[self.TOC_index] = curr_TOC
+            else:
+                props_array[self.TOC_index] = np.zeros_like(props_array[self.TOC_index])
+            TOC1 = self.rool.prop_updater(rock, rock_prop_dict, 'TOC')
             if isinstance(n_sills, str):
                 n_sills = n_sills.strip('[]')
             n_sills = int(n_sills)
             while time_steps[l]==empl_times[curr_sill] and curr_sill<int(n_sills):
                 #print(f'Now emplacing sill {curr_sill}')
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
-                curr_TOC_silli = props_array[self.TOC_index]
+                rock = props_array[self.rock_index]
+                TOC1 = self.rool.prop_updater(rock, rock_prop_dict, 'TOC')
+                if model=='silli':
+                    curr_TOC_silli = props_array[self.TOC_index]
+                elif model=='sillburp':
+                    curr_TOC = props_array[self.TOC_index]
                 sillnet = self.rool.value_pusher2D(sillnet, curr_sill, row_start, col_pushed)
                 if self.calculate_closest_sill and not self.calculate_at_all_times:
                     if len(col_pushed[col_pushed!=0]>0):
@@ -2608,7 +2621,6 @@ class sill_controls:
                         RCO2_silli = self.rool.value_pusher2D(RCO2_silli,0, row_start, col_pushed)
                         Rom_silli = self.rool.value_pusher2D(Rom_silli,0, row_start, col_pushed)
                         percRo_silli =self.rool.value_pusher2D(percRo_silli, 0, row_start, col_pushed)
-                        
                         for m in range(W_silli.shape[0]):
                             W_silli[m] = self.rool.value_pusher2D(W_silli[m],0, row_start, col_pushed)
                         col_pushed = np.zeros_like(row_start)
@@ -2616,7 +2628,6 @@ class sill_controls:
                     if (col_pushed!=0).all():
                         RCO2 = self.rool.value_pusher2D(RCO2,0, row_start, col_pushed)
                         Rom = self.rool.value_pusher2D(Rom,0, row_start, col_pushed)
-                        curr_TOC = self.rool.value_pusher2D(curr_TOC,0, row_start, col_pushed)
                         for huh in range(progress_of_reactions.shape[0]):
                             for bruh in range(progress_of_reactions.shape[1]):
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
