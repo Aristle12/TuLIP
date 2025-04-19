@@ -1819,7 +1819,7 @@ class sill_controls:
         return result
     
     @staticmethod
-    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, time, T_solidus, no_sill = '', calculate_all = False, save_file = None):
+    def check_closest_sill_temp(T_field, sills_array, curr_sill, dx, time, T_solidus, no_sill='', calculate_all=False, save_file=None):
         '''
         Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
         It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
@@ -1845,139 +1845,181 @@ class sill_controls:
             center_col = np.mean([max_col, min_col])
             center = str([center_row, center_col])
             return width, thickness, center
-    
-        is_sill = np.array((sills_array!=no_sill)) #Boolean of whether or not the node is a sill
-        is_curr_sill = sills_array==curr_sill #Boolean to separate the nodes of the current sill
-        boundary_finder = np.array(is_sill, dtype=int) #Array that counts the boundaries of the sills
-        boundary_finder[1:-1, 1:-1] = (
-        boundary_finder[:-2, 1:-1] +  # Above
-        boundary_finder[2:, 1:-1] +   # Below
-        boundary_finder[1:-1, :-2] +  # Left
-        boundary_finder[1:-1, 2:])     # Right
-        sills_number = sills_array.copy()
-        sills_data = pd.DataFrame({'sills':curr_sill}, index = [0]) #Dataframe containing sill data for the current sill
-        a,b = T_field.shape
+
+        # Prepare grid points
+        a, b = T_field.shape
         rows = np.arange(a)
         columns = np.arange(b)
         rows_grid, columns_grid = np.meshgrid(rows, columns, indexing='ij')
-        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel())) #Create a list of point coordinates to filter based on econditions
-        points = points.reshape(-1,2)
+        points = np.column_stack((rows_grid.ravel(), columns_grid.ravel()))
+        sills_number = sills_array.copy()
+
         if calculate_all:
-            #Code block to calculate the closest sills to all currently emplaced sills
-            tot_sills = curr_sill #The last sill emplaced is the currently emplaced sill
-            all_sills_data = pd.DataFrame() #Initialize the dataframe to save the computed information
-            for curr_sill in range(tot_sills):
-                condition = (T_field>T_solidus) & (sills_number!=curr_sill) #Select the nodes in the grid that are sills and are liquid
-                query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4) #Select the nodes that are at the boundary of the currently emplaced sill
-                query_points = points[query_condition.ravel()] #Filter the points based on the condition
-                #Initialize the variables to save in the dataframe
-                saved_distance = 1e10 #Distance to the closest sill
-                saved_index = -1 #Index of the current sill to which the sill is the closest
-                saved_temperature = -1 #Temperature of the closest sill node
-                saved_sill = -1 #The closest sill
-                closest_curr_sill = 'N/A' #Index of the closest sill
-                closest_sill_width_curr = 0 #Current width of the closest sill
-                closest_sill_width = 0 #Original width of the closest sill
-                closest_sill_thickness = 0  #Closest sill thickness
-                closest_sill_thickness_curr = -1 #Current thickness of the closest sill
-                closest_sill_center_curr = -1 #Current center of the closest sill
-                closest_sill_center = -1 #Original center of the closest sill
-                filtered_points = points[condition.ravel()] #Filter the points to query distances of current sill from
-                tree = KDTree(filtered_points) #KDTree to query and find the least distance from a given point
-                if len(query_points)>0:
-                    for curr_point in query_points:
-                        distance, index = tree.query(curr_point)
-                        curr_sill_width, curr_sill_thickness, curr_sill_center = get_width_and_thickness(is_curr_sill)
-                        if distance<saved_distance:
-                            index1 = filtered_points[index]
-                            saved_distance = distance
-                            saved_index = str(index1)
-                            saved_temperature = T_field[index1[0], index1[1]]
-                            saved_sill = sills_array[index1[0], index1[1]]
-                            closest_curr_sill = str(curr_point)
-                            is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
-                            closest_sill_width_curr, closest_sill_thickness_curr, closest_sill_center_curr = get_width_and_thickness(is_closest_sill_curr)
-                            is_closest_sill = (sills_array == saved_sill)
-                            closest_sill_width, closest_sill_thickness, closest_sill_center = get_width_and_thickness(is_closest_sill)
-                            
+            # Calculate for all sills
+            all_sills_data = pd.DataFrame()
+            tot_sills = curr_sill  # Assuming curr_sill is the total number of sills
+            
+            for sill_id in range(1, tot_sills + 1):  # Assuming sill IDs start at 1
+                # Initialize data for this sill
+                sills_data = pd.DataFrame({'sills': sill_id}, index=[0])
+                is_curr_sill = (sills_array == sill_id)
+                
+                # Find edges of current sill
+                is_edge = np.zeros_like(is_curr_sill, dtype=bool)
+                is_edge[1:-1, 1:-1] = (
+                    (is_curr_sill[:-2, 1:-1] != is_curr_sill[1:-1, 1:-1]) |  # Above
+                    (is_curr_sill[2:, 1:-1] != is_curr_sill[1:-1, 1:-1]) |   # Below
+                    (is_curr_sill[1:-1, :-2] != is_curr_sill[1:-1, 1:-1]) |  # Left
+                    (is_curr_sill[1:-1, 2:] != is_curr_sill[1:-1, 1:-1])     # Right
+                )
+                query_points = points[is_edge.ravel()]
+                
+                # Find other hot sills
+                condition = (T_field > T_solidus) & (sills_number != sill_id)
+                filtered_points = points[condition.ravel()]
+                
+                # Initialize default values
+                saved_distance = 1e30
+                saved_index = 'N/A'
+                saved_temperature = -1
+                saved_sill = 'N/A'
+                closest_curr_sill = 'N/A'
+                closest_sill_width_curr = 0
+                closest_sill_width = 0
+                closest_sill_thickness = 0
+                closest_sill_thickness_curr = -1
+                closest_sill_center_curr = 'N/A'
+                closest_sill_center = 'N/A'
+                
+                # Get current sill dimensions
+                if np.any(is_curr_sill):
+                    curr_sill_width, curr_sill_thickness, curr_sill_center = get_width_and_thickness(is_curr_sill)
+                else:
+                    curr_sill_width = curr_sill_thickness = 0
+                    curr_sill_center = 'N/A'
+                
+                # Find closest sill if edges exist
+                if len(query_points) > 0 and len(filtered_points) > 0:
+                    tree = KDTree(filtered_points)
+                    distances, indices = tree.query(query_points)  # Batch query
+                    min_idx = np.argmin(distances)
+                    index1 = filtered_points[indices[min_idx]]
+                    
+                    saved_distance = distances[min_idx]
+                    saved_index = str(index1)
+                    saved_temperature = T_field[index1[0], index1[1]]
+                    saved_sill = sills_array[index1[0], index1[1]]
+                    closest_curr_sill = str(query_points[min_idx])
+                    
+                    # Get closest sill dimensions
+                    is_closest_sill_curr = (sills_array == saved_sill) & (T_field > T_solidus)
+                    closest_sill_width_curr, closest_sill_thickness_curr, closest_sill_center_curr = get_width_and_thickness(is_closest_sill_curr)
+                    
+                    is_closest_sill = (sills_array == saved_sill)
+                    closest_sill_width, closest_sill_thickness, closest_sill_center = get_width_and_thickness(is_closest_sill)
+                
+                # Populate data
                 sills_data['closest_sill'] = saved_sill
-                sills_data['distance'] = saved_distance*dx
+                sills_data['distance'] = saved_distance * dx
                 sills_data['index of closest sill'] = saved_index
                 sills_data['temperature'] = saved_temperature
                 sills_data['index of current sill'] = closest_curr_sill
-                sills_data['width of current sill'] = curr_sill_width*dx
-                sills_data['thickness of current sill'] = curr_sill_thickness*dx
+                sills_data['width of current sill'] = curr_sill_width * dx
+                sills_data['thickness of current sill'] = curr_sill_thickness * dx
                 sills_data['index of current sill center'] = curr_sill_center
-                sills_data['width of closest sill'] = closest_sill_width_curr*dx
-                sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
+                sills_data['width of closest sill'] = closest_sill_width_curr * dx
+                sills_data['thickness of closest sill'] = closest_sill_thickness_curr * dx
                 sills_data['current center of closest sill'] = closest_sill_center_curr
-                sills_data['original width of closest sill'] = closest_sill_width*dx
-                sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
+                sills_data['original width of closest sill'] = closest_sill_width * dx
+                sills_data['original thickness of closest sill'] = closest_sill_thickness * dx
                 sills_data['original center of closest sill'] = closest_sill_center
                 sills_data['current time'] = time
                 
-            if all_sills_data.columns is None:
-                all_sills_data.columns==sills_data.columns
-            pd.concat([all_sills_data, sills_data], reset_index = True)
-            if save_file is None:
-                return all_sills_data
-            else:
-                all_sills_data.to_csv(save_file+'.csv')
-                return all_sills_data
+                # Append to results
+                all_sills_data = pd.concat([all_sills_data, sills_data], ignore_index=True)
+            
+            # Save or return results
+            if save_file is not None:
+                all_sills_data.to_csv(save_file + '.csv')
+            return all_sills_data
+        
         else:
-            #Code block to only calculate the closest sill to the specified sill
-            condition = (T_field>T_solidus) & (sills_number!=curr_sill) #Select nodes that nor the current sill and are above liquidus
-            query_condition = (sills_number == curr_sill) & (boundary_finder > 0) & (boundary_finder < 4) #Select nodes that are the boundary of the current sill
-            query_points = points[query_condition.ravel()] #Use the points
-            #Initialize variables to save the dataframe. See above for description
+            # Calculate for single sill
+            sills_data = pd.DataFrame({'sills': curr_sill}, index=[0])
+            is_curr_sill = (sills_array == curr_sill)
+            
+            # Find edges of current sill
+            is_edge = np.zeros_like(is_curr_sill, dtype=bool)
+            is_edge[1:-1, 1:-1] = (
+                (is_curr_sill[:-2, 1:-1] != is_curr_sill[1:-1, 1:-1]) |  # Above
+                (is_curr_sill[2:, 1:-1] != is_curr_sill[1:-1, 1:-1]) |   # Below
+                (is_curr_sill[1:-1, :-2] != is_curr_sill[1:-1, 1:-1]) |  # Left
+                (is_curr_sill[1:-1, 2:] != is_curr_sill[1:-1, 1:-1])     # Right
+            )
+            query_points = points[is_edge.ravel()]
+            
+            # Find other hot sills
+            condition = (T_field > T_solidus) & (sills_number != curr_sill)
+            filtered_points = points[condition.ravel()]
+            
+            # Initialize default values
             saved_distance = 1e30
-            saved_index = -1
+            saved_index = 'N/A'
             saved_temperature = -1
-            saved_sill = -1
-            closest_curr_sill = -1
+            saved_sill = 'N/A'
+            closest_curr_sill = 'N/A'
             closest_sill_width_curr = 0
             closest_sill_width = 0
             closest_sill_thickness = 0
-            closest_sill_width = -1
-            closest_sill_thickness = -1
-            closest_sill_width_curr = -1
             closest_sill_thickness_curr = -1
-            closest_sill_center_curr = -1
-            closest_sill_center = -1
-            filtered_points = points[condition.ravel()]
-            tree = KDTree(filtered_points) #KDTree to query and find shortes distance
-            if len(query_points)>0:
-                for curr_point in query_points:
-                    distance, index = tree.query(curr_point)
-                    curr_sill_width, curr_sill_thickness, curr_sill_center = get_width_and_thickness(is_curr_sill)
-                    if distance<saved_distance:
-                        index1 = filtered_points[index]
-                        saved_distance = distance
-                        saved_index = str(index1)
-                        saved_temperature = T_field[index1[0], index1[1]]
-                        saved_sill = sills_array[index1[0], index1[1]]
-                        closest_curr_sill = str(curr_point)
-                        is_closest_sill_curr = (sills_array == saved_sill) & (T_field>T_solidus)
-                        closest_sill_width_curr, closest_sill_thickness_curr, closest_sill_center_curr = get_width_and_thickness(is_closest_sill_curr)
-                        is_closest_sill = (sills_array == saved_sill)
-                        closest_sill_width, closest_sill_thickness, closest_sill_center = get_width_and_thickness(is_closest_sill)
-                        
-                sills_data['closest_sill'] = saved_sill
-                sills_data['distance'] = saved_distance*dx
-                sills_data['index of closest sill'] = saved_index
-                sills_data['temperature'] = saved_temperature
-                sills_data['index of current sill'] = closest_curr_sill
-                sills_data['width of current sill'] = curr_sill_width*dx
-                sills_data['thickness of current sill'] = curr_sill_thickness*dx
-                sills_data['index of current sill center'] = curr_sill_center
-                sills_data['width of closest sill'] = closest_sill_width_curr*dx
-                sills_data['thickness of closest sill'] = closest_sill_thickness_curr*dx
-                sills_data['current center of closest sill'] = closest_sill_center_curr
-                sills_data['original width of closest sill'] = closest_sill_width*dx
-                sills_data['original thickness of closest sill'] = closest_sill_thickness*dx
-                sills_data['original center of closest sill'] = closest_sill_center
-                sills_data['current time'] = time
-        return sills_data
+            closest_sill_center_curr = 'N/A'
+            closest_sill_center = 'N/A'
+            
+            # Get current sill dimensions
+            if np.any(is_curr_sill):
+                curr_sill_width, curr_sill_thickness, curr_sill_center = get_width_and_thickness(is_curr_sill)
+            else:
+                curr_sill_width = curr_sill_thickness = 0
+                curr_sill_center = 'N/A'
+            
+            # Find closest sill if edges exist
+            if len(query_points) > 0 and len(filtered_points) > 0:
+                tree = KDTree(filtered_points)
+                distances, indices = tree.query(query_points)  # Batch query
+                min_idx = np.argmin(distances)
+                index1 = filtered_points[indices[min_idx]]
+                
+                saved_distance = distances[min_idx]
+                saved_index = str(index1)
+                saved_temperature = T_field[index1[0], index1[1]]
+                saved_sill = sills_array[index1[0], index1[1]]
+                closest_curr_sill = str(query_points[min_idx])
+                
+                # Get closest sill dimensions
+                is_closest_sill_curr = (sills_array == saved_sill) & (T_field > T_solidus)
+                closest_sill_width_curr, closest_sill_thickness_curr, closest_sill_center_curr = get_width_and_thickness(is_closest_sill_curr)
+                
+                is_closest_sill = (sills_array == saved_sill)
+                closest_sill_width, closest_sill_thickness, closest_sill_center = get_width_and_thickness(is_closest_sill)
+            
+            # Populate data
+            sills_data['closest_sill'] = saved_sill
+            sills_data['distance'] = saved_distance * dx
+            sills_data['index of closest sill'] = saved_index
+            sills_data['temperature'] = saved_temperature
+            sills_data['index of current sill'] = closest_curr_sill
+            sills_data['width of current sill'] = curr_sill_width * dx
+            sills_data['thickness of current sill'] = curr_sill_thickness * dx
+            sills_data['index of current sill center'] = curr_sill_center
+            sills_data['width of closest sill'] = closest_sill_width_curr * dx
+            sills_data['thickness of closest sill'] = closest_sill_thickness_curr * dx
+            sills_data['current center of closest sill'] = closest_sill_center_curr
+            sills_data['original width of closest sill'] = closest_sill_width * dx
+            sills_data['original thickness of closest sill'] = closest_sill_thickness * dx
+            sills_data['original center of closest sill'] = closest_sill_center
+            sills_data['current time'] = time
+            
+            return sills_data
 
     def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
         '''
