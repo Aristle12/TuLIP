@@ -19,6 +19,7 @@ import autograd.numpy as anp
 import pdb
 import utilities as util
 import cupy as cp
+import re
 
 
 class cool:
@@ -1357,8 +1358,13 @@ class rules:
             array = array.astype(str)
         
         def contains_string(element):
-            return string in element
-        
+            s = str(element)
+            idx = s.find(string)
+            if idx == -1:
+                return False  # `string` not found
+            # Only check if the character BEFORE `string` is a digit
+            return (idx == 0) or (not s[idx-1].isdigit())
+                
         string_index = np.vectorize(contains_string)(array)
         return string_index
 
@@ -1929,7 +1935,7 @@ class sill_controls:
                 query_points = points[is_edge.ravel()]
                 
                 # Find other hot sills
-                condition = (T_field > T_solidus) & (sills_number != sill_id)
+                condition = (T_field > T_solidus) & (~is_curr_sill)
                 filtered_points = points[condition.ravel()]
                 
                 # Initialize default values
@@ -2704,6 +2710,7 @@ class sill_controls:
                 elif model=='sillburp':
                     curr_TOC = props_array[self.TOC_index]
                 sillnet = self.rool.value_pusher2D(sillnet, curr_sill, row_start, col_pushed)
+                #pdb.set_trace()
                 if self.calculate_closest_sill and not self.calculate_at_all_times:
                     if len(col_pushed[col_pushed!=0]>0):
                         print(f'Checking closest sills for {curr_sill}')

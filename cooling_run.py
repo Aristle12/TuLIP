@@ -66,7 +66,7 @@ pairs = zip(redo_iter, tiled_z, redo_flux)
 Parallel(n_jobs = 30)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1,sc=sc_latent_heat,diff_val=diff_val,
                                       temp_grad_base = temp_grad_base,
                                       file_path_dir=file_path_dir, post_cooling_time = post_cooling_time,
-                                      x=x,y=y,dx=dx,dy=dy, saving_factor = saving_factor) for iter_1, z_index_1, fluxy_1 in pairs)
+                                      x=x,y=y,dx=dx,dy=dy, save_dir_footnote = 'test', saving_factor = saving_factor) for iter_1, z_index_1, fluxy_1 in pairs)
 
 ### Run this only once for a model set###
 #sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list)

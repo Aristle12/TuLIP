@@ -7,7 +7,7 @@ import os
 
 
 flux = int(3e9) #km3/yr
-save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
+save_dir = 'sillcubes/'+'3e9-5'#str(format(flux, '.3e'))+'/'
 
 os.makedirs(save_dir, exist_ok = True)
 
