@@ -2328,7 +2328,7 @@ class sill_controls:
         rock = props_array[self.rock_index]
         T_field = props_array[self.Temp_index]
 
-        k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density,return_all=True)
+        k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, self.dy,return_all=True)
 
         breakdown_CO2 = np.zeros_like(T_field)
         specific_heat = np.zeros_like(T_field)
@@ -2457,7 +2457,7 @@ class sill_controls:
         rock = props_array[self.rock_index]
         T_field = np.array(props_array[self.Temp_index], dtype = float)
 
-        k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density,return_all=True)
+        k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, dy, return_all=True)
 
         breakdown_CO2 = np.zeros_like(T_field)
         dV = dx*dx*dy

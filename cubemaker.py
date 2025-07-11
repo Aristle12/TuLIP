@@ -36,7 +36,7 @@ sc = sill_controls(x =x,
     dy = dy)
 
 
-n_sills_array = Parallel(n_jobs = 2)(delayed(util.cubemaker)(tot_volume, flux=flux, x=x, y=y, z=z, dx=dx, dy=dy, maturation_time = maturation_time, save_dir = save_dir, sc = sc) for tot_volume in tot_volumes)
+n_sills_array = Parallel(n_jobs = 1)(delayed(util.cubemaker)(tot_volume, flux=flux, x=x, y=y, z=z, dx=dx, dy=dy, maturation_time = maturation_time, save_dir = save_dir, sc = sc) for tot_volume in tot_volumes)
 #n_sills_total = pd.read_csv(save_dir+'/n_sills.csv')
 # Append new data to the DataFrame
 #new_data = pd.DataFrame({
