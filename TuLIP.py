@@ -2416,6 +2416,7 @@ class sill_controls:
         props_array[self.rock_index] = rock
         props_array[self.poros_index] = porosity
         props_array[self.TOC_index] = curr_TOC_silli
+        props_array[self.sph_index] = specific_heat
         return current_time, tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
 
     def get_sillburp_initial_thermogenic_state(self, props_array, dt, method, sillburp_weights = None, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
@@ -2637,7 +2638,7 @@ class sill_controls:
             #curr_time = time_steps[l]
             dt = dts[l]          
             T_field = np.array(props_array[self.Temp_index], dtype = float)
-            specific_heat = np.array(props_array[self.sph_index])
+            specific_heat = np.array(props_array[self.sph_index], dtype = float)
             density = np.array(props_array[self.dense_index])
             rock = np.array(props_array[self.rock_index])
             porosity = np.array(props_array[self.poros_index])

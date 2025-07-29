@@ -88,7 +88,7 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
 
 
 def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
-           file_path_dir='sillcubes/',post_cooling_time = 30000,saving_factor = [100], x=None,y=None,dx=None,dy=None, save_dir_footnote = None):
+           file_path_dir='sillcubes/',post_cooling_time = 30000,saving_factor = [100], x=None,y=None,dx=None,dy=None, rock_prop_dict = None, save_dir_footnote = None):
     '''
     temp_grad_base == 30/1000 # Temperature gradient at the base of the modeled section (in C/m)
     k_val = Typical value of thermal diffusivity in the model
@@ -115,44 +115,8 @@ def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
 
     data = pv.read(file_path_dir+'/initial_silli_state_carbon.vtk')
     
-    rock_prop_dict = {
-                "shale":{
-                    'Porosity':0.1,
-                    'Density':2500,
-                    'TOC':2,
-                    'Specific Heat': 800
-                },
-                "sandstone":{
-                    'Porosity':0.2,
-                    'Density':2600,
-                    'TOC':2.5,
-                    'Specific Heat': 800
-                },
-                "limestone":{
-                    'Porosity':0.2,
-                    'Density':2600,
-                    'TOC':2.5,
-                    'Specific Heat': 800
-                },
-                "granite":{
-                    'Porosity':0.05,
-                    'Density':2700,
-                    'TOC':0,
-                    'Specific Heat': 800
-                },
-                "basalt":{
-                    'Porosity': 0.0,
-                    'Density': 2850, #kg/m3
-                    'TOC':0,
-                    'Specific Heat': 850
-                },
-                "peridotite":{
-                    'Porosity': 0.05,
-                    'Density': 3100, #kg/m3
-                    'TOC':0,
-                    'Specific Heat': 1200
-                }
-            }
+    if rock_prop_dict is None:
+        rock_prop_dict = sc.rock_prop_dict
 
 
     props_array_vtk = pv.read(file_path_dir+'initial_silli_state_properties.vtk')
@@ -166,8 +130,17 @@ def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
                     lambda rt: rock_prop_dict[rt]['Specific Heat'], 
                     otypes=[float]  # Ensure output is float
                 )(props_array[sc.rock_index])
-    props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
-
+    #specific_heat = np.zeros((a,b), dtype = float)
+    #for i in range(a):
+    #    for j in range(b):
+    #        specific_heat[i,j] = rock_prop_dict[props_array[sc.rock_index][i,j]]['Specific Heat']
+    #        if specific_heat[i,j] == "None":
+    #            raise ValueError("specific_heat is None")
+    try:
+        props_array[sc.sph_index] = specific_heat
+    except:
+        print("Exception occurred")
+        props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
     W_vtk = pv.read(file_path_dir+'W_data.vtk')
     W_silli = W_vtk.point_data['data'].reshape(W_vtk.dimensions)
 
@@ -223,7 +196,7 @@ def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
     #timeframe.to_csv(dir_save+'/times.csv')
 
     current_time = np.round(current_time, 3)
-    carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=saving_factor,model = 'silli', q=q, save_dir = dir_save)
+    carbon_model_params = sci.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=saving_factor,model = 'silli', q=q, save_dir = dir_save)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe['melt10'] = carbon_model_params[1][1:]

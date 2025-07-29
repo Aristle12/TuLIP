@@ -73,12 +73,13 @@ plt.close()
 porosity = np.zeros_like(rock)
 density = np.zeros_like(rock)
 TOC = np.zeros_like(rock)
-
+specific_heat = np.zeros_like(rock)
 for i in range(a):
     for j in range(b):
         porosity[i,j] = sc.rock_prop_dict[rock[i,j]]['Porosity']
         density[i,j] = sc.rock_prop_dict[rock[i,j]]['Density']
         TOC[i,j] = sc.rock_prop_dict[rock[i,j]]['TOC']
+        specific_heat[i,j] = sc.rock_prop_dict[rock[i,j]]['Specific Heat']
 ###Building the 3d properties array###
 props_array = np.empty((len((sc.prop_dict.keys())),a,b), dtype = object)
 

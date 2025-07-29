@@ -41,6 +41,45 @@ sc_nolatent_heat2 = sill_controls(x,y, dx, dy, T_liquidus=1175,T_solidus=800,
                    include_external_heat=False,
                    calculate_closest_sill=False)
 
+rock_prop_dict = {
+                "shale":{
+                    'Porosity':0.1,
+                    'Density':2500,
+                    'TOC':2,
+                    'Specific Heat': 800
+                },
+                "sandstone":{
+                    'Porosity':0.2,
+                    'Density':2600,
+                    'TOC':2.5,
+                    'Specific Heat': 800
+                },
+                "limestone":{
+                    'Porosity':0.2,
+                    'Density':2600,
+                    'TOC':2.5,
+                    'Specific Heat': 800
+                },
+                "granite":{
+                    'Porosity':0.05,
+                    'Density':2700,
+                    'TOC':0,
+                    'Specific Heat': 800
+                },
+                "basalt":{
+                    'Porosity': 0.0,
+                    'Density': 2850, #kg/m3
+                    'TOC':0,
+                    'Specific Heat': 850
+                },
+                "peridotite":{
+                    'Porosity': 0.05,
+                    'Density': 3100, #kg/m3
+                    'TOC':0,
+                    'Specific Heat': 1200
+                }
+            }
+
 file_path_dir = 'sillcubes/'
 footnote1 = 'LH_2'
 footnote2 = 'noLH_2'
@@ -63,12 +102,13 @@ tiled_z = np.tile(z_index, 5)
 pairs = zip(redo_iter, tiled_z, redo_flux)
 '''
 ### Run this only once for a model set###
-sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list)
+#sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list)
 
-Parallel(n_jobs = 30)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1,sc=sc_latent_heat,diff_val=diff_val,
+Parallel(n_jobs = 20)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1,sci=sc_latent_heat,diff_val=diff_val,
                                       temp_grad_base = temp_grad_base,
                                       file_path_dir=file_path_dir, post_cooling_time = post_cooling_time,
-                                      x=x,y=y,dx=dx,dy=dy, save_dir_footnote = 'test', saving_factor = saving_factor) for iter_1, z_index_1, fluxy_1 in pairs)
+                                      x=x,y=y,dx=dx,dy=dy, rock_prop_dict = rock_prop_dict, save_dir_footnote = 'test', saving_factor = saving_factor) for iter_1, z_index_1, fluxy_1 in pairs)
+
 
 
 '''
