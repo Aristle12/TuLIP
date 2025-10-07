@@ -80,16 +80,17 @@ rock_prop_dict = {
                 }
             }
 
-file_path_dir = 'sillcubes/'
+file_path_dir = 'sillcubes2/'
 footnote1 = 'LH_2'
 footnote2 = 'noLH_2'
 footnote3 = 'noLHCP2_2'
 post_cooling_time = 30000 #years
-fluxy_list = [int(3.001e9), int(3.002e9), int(3.003e9), int(3.004e9), int(3.005e9)]#, int(3*10**(8.5))]# int(3e8), int(3e7), int(3*10**(7.5))]
+fluxy_list = [int(3e9)]#, int(3e8), int(3e7), int(3*(10**7.5)), int(3*(10**8.5))]#, int(3*10**(8.5))]# int(3e8), int(3e7), int(3*10**(7.5))]
+lat_ranges = np.array([0.45, 0.4, 0.35, 0.25, 0.2])
 iter_list = [0, 1, 2, 3, 4]
 z_index_list = [160, 191,  278, 284, 300, 303, 493, 506, 515]
 z_index_list2 = [191, 284, 300, 493, 506]
-pairs = itertools.product(iter_list, z_index_list2, fluxy_list)
+pairs = itertools.product(iter_list, z_index_list2, fluxy_list, lat_ranges)
 saving_factor = [100]
 
 '''
@@ -102,12 +103,13 @@ tiled_z = np.tile(z_index, 5)
 pairs = zip(redo_iter, tiled_z, redo_flux)
 '''
 ### Run this only once for a model set###
-#sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list)
+for i in lat_ranges:
+    sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list, i, file_path_dir)
 
-Parallel(n_jobs = 20)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1,sci=sc_latent_heat,diff_val=diff_val,
+Parallel(n_jobs = 30)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1, lat_1, sc=sc_latent_heat,diff_val=diff_val,
                                       temp_grad_base = temp_grad_base,
                                       file_path_dir=file_path_dir, post_cooling_time = post_cooling_time,
-                                      x=x,y=y,dx=dx,dy=dy, rock_prop_dict = rock_prop_dict, save_dir_footnote = 'test', saving_factor = saving_factor) for iter_1, z_index_1, fluxy_1 in pairs)
+                                      x=x,y=y,dx=dx,dy=dy, rock_prop_dict = rock_prop_dict, save_dir_footnote = '', saving_factor = saving_factor) for iter_1, z_index_1, fluxy_1, lat_1 in pairs)
 
 
 

@@ -7,44 +7,50 @@ import os
 
 
 flux = int(3e9) #km3/yr
-save_dir = 'sillcubes/'+'3e9-5'#str(format(flux, '.3e'))+'/'
 
-os.makedirs(save_dir, exist_ok = True)
+lat_ranges = np.array([0.45, 0.4, 0.35, 0.25, 0.2])
+for i in range(len(lat_ranges)):
+    print(f'Building cubes for {lat_ranges[i]}')
+    #Dimensions of the 2D grid
+    x = 300000 #m - Horizontal extent of the crust
+    y = 12000 #m - Vertical thickness of the crust
+    z = 30000 #m - Third dimension for cube
 
-maturation_time = int(3e6)
+    dx = 50 #m node spacing in x-direction
+    dy = 50 #m node spacing in y-direction
+    lat_range = np.round([x-(lat_ranges[i]*x), x+(lat_ranges[i]*x), (lat_ranges[i]*x)/2])
+    save_dir = 'sillcubes2/'+str(format(flux, '.3e'))+'/'+str(lat_ranges[i])
 
-#Dimensions of the 2D grid
-x = 300000 #m - Horizontal extent of the crust
-y = 12000 #m - Vertical thickness of the crust
-z = 30000 #m - Third dimension for cube
+    os.makedirs(save_dir, exist_ok = True)
 
-dx = 50 #m node spacing in x-direction
-dy = 50 #m node spacing in y-direction
-
-
-volume = x*4000*z
-
-
-
-tot_volume_start = 0.05*volume
-tot_volume_end = 0.175*volume
-tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.025*volume)
-print(tot_volumes)
-sc = sill_controls(x =x,
-    y = y,
-    dx = dx, 
-    dy = dy)
+    maturation_time = int(3e6)
 
 
-n_sills_array = Parallel(n_jobs = 1)(delayed(util.cubemaker)(tot_volume, flux=flux, x=x, y=y, z=z, dx=dx, dy=dy, maturation_time = maturation_time, save_dir = save_dir, sc = sc) for tot_volume in tot_volumes)
-#n_sills_total = pd.read_csv(save_dir+'/n_sills.csv')
-# Append new data to the DataFrame
-#new_data = pd.DataFrame({
-#    'volumes': tot_volumes,
-#    'n_sills': n_sills_array
-#})
 
-## Concatenate the existing DataFrame with the new data
-#n_sills_total = pd.concat([n_sills_total, new_data], ignore_index=True)
-#n_sills_total.to_csv(save_dir+'/n_sills.csv')
-pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volumes}).to_csv(save_dir+'/n_sills.csv')
+
+    volume = x*4000*z
+
+
+
+    tot_volume_start = 0.05*volume
+    tot_volume_end = 0.175*volume
+    tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.025*volume)
+    print(tot_volumes)
+    sc = sill_controls(x =x,
+        y = y,
+        dx = dx, 
+        dy = dy)
+
+
+    n_sills_array = Parallel(n_jobs = 2)(delayed(util.cubemaker)(tot_volume, flux=flux, x=x, y=y, z=z, dx=dx, dy=dy, maturation_time = maturation_time, save_dir = save_dir, sc = sc, lat_range=lat_range) for tot_volume in tot_volumes)
+    #n_sills_total = pd.read_csv(save_dir+'/n_sills.csv')
+    # Append new data to the DataFrame
+    #new_data = pd.DataFrame({
+    #    'volumes': tot_volumes,
+    #    'n_sills': n_sills_array
+    #})
+
+    ## Concatenate the existing DataFrame with the new data
+    #n_sills_total = pd.concat([n_sills_total, new_data], ignore_index=True)
+    #n_sills_total.to_csv(save_dir+'/n_sills.csv')
+    pd.DataFrame({'n_sills': n_sills_array, 'volumes': tot_volumes}).to_csv(save_dir+'/n_sills.csv')

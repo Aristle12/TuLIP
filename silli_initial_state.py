@@ -107,7 +107,7 @@ curr_time = params[0]
 #csv['curr_time'] = current_time
 #csv.to_csv('sillcubes/n_sills.csv')
 #pd.DataFrame(np.array(curr_time)).to_csv('sillcubes/n_sills.csv')
-np.save('sillcubes/curr_time', np.array(curr_time))
+np.save('sillcubes2/curr_time', np.array(curr_time))
 tot_RCO2, props_array, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = params[1:]
 ace = np.array([RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli])
 tiled_RCO2 = np.tile(RCO2_silli,(1,slice))
@@ -131,16 +131,16 @@ data.point_data['Rom_silli'] = np.array(tiled_Rom, dtype=float).flatten()
 data.point_data['percRo_silli'] = np.array(tiled_percRo, dtype=float).flatten()
 data.point_data['curr_TOC_silli'] = np.array(tiled_TOC, dtype=float).flatten()
 # Print the point data to verify
-data.save('sillcubes/initial_silli_state_carbon.vtk')
+data.save('sillcubes2/initial_silli_state_carbon.vtk')
 
 W_data = pv.ImageData()
 W_data.dimensions = tiled_W.shape
 W_data.point_data['data'] = tiled_W.flatten()
-W_data.save('sillcubes/W_data.vtk')
+W_data.save('sillcubes2/W_data.vtk')
 
 props_array_vtk = pv.ImageData()
 props_array_vtk.dimensions = tiled_props_array.shape
 props_array_vtk.point_data['data'] = tiled_props_array.flatten()
-props_array_vtk.save('sillcubes/initial_silli_state_properties.vtk')
+props_array_vtk.save('sillcubes2/initial_silli_state_properties.vtk')
 
-pd.DataFrame(tot_RCO2).to_csv('sillcubes/tot_RCO2.csv')
+pd.DataFrame(tot_RCO2).to_csv('sillcubes2/tot_RCO2.csv')

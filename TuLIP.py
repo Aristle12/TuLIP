@@ -1805,15 +1805,16 @@ class sill_controls:
 
 
 
-    def generate_sill_2D_slices(self,fluxy_list,iter_list,z_index_list):
+    def generate_sill_2D_slices(self, fluxy_list,iter_list,z_index_list, lat_range = None, file_dir = None):
         '''
         Function to generate 2D slices from the 3D cube
         fluxy_list - List of fluxes
         iter_list - Integer list of volumes of sills from the n_sills file
         z_index_list - List of z indices of the cubes to extract
         '''
+        file_dir = self.sill_cube_dir if file_dir is None else file_dir
         for flux in fluxy_list:
-            load_dir = self.sill_cube_dir+str(format(flux, '.3e'))
+            load_dir = file_dir+str(format(flux, '.3e'))+'/'+str(lat_range) if lat_range is not None  else file_dir+str(format(flux, '.3e'))
             os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
             for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
                 file_path = os.path.join(load_dir, 'slice_volumes', filename)
