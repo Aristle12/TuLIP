@@ -24,7 +24,7 @@ def truncate(number):
 def validator (n_sills, emplace_params):
     return bool(int(n_sills) == len(emplace_params[:,0]))
 
-def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None):
+def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None, lat_range = None):
     def int_maker(sillcube):
         for i in trange(sillcube.shape[0]):
             for j in range(sillcube.shape[1]):
@@ -69,7 +69,8 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     phase_times = np.array([thermal_mat_time, model_time, cooling_time])
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
-    lat_range = [x//3, 2*x//3, x//6]
+    if lat_range is None:
+        lat_range = [x//3, 2*x//3, x//6] 
     sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
     if validator(n_sills1, emplacement_params):
         print('sillcube built')
@@ -93,8 +94,8 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     return n_sills_array
 
 
-def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
-           file_path_dir='sillcubes/',post_cooling_time = 30000,saving_factor = [100], x=None,y=None,dx=None,dy=None, rock_prop_dict = None, save_dir_footnote = None):
+def cooler(iter, z_index, flux, lat_range = None, sc=None,diff_val=31.536,temp_grad_base = 30/1000,
+           file_path_dir='sillcubes/', post_cooling_time = 30000,saving_factor = [100], x=None,y=None,dx=None,dy=None, rock_prop_dict = None, save_dir_footnote = None):
     '''
     temp_grad_base == 30/1000 # Temperature gradient at the base of the modeled section (in C/m)
     k_val = Typical value of thermal diffusivity in the model
@@ -117,7 +118,7 @@ def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
 
     #Initializing boundary heat flux
     q = k[-1,:]*temp_grad_base
-    load_dir = file_path_dir+str(format(flux, '.3e'))
+    load_dir = file_path_dir+str(format(flux, '.3e'))+'/'+str(lat_range) if lat_range is not None else file_path_dir+str(format(flux, '.3e'))
 
     data = pv.read(file_path_dir+'/initial_silli_state_carbon.vtk')
     
@@ -194,9 +195,9 @@ def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
         else:
             print(f'Sill {j} is at {np.where(time_steps==empl_times[j])[0]}')
     if save_dir_footnote is None:
-        dir_save = file_path_dir+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+'/'+str(z_index)
+        dir_save = file_path_dir+str(format(flux, '.3e'))+'/'+str(lat_range)+'/'+str(format(volumes, '.3e'))+'/'+str(z_index) if lat_range is not None else file_path_dir+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+'/'+str(z_index)
     else:
-        dir_save = file_path_dir+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+str(save_dir_footnote)+'/'+str(z_index)
+        dir_save = file_path_dir+str(format(flux, '.3e'))+'/'+str(lat_range)+'/'+str(format(volumes, '.3e'))+str(save_dir_footnote)+'/'+str(z_index) if lat_range is not None else file_path_dir+str(format(flux, '.3e'))+'/'+str(format(volumes, '.3e'))+str(save_dir_footnote)+'/'+str(z_index)
     os.makedirs(dir_save, exist_ok = True)
     timeframe = pd.DataFrame(time_steps[1:], columns=['time_steps'])
     #timeframe.to_csv(dir_save+'/times.csv')

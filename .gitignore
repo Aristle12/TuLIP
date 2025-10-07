@@ -1,6 +1,6 @@
 *.hdf5
 .vscode
-__pycache__
+__pycache__/*
 *.pyc
 plots/*
 *.csv
@@ -10,10 +10,11 @@ sillcubes/*
 *.npy
 sillcubes/sillcube3600000000000.0.vtk
 sillcubes3.000e+09/*
-.DS_Store
+.DS_Store/*
 Untitled.ipynb
-.ipynb_checkpoints/Untitled-checkpoint.ipynb
+.ipynb_checkpoints/*
 *.ipynb
 *.vtk
 New_TULIP/*
 .qodo
+sillcubes2/*
