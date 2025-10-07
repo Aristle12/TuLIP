@@ -21,6 +21,8 @@ def truncate(number):
         
         # Convert the truncated string back to a float
         return float(truncated_str)
+def validator (n_sills, emplace_params):
+    return bool(int(n_sills) == len(emplace_params[:,0]))
 
 def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None):
     def int_maker(sillcube):
@@ -69,7 +71,11 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     print(f'Length of time_steps:{len(time_steps)}')
     lat_range = [x//3, 2*x//3, x//6]
     sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
-    print('sillcube built')
+    if validator(n_sills1, emplacement_params):
+        print('sillcube built')
+    else:
+        print(f'Sillcube validation failed for {flux:.3e} and {tot_volume:.3e}... Rebuilding')
+        sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
     #pdb.set_trace()
     n_sills_array.append(int(n_sills1))
 
@@ -196,7 +202,7 @@ def cooler(iter, z_index, flux,sc=None,diff_val=31.536,temp_grad_base = 30/1000,
     #timeframe.to_csv(dir_save+'/times.csv')
 
     current_time = np.round(current_time, 3)
-    carbon_model_params = sci.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=saving_factor,model = 'silli', q=q, save_dir = dir_save)
+    carbon_model_params = sc.emplace_sills(props_array, n_sills, 'conv smooth', time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor=saving_factor,model = 'silli', q=q, save_dir = dir_save)
     tot_RCO2 = carbon_model_params[0]
     timeframe['tot_RCO2'] = tot_RCO2
     timeframe['melt10'] = carbon_model_params[1][1:]

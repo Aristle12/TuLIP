@@ -1804,7 +1804,6 @@ class sill_controls:
         self.args = melt_function_args
 
 
-
     def generate_sill_2D_slices(self,fluxy_list,iter_list,z_index_list):
         '''
         Function to generate 2D slices from the 3D cube
@@ -2256,7 +2255,7 @@ class sill_controls:
                     cum_volume.append(volume[n])
                     unemplaced_volume -= volume[n]
                     print(f'Emplaced sill {n} at time {time_steps[l]}')
-                    print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
+                    print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[0:n]):.4e}')
                     mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
                     n+=1
                     
@@ -2265,7 +2264,7 @@ class sill_controls:
                         unemplaced_volume -= volume[n]
                         cum_volume[-1]+=volume[n]
                         print(f'Emplaced sill {n} at time {time_steps[l]}')
-                        print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[:n]):.4e}')
+                        print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[0:n]):.4e}')
                         mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
                         n+=1
 
@@ -2277,6 +2276,11 @@ class sill_controls:
                     width = width[0:n_sills]
                     thickness = thickness[0:n_sills]
                     break
+        if n_sills!=n:
+            print(f"Warning: Final if not entered")
+            print(f'Volume debug {unemplaced_volume:.3e}, {volume[n]:.3e}')
+            print(f'Flux debug ({mean_flux:.3e}, {volume[n]/(time_steps[l]-thermal_maturation_time):.3e})')
+            print(f'Volume debug 2{ np.sum(volume[0:n]):.3e}, {tot_volume:.3e}')
         cum_volume = np.cumsum(cum_volume)
         plt.plot(plot_time, cum_volume/int(1e9), color = 'red', linewidth = 1.75, label = 'Cumulative volume emplaced')
         lol = (np.array(empl_times)-thermal_maturation_time)*flux

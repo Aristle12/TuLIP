@@ -7,7 +7,7 @@ import os
 
 
 flux = int(3e9) #km3/yr
-save_dir = 'sillcubes/'+'3e9-5'#str(format(flux, '.3e'))+'/'
+save_dir = 'sillcubes/'+'3e9'#str(format(flux, '.3e'))+'/'
 
 os.makedirs(save_dir, exist_ok = True)
 
@@ -26,9 +26,9 @@ volume = x*4000*z
 
 
 
-tot_volume_start = 0.05*volume
+tot_volume_start = 0.01*volume
 tot_volume_end = 0.175*volume
-tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.025*volume)
+tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.005*volume)
 print(tot_volumes)
 sc = sill_controls(x =x,
     y = y,
