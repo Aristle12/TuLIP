@@ -103,8 +103,8 @@ tiled_z = np.tile(z_index, 5)
 pairs = zip(redo_iter, tiled_z, redo_flux)
 '''
 ### Run this only once for a model set###
-for i in lat_ranges:
-    sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list, i, file_path_dir)
+#for i in lat_ranges:
+#    sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list, i, file_path_dir)
 
 Parallel(n_jobs = 30)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1, lat_1, sc=sc_latent_heat,diff_val=diff_val,
                                       temp_grad_base = temp_grad_base,

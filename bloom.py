@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import trange
 import seaborn as sns
-import networkx as nx
+
 
 def units(array):
     GtCO2 = (array-array[0]+int(1e-6))/int(1e12)
@@ -474,42 +474,3 @@ def plot_heatmap_warming(fluxs, iters, save_dir):
     filename = 'warming_totCO2'
     plt.savefig(save_dir+'/'+filename+'.png', format = 'png')
 
-def plot_matrix(self,matrix=None,save_me:bool=False,vmax_perct=99,vmin_perct=1,cmap = 'Reds'):
-    plt.figure()
-    if matrix is None :
-        # Calculate the percentile values
-        q1 = np.percentile(self.k, vmin_perct)
-        q3 = np.percentile(self.k, vmax_perct)
-        plt.imshow(self.k,cmap=cmap,vmin=q1, vmax=q3)
-    else :
-        q1 = np.percentile(matrix, vmin_perct)
-        q3 = np.percentile(matrix, vmax_perct)
-        plt.imshow(matrix,cmap=cmap,vmin=q1, vmax=q3)
-    plt.xlabel('Network Node Number')
-    plt.ylabel('Network Node Number')
-    plt.title('Node connection network')
-    plt.colorbar()
-    if save_me:
-        plt.savefig(self.name_file_Dir+'Network_Connection_Matrix.png')
-        plt.close()
-    else :
-        plt.show()
-def plot_Full_Graph(self,graph_layout='spring',save_me:bool=False):
-    plt.figure()
-    if graph_layout == 'spring':
-        pos = nx.spring_layout(self.G_full)
-    elif graph_layout == 'circular':
-        pos = nx.circular_layout(self.G_full)
-    elif graph_layout == 'shell':
-        pos = nx.shell_layout(self.G_full)
-    elif graph_layout == 'spectral':
-        pos = nx.spectral_layout(self.G_full)
-    else:
-        raise ValueError(f"Invalid graph type: {graph_layout}")
-    plt.figure(figsize=(10, 10))  # Set the figure size to 10x10 inches
-    nx.draw(self.G_full, pos, with_labels=True, node_color='lightblue', edge_color='black')
-    if save_me:
-        plt.savefig(self.name_file_Dir+'Network_Plot.png')
-        plt.close()
-    else :
-        plt.show()
