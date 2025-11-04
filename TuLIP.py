@@ -1908,8 +1908,8 @@ class sill_controls:
             max_col = np.max(np.where(bool_array==True)[0])
             min_col = np.min(np.where(bool_array==True)[0])
             thickness = max_col - min_col + 1
-            center_col = np.mean([max_row, min_row])
-            center_row = np.mean([max_col, min_col])
+            center_row = np.mean([max_row, min_row])
+            center_col = np.mean([max_col, min_col])
             center = str([center_row, center_col])
             return width, thickness, center
 
@@ -1924,10 +1924,9 @@ class sill_controls:
         if calculate_all:
             # Calculate for all sills
             all_sills_data = pd.DataFrame()
-            all_sill_ids = np.unique(sills_array)
-            all_sill_ids = all_sill_ids[all_sill_ids != no_sill]
+            all_sill_ids = np.unique(sills_array[sills_array!=no_sill])
             
-            for sill_id in all_sill_ids:  # Assuming sill IDs start at 1
+            for sill_id in all_sill_ids: 
                 # Initialize data for this sill
                 sills_data = pd.DataFrame({'sills': sill_id}, index=[0])
                 is_curr_sill = (sills_array == sill_id)
