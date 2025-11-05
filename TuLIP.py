@@ -20,6 +20,7 @@ import pdb
 import utilities as util
 import cupy as cp
 import re
+import networkx as nx
 
 
 class cool:
@@ -1896,14 +1897,19 @@ class sill_controls:
             '''
             Function to get the width and thickness of a sill inside the check closest sill temp function
             '''
+            rows, columns = np.where(bool_array)
+
+            if rows.size == 0 or columns.size == 0:
+                # Return default values if the sill is empty/cold
+                return 0, 0, 'N/A'
             max_row = np.max(np.where(bool_array==True)[1])
             min_row = np.min(np.where(bool_array==True)[1])
             width = max_row - min_row + 1
             max_col = np.max(np.where(bool_array==True)[0])
             min_col = np.min(np.where(bool_array==True)[0])
             thickness = max_col - min_col + 1
-            center_row = np.mean([max_row, min_row])
-            center_col = np.mean([max_col, min_col])
+            center_col = np.mean([max_row, min_row])
+            center_row = np.mean([max_col, min_col])
             center = str([center_row, center_col])
             return width, thickness, center
 
@@ -1918,9 +1924,10 @@ class sill_controls:
         if calculate_all:
             # Calculate for all sills
             all_sills_data = pd.DataFrame()
-            tot_sills = curr_sill  # Assuming curr_sill is the total number of sills
+            all_sill_ids = np.unique(sills_array)
+            all_sill_ids = all_sill_ids[all_sill_ids != no_sill]
             
-            for sill_id in range(1, tot_sills + 1):  # Assuming sill IDs start at 1
+            for sill_id in all_sill_ids:  # Assuming sill IDs start at 1
                 # Initialize data for this sill
                 sills_data = pd.DataFrame({'sills': sill_id}, index=[0])
                 is_curr_sill = (sills_array == sill_id)
@@ -1936,7 +1943,7 @@ class sill_controls:
                 query_points = points[is_edge.ravel()]
                 
                 # Find other hot sills
-                condition = (T_field > T_solidus) & (~is_curr_sill)
+                condition = (T_field > T_solidus) & (~is_curr_sill) & (sills_array != no_sill)
                 filtered_points = points[condition.ravel()]
                 
                 # Initialize default values
@@ -2020,7 +2027,7 @@ class sill_controls:
             query_points = points[is_edge.ravel()]
             
             # Find other hot sills
-            condition = (T_field > T_solidus) & (sills_number != curr_sill)
+            condition = (T_field > T_solidus) & (sills_number != curr_sill) & (sills_array != no_sill)
             filtered_points = points[condition.ravel()]
             
             # Initialize default values
@@ -2251,7 +2258,7 @@ class sill_controls:
                 else:
                     mean_flux = 0
                 unemplaced_volume += flux*dt
-                if unemplaced_volume>=volume[n] and mean_flux<0.95*flux:
+                if unemplaced_volume>=volume[n] and mean_flux<1.1*flux:
                     empl_times.append(time_steps[l])
                     plot_time.append(time_steps[l])
                     cum_volume.append(volume[n])
@@ -2261,7 +2268,10 @@ class sill_controls:
                     mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
                     n+=1
                     
-                    while unemplaced_volume>volume[n] and mean_flux<(0.95*flux if np.sum(volume[0:n+1])<=tot_volume else 1.05*flux) and np.sum(volume[0:n])<=tot_volume:
+                    while (
+                        unemplaced_volume>volume[n] and 
+                        mean_flux<(0.95*flux if np.sum(volume[0:n+1])<=tot_volume else 1.05*flux) and 
+                        np.sum(volume[0:n])<=tot_volume):
                         empl_times.append(time_steps[l])
                         unemplaced_volume -= volume[n]
                         cum_volume[-1]+=volume[n]
@@ -2270,7 +2280,7 @@ class sill_controls:
                         mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
                         n+=1
 
-                if (n>0) and (np.sum(volume[0:n-1])>tot_volume):
+                if (n>0) and (np.sum(volume[0:n])>tot_volume):
                     print('Total sills emplaced:', n)
                     n_sills = int(n)
                     empl_heights = empl_heights[0:n_sills]
@@ -2279,6 +2289,8 @@ class sill_controls:
                     thickness = thickness[0:n_sills]
                     break
         if n_sills!=n:
+            n_sills = int(n)
+            print(f"n_sills:, {n_sills}; n, {n}")
             print(f"Warning: Final if not entered")
             print(f'Volume debug {unemplaced_volume:.3e}, {volume[n]:.3e}')
             print(f'Flux debug ({mean_flux:.3e}, {volume[n]/(time_steps[l]-thermal_maturation_time):.3e})')
@@ -2857,6 +2869,46 @@ class sill_controls:
         self.update_material_prop()
         self.model_setup()
         print('Read the HDF5 file - ',fileName,' into the class')
+    
+    def plot_matrix(self,matrix=None,save_me:bool=False,vmax_perct=99,vmin_perct=1,cmap = 'Reds'):
+        plt.figure()
+        if matrix is None :
+            # Calculate the percentile values
+            q1 = np.percentile(self.k, vmin_perct)
+            q3 = np.percentile(self.k, vmax_perct)
+            plt.imshow(self.k,cmap=cmap,vmin=q1, vmax=q3)
+        else :
+            q1 = np.percentile(matrix, vmin_perct)
+            q3 = np.percentile(matrix, vmax_perct)
+            plt.imshow(matrix,cmap=cmap,vmin=q1, vmax=q3)
+        plt.xlabel('Network Node Number')
+        plt.ylabel('Network Node Number')
+        plt.title('Node connection network')
+        plt.colorbar()
+        if save_me:
+            plt.savefig(self.name_file_Dir+'Network_Connection_Matrix.png')
+            plt.close()
+        else :
+            plt.show()
+def plot_Full_Graph(self,graph_layout='spring',save_me:bool=False):
+    plt.figure()
+    if graph_layout == 'spring':
+        pos = nx.spring_layout(self.G_full)
+    elif graph_layout == 'circular':
+        pos = nx.circular_layout(self.G_full)
+    elif graph_layout == 'shell':
+        pos = nx.shell_layout(self.G_full)
+    elif graph_layout == 'spectral':
+        pos = nx.spectral_layout(self.G_full)
+    else:
+        raise ValueError(f"Invalid graph type: {graph_layout}")
+    plt.figure(figsize=(10, 10))  # Set the figure size to 10x10 inches
+    nx.draw(self.G_full, pos, with_labels=True, node_color='lightblue', edge_color='black')
+    if save_me:
+        plt.savefig(self.name_file_Dir+'Network_Plot.png')
+        plt.close()
+    else :
+        plt.show()
 
 class examples:
 
