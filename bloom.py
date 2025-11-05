@@ -4,7 +4,12 @@ import matplotlib.pyplot as plt
 from tqdm import trange
 import seaborn as sns
 import networkx as nx
-
+import os
+from pathlib import Path
+def get_parent(pwd):
+    load_path = Path(pwd)
+    root = str(load_path.parts[0])
+    return root
 def units(array):
     GtCO2 = (array-array[0]+int(1e-6))/int(1e12)
     GtC = GtCO2/3.67
@@ -54,6 +59,8 @@ def plot_time_history(flux, iter, save_dir):
 def scale_emissions(z_indexs, dx, dy, load_dir):
     dv = dx*dx*dy
     #load_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'
+    var_dir = get_parent(load_dir)
+    curr_time = np.load(os.path.join(var_dir, 'curr_time.npy'))
     n_sills = pd.read_csv(load_dir+'n_sills.csv')
     volumes = n_sills['volumes']
     vol_CO2s = []
@@ -101,7 +108,7 @@ def scale_emissions(z_indexs, dx, dy, load_dir):
                     print(f'Difference between empl_time and time is {np.min(np.abs(time - empl_time))}')
                     raise ValueError(f'Emplacement time {empl_time} is not in time steps')
             tot_time.append(len(time)*dts[0])
-            empl_end_time.append(float(time.iloc[empl_index])-int(3e6))  ####Fix for 3e6. It should be curr_time from the sillcubes. Make a parameter####
+            empl_end_time.append(float(time.iloc[empl_index])-curr_time)
             
             dts = np.append(dts, [dts[-1]])
             tot_RCO2 = np.array(times['tot_RCO2']-times['tot_RCO2'][0])
