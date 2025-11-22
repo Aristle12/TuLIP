@@ -91,7 +91,6 @@ tot_volume_start = 0.01*volume
 tot_volume_end = 0.175*volume
 tot_volumes = np.arange(tot_volume_start, tot_volume_end, 0.005*volume)
 print(tot_volumes)
-break
 
 iter_list = np.arange(0, len(tot_volumes))#[0, 1, 2, 3, 4]
 #z_index_list = [160, 191,  278, 284, 300, 303, 493, 506, 515]
