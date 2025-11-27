@@ -1893,6 +1893,7 @@ class sill_controls:
         calculate_all: Boolean indicating whether to calculate for all sills (default is False).
         save_file: String representing the file path to save results (default is None).
         '''
+        #print(f'DEBUG: unique sill values are {np.unique(sills_array.astype(str))}')
         def get_width_and_thickness(bool_array):
             '''
             Function to get the width and thickness of a sill inside the check closest sill temp function
@@ -2033,7 +2034,7 @@ class sill_controls:
             saved_distance = 1e30
             saved_index = 'N/A'
             saved_temperature = -1
-            saved_sill = 'N/A'
+            saved_sill = -1
             closest_curr_sill = 'N/A'
             closest_sill_width_curr = 0
             closest_sill_width = 0
@@ -2068,11 +2069,11 @@ class sill_controls:
                 
                 is_closest_sill = (sills_array == saved_sill)
                 closest_sill_width, closest_sill_thickness, closest_sill_center = get_width_and_thickness(is_closest_sill)
-            
+            #print(f'Closest sill for sill {curr_sill} is sill {str(saved_sill)}')
             # Populate data
             sills_data['closest_sill'] = saved_sill
             sills_data['distance'] = saved_distance * dx
-            sills_data['index of closest sill'] = saved_index
+            sills_data['index of closest sill'] = str(saved_index)
             sills_data['temperature'] = saved_temperature
             sills_data['index of current sill'] = closest_curr_sill
             sills_data['width of current sill'] = curr_sill_width * dx
@@ -2085,7 +2086,6 @@ class sill_controls:
             sills_data['original thickness of closest sill'] = closest_sill_thickness * dx
             sills_data['original center of closest sill'] = closest_sill_center
             sills_data['current time'] = time
-            
             return sills_data
 
     def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
@@ -2646,7 +2646,7 @@ class sill_controls:
         sillnet[:] = ''
         if self.calculate_closest_sill and not self.calculate_at_all_times:
             all_sills_data = pd.DataFrame()
-        sills_emplaced = np.zeros((a,b))
+        sills_emplaced = np.ones((a,b))*(-1)
         tot_melt10 = []
         tot_melt50 = []
         tot_solidus = []

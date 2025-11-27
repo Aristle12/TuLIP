@@ -146,7 +146,7 @@ def cooler(iter, z_index, flux, lat_range = None, sc=None,diff_val=31.536,temp_g
     try:
         props_array[sc.sph_index] = specific_heat
     except:
-        print("Exception occurred")
+        print("Exception occurred and properties array needs to have sepcific heat added. Adding...")
         props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
     W_vtk = pv.read(file_path_dir+'W_data.vtk')
     W_silli = W_vtk.point_data['data'].reshape(W_vtk.dimensions)

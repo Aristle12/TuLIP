@@ -87,7 +87,7 @@ footnote3 = 'noLHCP2_2'
 post_cooling_time = 30000 #years
 fluxy_list = [int(3e9), int(3e8), int(3e7), int(3*(10**7.5)), int(3*(10**8.5))]#, int(3*10**(8.5))]# int(3e8), int(3e7), int(3*10**(7.5))]
 #lat_ranges = np.array([0.45, 0.4, 0.35, 0.25, 0.2])
-iter_list = [0, 1, 2, 3, 4]
+iter_list = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 z_index_list = [160, 191,  278, 284, 300, 303, 493, 506, 515]
 z_index_list2 = [191, 284, 300, 493, 506]
 pairs = itertools.product(iter_list, z_index_list2, fluxy_list)
@@ -104,7 +104,7 @@ pairs = zip(redo_iter, tiled_z, redo_flux)
 '''
 ### Run this only once for a model set###
 #for i in lat_ranges:
-#    sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list, i, file_path_dir)
+#sc_latent_heat.generate_sill_2D_slices(fluxy_list,iter_list,z_index_list, file_dir=file_path_dir)
 
 Parallel(n_jobs = 30)(delayed(util.cooler)(iter_1, z_index_1, fluxy_1, sc=sc_latent_heat,diff_val=diff_val,
                                       temp_grad_base = temp_grad_base,
