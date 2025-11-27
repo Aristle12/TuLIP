@@ -5,8 +5,7 @@ z_indexs = [191, 284, 300, 493, 506] #[160, 191,  278, 284, 300, 303, 493, 506, 
 lat_ranges = [0.45, 0.4, 0.35, 0.25, 0.2]
 
 for flux in fluxs:
-    for lat in lat_ranges:
-        load_dir = str('sillcubes2/'+format(flux, '.3e'))+'/'+str(lat)+'/'
+    load_dir = str('sillcubes/'+format(flux, '.3e'))+'/'
 
-        bloom.scale_emissions(z_indexs, 50, 50, load_dir)
+    bloom.scale_emissions(z_indexs, 50, 50, load_dir)
 
