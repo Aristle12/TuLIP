@@ -357,37 +357,8 @@ class cool:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
 
-    @jit(forceobj = True)
-    def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
-        """
-        Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns - N int
-        dx = spacing in x direction - int
-        dy = spacing in y direction - int
-        dt = time step int
-        Tf = temperature field at current time step - MxN matrix
-        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
-        """
-        H_rad = H[0]
-        H_lat = H[1]
-        kiph, kimh, kjph, kjmh = self.avg_perm(k)/H_lat
-        Tnow = np.zeros((a,b))
-        T_surf = Tf[0,0]
-        T_bot = Tf[-1,0]
-        for i in range(1,a-1):
-            for j in range(1,b-1):
-                Tnow[i,j] =  ((-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]+(H_rad[i,j]))
-        for i in range(1,a-1):
-            Tnow[i,0] = Tnow[i,2]
-            Tnow[i,b-1] = Tnow[i,b-3]
-        Tnow[0,:] = T_surf
-        if (np.array(np.isnan(np.array(q))).any()):
-            Tnow[-1,:] = T_bot
-        else:
-            Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
-        return Tnow
+            q = cp.asarray(q)
+
     
     def cp_conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q=cp.nan):
         """
