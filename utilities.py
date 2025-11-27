@@ -24,7 +24,7 @@ def truncate(number):
 def validator (n_sills, emplace_params):
     return bool(int(n_sills) == len(emplace_params[:,0]))
 
-def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None, lat_range = None):
+def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None, lat_range = None, thickness_range = None, aspect_ratio = None, depth_range = None, shape = None, depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
     def int_maker(sillcube):
         for i in trange(sillcube.shape[0]):
             for j in range(sillcube.shape[1]):
@@ -39,20 +39,27 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     k = 31.536
     dt = np.round((min(dx,dy)**2)/(5*k),3)
 
+    if depth_range is None:
+        ###Setting up sill dimensions and locations###
+        min_thickness = 100 #m
+        max_thickness = 600 #m
+        sd_thickness = 500
+        depth_range = [min_thickness, max_thickness, sd_thickness]
 
-    ###Setting up sill dimensions and locations###
-    min_thickness = 100 #m
-    max_thickness = 600 #m
+    if aspect_ratio is None:
+        mar = 19.23
+        sar = 9.74
+        aspect_ratio = [mar, sar]
 
-    mar = 19.23
-    sar = 9.74
-
-    min_emplacement = 500 #m
-    max_emplacement = 4000 #m
+    if depth_range is None:
+        min_emplacement = 500 #m
+        max_emplacement = 4000 #m
+        sd_emplacement = 5000
+        depth_range = [min_emplacement, max_emaplcement, sd_emplacement]
     n_sills = 2000
 
 
-    
+    shape = 'elli' if shape is None else shape
     
 
     thermal_mat_time = (maturation_time//dt+1)*(dt)
@@ -70,13 +77,14 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
     if lat_range is None:
-        lat_range = [x//3, 2*x//3, x//6] 
-    sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
+        lat_range = [x//3, 2*x//3, x//6] #Min, max, sd
+    
+    sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, depth_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape, depth_function, lat_function, dims_function, emplace_dike, orientations)
     if validator(n_sills1, emplacement_params):
         print('sillcube built')
     else:
         print(f'Sillcube validation failed for {flux:.3e} and {tot_volume:.3e}... Rebuilding')
-        sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, [min_thickness, max_thickness, 500], [mar, sar], [min_emplacement, max_emplacement, 5000], z_range, lat_range, phase_times, tot_volume, flux, n_sills)
+        sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, depth_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape, depth_function, lat_function, dims_function, emplace_dike, orientations)
     #pdb.set_trace()
     n_sills_array.append(int(n_sills1))
 
