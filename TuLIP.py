@@ -18,7 +18,6 @@ from autograd import elementwise_grad
 import autograd.numpy as anp
 import pdb
 import utilities as util
-import cupy as cp
 import re
 import networkx as nx
 
@@ -357,62 +356,6 @@ class cool:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
 
-            q = cp.asarray(q)
-
-    
-    def cp_conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q=cp.nan):
-        """
-        Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns - N int
-        dx = spacing in x direction - int
-        dy = spacing in y direction - int
-        dt = time step int
-        Tf = temperature field at current time step - MxN matrix
-        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
-        """
-        # Convert inputs to CuPy arrays
-        k = cp.asarray(k)
-        Tf = cp.asarray(Tf)
-        H_rad = cp.asarray(H[0])
-        H_lat = cp.asarray(H[1])
-        
-        # Calculate averaged permeability
-        kiph, kimh, kjph, kjmh = self.avg_perm(k)/H_lat
-        
-        # Initialize output array on GPU
-        Tnow = cp.zeros((a,b))
-        T_surf = Tf[0,0]
-        T_bot = Tf[-1,0]
-        
-        # Precompute constants
-        dt_dx2 = dt/(dx**2)
-        dt_dy2 = dt/(dy**2)
-        
-        # Main computation - using CuPy's element-wise operations
-        i, j = cp.mgrid[1:a-1, 1:b-1]
-        Tnow[i,j] = ((-((kiph[i,j]+kimh[i,j])*dt_dx2 + (kjph[i,j]+kjmh[i,j])*dt_dy2)) + 1) * Tf[i,j] \
-                    + (kiph[i,j]*dt_dx2)*Tf[i+1,j] \
-                    + (kimh[i,j]*dt_dx2)*Tf[i-1,j] \
-                    + (kjph[i,j]*dt_dy2)*Tf[i,j+1] \
-                    + (kjmh[i,j]*dt_dy2)*Tf[i,j-1] \
-                    + H_rad[i,j]
-        
-        # Boundary conditions
-        i = cp.arange(1, a-1)
-        Tnow[i,0] = Tnow[i,2]
-        Tnow[i,b-1] = Tnow[i,b-3]
-        Tnow[0,:] = T_surf
-        
-        if cp.isnan(q).any():
-            Tnow[-1,:] = T_bot
-        else:
-            q = cp.asarray(q)
-            Tnow[-1,:] = Tnow[-2,:] + (q*dy/k[-1,:])
-        
-        return cp.asnumpy(Tnow)  # Convert back to numpy array if needed
-    
     @staticmethod
     def func_assigner(func, *args, **kwargs):
         '''
