@@ -356,6 +356,71 @@ class cool:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
     
+    @jit(forceobj = True)
+    def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
+        """
+        Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
+        k = Diffusivity field (anisotropic) MxN matrix
+        a = number of rows - M int
+        b = number of columns - N int
+        dx = spacing in x direction - int
+        dy = spacing in y direction - int
+        dt = time step int
+        Tf = temperature field at current time step - MxN matrix
+        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
+        """
+        H_rad = H[0]
+        H_lat = H[1]
+        kiph, kimh, kjph, kjmh = self.avg_perm(k)
+        kiph, kimh, kjph, kjmh = self.avg_perm(k)
+        kiph = kiph/H_lat
+        kimh = kimh/H_lat
+        kjph = kjph/H_lat
+        kjmh = kjmh/H_lat
+        Tnow = np.array(Tf)
+
+        # Pre-calculate constants
+        Cx = dt / (dx**2)
+        Cy = dt / (dy**2)
+        # Slicing the arrays for the interior block
+        T_C = Tf[1:-1, 1:-1]  # T(i, j)
+        T_N = Tf[:-2, 1:-1]   # T(i-1, j)
+        T_S = Tf[2:, 1:-1]    # T(i+1, j)
+        T_W = Tf[1:-1, :-2]   # T(i, j-1)
+        T_E = Tf[1:-1, 2:]    # T(i, j+1)
+
+        # Slicing the k-arrays
+        kiph_s = kiph[1:-1, 1:-1]
+        kimh_s = kimh[1:-1, 1:-1]
+        kjph_s = kjph[1:-1, 1:-1]
+        kjmh_s = kjmh[1:-1, 1:-1]
+
+        Tnow[1:-1, 1:-1] = (
+        (1 - (kiph_s + kimh_s) * Cx - (kjph_s + kjmh_s) * Cy) * T_C
+        + (kiph_s * Cx) * T_S
+        + (kimh_s * Cx) * T_N
+        + (kjph_s * Cy) * T_E
+        + (kjmh_s * Cy) * T_W
+        + H_rad[1:-1, 1:-1]*dt
+        )/H_lat[1:-1, 1:-1]
+    
+        # --- Apply Boundary Conditions (also vectorized) ---
+        T_surf = Tf[0,0]
+        T_bot = Tf[-1,0]
+        
+        # Left/Right Neumann
+        Tnow[1:-1, 0] = Tnow[1:-1, 2]
+        Tnow[1:-1, -1] = Tnow[1:-1, -3]
+
+        # Top Dirichlet
+        Tnow[0, :] = T_surf
+        
+        if (np.array(np.isnan(np.array(q))).any()):
+            Tnow[-1,:] = T_bot
+        else:
+            Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
+        return Tnow
+    
     @staticmethod
     def func_assigner(func, *args, **kwargs):
         '''
