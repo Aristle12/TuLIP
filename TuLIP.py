@@ -835,10 +835,11 @@ class emit:
         calc_parser = calc_parser | break_parser
         a,b = T_field.shape
             
-        A = 1e13
-        R = 8.314 #J/K/mol
-        E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72])*4184 #J/mole
-        f = np.array([0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01])
+        A = np.float64(1e13)
+        R = np.float64(8.314) #J/K/mol
+        E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72], dtype = float)*4184 #J/mole
+        f = np.array([0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01], dtype = float)
+        T_field = T_field.astype(np.float64)
         T_field = T_field + 273.15
         if np.isnan(W).all():
             W = np.ones((len(E),a, b))
