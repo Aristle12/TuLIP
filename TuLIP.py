@@ -20,6 +20,7 @@ import pdb
 import utilities as util
 import re
 import networkx as nx
+from scipy.linalg import solve_banded
 
 
 class cool:
@@ -798,6 +799,7 @@ class cool:
             Tnow=self.conv_smooth_solve(k, a, b, dx, dy, dt, Tnow, H, q)
             return Tnow
         elif method =='adi':
+            Tnow = np.array(Tnow, dtype = 'float')
             Tnow = self.conv_smooth_solve_adi(k, a, b, dx, dy, dt, Tnow, H, q)
             return Tnow
         elif method=='smooth':
@@ -2517,9 +2519,9 @@ class sill_controls:
 
         k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, self.dy,return_all=True)
         if dt>np.round((min(dx,dy)**2)/(5*np.max(k)),3):
-            print(f'Warning: Given time step is larger than stable. Changing time step from {dt} to {np.round((min(dx,dy)**2)/(5*np.max(k)),3)}')
+            print(f'Warning: Given time step {dt} is larger than stable. Changing method from {method} to adi')
             print(f'Maximum thermal conductivity is {np.max(k)} for rock type {props_array[self.rock_index][np.where(k==np.max(k))[0][0]][0]}')
-            dt = np.round((min(dx,dy)**2)/(5*np.max(k)),3)
+            method = 'adi'
         breakdown_CO2 = np.zeros_like(T_field)
         #specific_heat = np.zeros_like(T_field)
         #specific_heat = np.vectorize(
@@ -2658,7 +2660,10 @@ class sill_controls:
         T_field = np.array(props_array[self.Temp_index], dtype = float)
 
         k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, dy, return_all=True)
-
+        if dt>np.round((min(dx,dy)**2)/(5*np.max(k)),3):
+            print(f'Warning: Given time step {dt} is larger than stable. Changing method from {method} to adi')
+            print(f'Maximum thermal conductivity is {np.max(k)} for rock type {props_array[self.rock_index][np.where(k==np.max(k))[0][0]][0]}')
+            method = 'adi'
         breakdown_CO2 = np.zeros_like(T_field)
         dV = dx*dx*dy
         t = 0
