@@ -4,7 +4,7 @@ import pyvista as pv
 import pandas as pd
 import os
 from tqdm import trange
-
+import matplotlib.pyplot as plt
 def truncate(number):
         # Convert the number to a string
         number_str = str(number)
@@ -76,6 +76,7 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     phase_times = np.array([thermal_mat_time, model_time, cooling_time])
     time_steps = np.arange(0, np.sum(phase_times), dt)
     print(f'Length of time_steps:{len(time_steps)}')
+    print(f'Total model time: {time_steps[-1]}')
     if lat_range is None:
         lat_range = [x//3, 2*x//3, x//6] #Min, max, sd
     
@@ -84,21 +85,22 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
         print('sillcube built')
     else:
         print(f'Sillcube validation failed for {flux:.3e} and {tot_volume:.3e}... Rebuilding')
-        sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, depth_range, aspect_ratio, thickness_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape, depth_function, lat_function, dims_function, emplace_dike, orientations)
+        print(f'n_sills is {n_sills} while emplace_params is {len(emplacement_params[:,0])}')
+        sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape, depth_function, lat_function, dims_function, emplace_dike, orientations)
     #pdb.set_trace()
     n_sills_array.append(int(n_sills1))
-
-    np.save(save_dir+'/sillcube'+str(np.round(tot_volume, 2)), sillcube)
-    sillcube[sillcube==''] = 0
+    os.makedirs(save_dir+'/'+str(format(flux,'.3e')), exist_ok=True)
+    np.save(save_dir+'/'+str(format(flux,'.3e'))+'/sillcube'+str(np.round(tot_volume, 2)), sillcube)
+    sillcube[sillcube==''] = -1
     sillcube = int_maker(sillcube)
     sillcube = sillcube.astype(int)
     #pdb.set_trace()
     grid = pv.ImageData()
     grid.dimensions = sillcube.shape
     grid.point_data["sillcube"] = sillcube.flatten(order="F")
-    grid.save(save_dir+'/sillcube'+str(tot_volume)+'.vtk')
+    grid.save(save_dir+'/'+str(format(flux,'.3e'))+'/sillcube'+str(tot_volume)+'.vtk')
     emplace_frame = pd.DataFrame(np.transpose(emplacement_params), columns=['empl_times', 'empl_heights', 'x_space', 'width', 'thickness'])
-    emplace_frame.to_csv(save_dir+'/emplacement_params'+str(tot_volume)+'.csv')
+    emplace_frame.to_csv(save_dir+'/'+str(format(flux,'.3e'))+'/emplacement_params'+str(tot_volume)+'.csv')
     return n_sills_array
 
 
@@ -117,9 +119,36 @@ def cooler(iter, z_index, flux, lat_range = None, sc=None,diff_val=31.536,temp_g
     '''
     a = int(y//dy) #Number of rows
     b = int(x//dx) #Number of columns
+    props_array_vtk = pv.read(file_path_dir+'initial_silli_state_properties.vtk')
+    props_array = props_array_vtk.point_data['data'].reshape(props_array_vtk.dimensions)
+    props_array = np.array(props_array, dtype = object)
+    props_array[sc.Temp_index] = np.array(props_array[sc.Temp_index], dtype = float)
 
+    props_array[sc.dense_index] = np.array(props_array[sc.dense_index], dtype = float)
+    props_array[sc.poros_index] = np.array(props_array[sc.poros_index], dtype = float)
+    props_array[sc.TOC_index] = np.array(props_array[sc.TOC_index], dtype = float)
+    try:
+        props_array[sc.sph_index] = np.array(props_array[sc.sph_index], dtype = float)
+    except:
+        print("Properties Array does not have a specific heat index. Creating one from properties dictionary...")
+        specific_heat = np.vectorize(
+                        lambda rt: rock_prop_dict[rt]['Specific Heat'], 
+                        otypes=[float]  # Ensure output is float
+                    )(props_array[sc.rock_index])
+        #specific_heat = np.zeros((a,b), dtype = float)
+        #for i in range(a):
+        #    for j in range(b):
+        #        specific_heat[i,j] = rock_prop_dict[props_array[sc.rock_index][i,j]]['Specific Heat']
+        #        if specific_heat[i,j] == "None":
+        #            raise ValueError("specific_heat is None")
+        try:
+            props_array[sc.sph_index] = specific_heat
+        except:
+            print("Exception occurred and properties array needs to have sepcific heat index added. Adding...")
+            props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
+            
     #Initializing diffusivity field
-    k = np.ones((a,b))*diff_val # m2/yr (Set a baseline value of constant diffusivity)
+    k = sc.sill_controls_get_k(props_array[sc.Temp_index], props_array[sc.rock_index], props_array[sc.dense_index], dy)
     dt = np.round((min(dx,dy)**2)/(5*np.max(k)),3)
     dt_change_factor = 1 ## For change in dt after emplacement of the last sill
     print(f'Time step: {dt} years')
@@ -138,24 +167,29 @@ def cooler(iter, z_index, flux, lat_range = None, sc=None,diff_val=31.536,temp_g
     props_array = props_array_vtk.point_data['data'].reshape(props_array_vtk.dimensions)
     props_array = np.array(props_array, dtype = object)
     props_array[sc.Temp_index] = np.array(props_array[sc.Temp_index], dtype = float)
+
     props_array[sc.dense_index] = np.array(props_array[sc.dense_index], dtype = float)
     props_array[sc.poros_index] = np.array(props_array[sc.poros_index], dtype = float)
     props_array[sc.TOC_index] = np.array(props_array[sc.TOC_index], dtype = float)
-    specific_heat = np.vectorize(
-                    lambda rt: rock_prop_dict[rt]['Specific Heat'], 
-                    otypes=[float]  # Ensure output is float
-                )(props_array[sc.rock_index])
-    #specific_heat = np.zeros((a,b), dtype = float)
-    #for i in range(a):
-    #    for j in range(b):
-    #        specific_heat[i,j] = rock_prop_dict[props_array[sc.rock_index][i,j]]['Specific Heat']
-    #        if specific_heat[i,j] == "None":
-    #            raise ValueError("specific_heat is None")
     try:
-        props_array[sc.sph_index] = specific_heat
+        props_array[sc.sph_index] = np.array(props_array[sc.sph_index], dtype = float)
     except:
-        print("Exception occurred and properties array needs to have sepcific heat added. Adding...")
-        props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
+        print("Properties Array does not have a specific heat index. Creating one from properties dictionary...")
+        specific_heat = np.vectorize(
+                        lambda rt: rock_prop_dict[rt]['Specific Heat'], 
+                        otypes=[float]  # Ensure output is float
+                    )(props_array[sc.rock_index])
+        #specific_heat = np.zeros((a,b), dtype = float)
+        #for i in range(a):
+        #    for j in range(b):
+        #        specific_heat[i,j] = rock_prop_dict[props_array[sc.rock_index][i,j]]['Specific Heat']
+        #        if specific_heat[i,j] == "None":
+        #            raise ValueError("specific_heat is None")
+        try:
+            props_array[sc.sph_index] = specific_heat
+        except:
+            print("Exception occurred and properties array needs to have sepcific heat index added. Adding...")
+            props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
     W_vtk = pv.read(file_path_dir+'W_data.vtk')
     W_silli = W_vtk.point_data['data'].reshape(W_vtk.dimensions)
 

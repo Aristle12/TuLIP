@@ -355,7 +355,7 @@ class cool:
         else:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
-    
+
     @jit(forceobj = True)
     def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
@@ -420,7 +420,40 @@ class cool:
         else:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
-    
+    '''
+    def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
+        """
+        Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
+        k = Diffusivity field (anisotropic) MxN matrix
+        a = number of rows - M int
+        b = number of columns - N int
+        dx = spacing in x direction - int
+        dy = spacing in y direction - int
+        dt = time step int
+        Tf = temperature field at current time step - MxN matrix
+        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
+        """
+        H_rad = H[0]
+        H_lat = H[1]
+        kiph, kimh, kjph, kjmh = self.avg_perm(k)/H_lat
+        Tnow = np.zeros((a,b))
+        T_surf = Tf[0,0]
+        T_bot = Tf[-1,0]
+        for i in range(1,a-1):
+            for j in range(1,b-1):
+                Tnow[i,j] = ((-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]+(H_rad[i,j]))
+
+        for i in range(1,a-1):
+            Tnow[i,0] = Tnow[i,2]
+            Tnow[i,b-1] = Tnow[i,b-3]
+            Tnow[0,:] = T_surf
+        if (np.array(np.isnan(np.array(q))).any()):
+            Tnow[-1,:] = T_bot
+        else:
+            Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
+
+        return Tnow 
+    ''' 
     @staticmethod
     def func_assigner(func, *args, **kwargs):
         '''
@@ -447,13 +480,15 @@ class cool:
 
         def smooth_step(x, lower_bound, upper_bound, steepness=40):
             """Smoothly transitions between 0 and 1 using tanh."""
-            return 0.5 * (safe_tanh((x - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
+            return 0.5 * (safe_tanh((x - lower_bound) / (upper_bound - lower_bound + 1e-8) * steepness) + 1)
         # Avoid division-by-zero by ensuring T_liquidus > T_solidus
-        delta = max(0.05 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
         
+        T_liquidus = anp.maximum(T_liquidus, T_solidus + 1e-6)
+        delta = max(0.05 * (T_liquidus - T_solidus), 1e-6)  # Minimum delta to avoid collapse
+        delta_liquidus = max(0.1 * (T_liquidus - T_solidus), 1e-6)
+
         # Smooth masks for transitions around T_solidus and T_liquidus
         mask_solidus = smooth_step(T_field, T_solidus - delta, T_solidus + delta)
-        delta_liquidus = max(0.1 * (T_liquidus - T_solidus), 1e-6)  # Wider transition (5% vs. 1%)
         mask_liquidus = smooth_step(T_field, T_liquidus - delta_liquidus, T_liquidus + delta_liquidus, steepness=20)
         
         # Safe computation of p_values (non-negative input for exponentiation)
@@ -505,10 +540,10 @@ class cool:
         if curve_func is None:
             curve_func = cool.calcF
         phi_cr = elementwise_grad(curve_func)
-        if np.isnan(phi_cr(T_field[lithology==melt] , *args)).any():
-            print(T_field[phi_cr(T_field[lithology==melt] , *args)==np.nan])
-            raise ValueError('Invalid value encountered in melt fraction function')
-        H_lat[lithology==melt] = (1 + (phi_cr(T_field[lithology==melt] , *args)*L/specific_heat))
+        phi_vals = phi_cr(T_field[lithology==melt], *args)
+        if np.isnan(phi_vals).any():
+           raise ValueError('Invalid value (NaN) encountered in melt fraction function')
+        H_lat[lithology==melt] = (1 + (phi_vals*L/specific_heat))
         H_lat[lithology!=melt] = 1
         return H_lat
     
@@ -1820,6 +1855,8 @@ class sill_controls:
             specific_heat = self.cp_func(T_field, rock, density, dy)
         else:
             specific_heat = self.rool.prop_updater(rock, self.rock_prop_dict, 'Specific Heat')
+            specific_heat[rock==self.magma_prop_dict['Lithology']] = self.magma_prop_dict['Specific Heat']
+        specific_heat = np.array(specific_heat, dtype = float)
         k = np.array(thermal_conductivity/density/specific_heat, dtype = float)
         if return_all:
             return k, np.array(specific_heat, dtype = float), np.array(thermal_conductivity, dtype = float)
@@ -2228,6 +2265,7 @@ class sill_controls:
         unemplaced_volume = 0
         #print(f'{np.sum(volume):.5e}, {float(tot_volume):.5e}, {np.sum(volume)<tot_volume}')
         n = 0
+        n_sills = None
         for l in range(len(time_steps)):
             if time_steps[l]<thermal_maturation_time+dt:
                 continue
@@ -2244,11 +2282,11 @@ class sill_controls:
                     unemplaced_volume -= volume[n]
                     print(f'Emplaced sill {n} at time {time_steps[l]}')
                     print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[0:n]):.4e}')
+                    print(f'n_sills is now {n}')
                     mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
                     n+=1
                     
-                    while (
-                        unemplaced_volume>volume[n] and 
+                    while (unemplaced_volume>volume[n] and 
                         mean_flux<(0.95*flux if np.sum(volume[0:n+1])<=tot_volume else 1.05*flux) and 
                         np.sum(volume[0:n])<=tot_volume):
                         empl_times.append(time_steps[l])
@@ -2256,17 +2294,22 @@ class sill_controls:
                         cum_volume[-1]+=volume[n]
                         print(f'Emplaced sill {n} at time {time_steps[l]}')
                         print(f'Remaining volume to emplace: {tot_volume-np.sum(volume[0:n]):.4e}')
+                        print(f'n_sills is now {n}')
                         mean_flux = np.sum(volume[0:n])/(time_steps[l]-thermal_maturation_time)
                         n+=1
 
                 if (n>0) and (np.sum(volume[0:n])>tot_volume):
                     print('Total sills emplaced:', n)
                     n_sills = int(n)
-                    empl_heights = empl_heights[0:n_sills]
-                    x_space = x_space[0:n_sills]
-                    width = width[0:n_sills]
-                    thickness = thickness[0:n_sills]
                     break
+        if n_sills is None:
+            print(f"Warning: Loop finished without reaching tot_volume.")
+            print(f"Current n is {n}. Arrays will be sliced to this value.")
+        empl_heights = empl_heights[0:n_sills]
+        x_space = x_space[0:n_sills]
+        width = width[0:n_sills]
+        thickness = thickness[0:n_sills]
+                    
         if n_sills!=n:
             n_sills = int(n)
             print(f"n_sills:, {n_sills}; n, {n}")
@@ -2326,13 +2369,16 @@ class sill_controls:
         T_field = props_array[self.Temp_index]
 
         k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, self.dy,return_all=True)
-
+        if dt>np.round((min(dx,dy)**2)/(5*np.max(k)),3):
+            print(f'Warning: Given time step is larger than stable. Changing time step from {dt} to {np.round((min(dx,dy)**2)/(5*np.max(k)),3)}')
+            print(f'Maximum thermal conductivity is {np.max(k)} for rock type {props_array[self.rock_index][np.where(k==np.max(k))[0][0]][0]}')
+            dt = np.round((min(dx,dy)**2)/(5*np.max(k)),3)
         breakdown_CO2 = np.zeros_like(T_field)
-        specific_heat = np.zeros_like(T_field)
-        specific_heat = np.vectorize(
-            lambda rt: self.rock_prop_dict[rt]['Specific Heat'], 
-            otypes=[float]  # Ensure output is float
-        )(rock)
+        #specific_heat = np.zeros_like(T_field)
+        #specific_heat = np.vectorize(
+        #    lambda rt: self.rock_prop_dict[rt]['Specific Heat'], 
+        #    otypes=[float]  # Ensure output is float
+        #)(rock)
         if self.include_heat:
                 if self.melt_fraction_function is None:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
@@ -2390,8 +2436,17 @@ class sill_controls:
             t_steps = np.arange(0, time, dt)
             tot_RCO2 = []
             dV = dx*dx*dy
+            max_T = np.max(T_field)
             for l in trange(0, len(t_steps)):
                 T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
+                if (T_field>max_T).any():
+                    plt.imshow(T_field)
+                    plt.colorbar()
+                    plt.show()
+                if np.isnan(np.array(T_field, dtype = float)).any():
+                    plt.imshow(T_field)
+                    plt.show()
+                    raise(ValueError('T_field is nan'))
                 props_array[self.Temp_index] = T_field
                 curr_TOC_silli = props_array[self.TOC_index]
                 if l==0:
@@ -2594,8 +2649,8 @@ class sill_controls:
         else:
             dts = np.repeat(dt,len(time_steps))
         rock = np.array(props_array[self.rock_index])
-        density = np.array(props_array[self.dense_index])
-        porosity = np.array(props_array[self.poros_index])
+        density = np.array(props_array[self.dense_index], dtype = float)
+        porosity = np.array(props_array[self.poros_index], dtype = float)
         T_field = np.array(props_array[self.Temp_index], dtype = float)
         specific_heat = np.array(props_array[self.sph_index])
         TOC1 = self.rool.prop_updater(rock, rock_prop_dict, 'TOC')
@@ -2645,17 +2700,17 @@ class sill_controls:
                 curr_TOC = props_array[self.TOC_index]
             if self.include_heat:
                 if self.melt_fraction_function is None:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)
+                    H_rad = np.array(self.cool.get_radH(T_field, density,dx)/density/specific_heat, dtype = float)
+                    H_lat = np.array(self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function), dtype = float)
                     H = np.array([H_rad, H_lat])
                     #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
-                    H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
+                    H_rad = np.array(self.cool.get_radH(T_field, density,dx)/density/specific_heat, dtype = float)
                     H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)                    
                     H = np.array([H_rad, H_lat])
             else:
-                H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                H_lat = np.ones_like(T_field)
+                H_rad = np.array(self.cool.get_radH(T_field, density,dx)/density/specific_heat, dtype = float)
+                H_lat = np.ones_like(T_field, dtype = float)
                 H = np.array([H_rad, H_lat])
             k = self.sill_controls_get_k(T_field, rock, density, dy, return_all=False)
             T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, q, cool_method, H)
