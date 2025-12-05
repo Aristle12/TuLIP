@@ -3,7 +3,7 @@ import scipy as scp
 import pyvista as pv
 import pandas as pd
 import os
-from tqdm import trange
+from tqdm import trange, tqdm
 import matplotlib.pyplot as plt
 def truncate(number):
         # Convert the number to a string
@@ -22,17 +22,31 @@ def truncate(number):
         # Convert the truncated string back to a float
         return float(truncated_str)
 def validator (n_sills, emplace_params):
-    return bool(int(n_sills) == len(emplace_params[:,0]))
+    return bool(int(n_sills) == len(emplace_params[0,:]))
 
 def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None, lat_range = None, thickness_range = None, aspect_ratio = None, depth_range = None, shape = None, depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
     def int_maker(sillcube):
-        for i in trange(sillcube.shape[0]):
-            for j in range(sillcube.shape[1]):
-                for g in range(sillcube.shape[2]):
-                    if sillcube[i,j,g] != 0:
-                        ele = str(sillcube[i,j,g])
-                        sillcube[i,j,g] = ele[1:3] if 's' not in ele[1:3] else ele[1]
-        return sillcube    
+        for i in tqdm(range(sillcube.shape[0]), desc = "Creating ints"):
+            layer = sillcube[i]
+            mask = (layer!=-1) & (layer!='-1')
+            #if not np.any(mask):
+            #    continue
+            layer_vals = layer[mask]
+            new_vals = []
+            for val in layer_vals:
+                ele = str(val)
+                clean = ele[1:]
+                clean = clean.split('s')[0]
+                clean = clean.split('.')[0]
+                #print(clean)
+                try:
+
+                    new_vals.append(int(clean))
+                except ValueError:
+                    new_vals.append(0)
+            layer[mask] = new_vals
+            sillcube[i] = layer
+        return sillcube
 
     n_sills_array = []
     #Initializing time_steps
@@ -56,7 +70,7 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
         max_emplacement = 4000 #m
         sd_emplacement = 5000
         depth_range = [min_emplacement, max_emplacement, sd_emplacement]
-    n_sills = 2000
+    n_sills = 200000
 
 
     shape = 'elli' if shape is None else shape
@@ -79,18 +93,22 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     print(f'Total model time: {time_steps[-1]}')
     if lat_range is None:
         lat_range = [x//3, 2*x//3, x//6] #Min, max, sd
-    
+    n_val = 0
     sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape, depth_function, lat_function, dims_function, emplace_dike, orientations)
     if validator(n_sills1, emplacement_params):
         print('sillcube built')
     else:
-        print(f'Sillcube validation failed for {flux:.3e} and {tot_volume:.3e}... Rebuilding')
-        print(f'n_sills is {n_sills} while emplace_params is {len(emplacement_params[:,0])}')
-        sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape, depth_function, lat_function, dims_function, emplace_dike, orientations)
-    #pdb.set_trace()
+        while not validator(n_sills1, emplacement_params) or n_val<5:
+            print(f'Sillcube validation failed for {flux:.3e} and {tot_volume:.3e}... Rebuilding')
+            print(f'n_sills is {n_sills} while emplace_params is {len(emplacement_params[:,0])}')
+            del sillcube
+            sillcube, n_sills1, emplacement_params = sc.build_sillcube(z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape, depth_function, lat_function, dims_function, emplace_dike, orientations)
+            n_val+=1
+        #pdb.set_trace()
     n_sills_array.append(int(n_sills1))
     os.makedirs(save_dir+'/'+str(format(flux,'.3e')), exist_ok=True)
     np.save(save_dir+'/'+str(format(flux,'.3e'))+'/sillcube'+str(np.round(tot_volume, 2)), sillcube)
+    print('Saved numpy binary')
     sillcube[sillcube==''] = -1
     sillcube = int_maker(sillcube)
     sillcube = sillcube.astype(int)
