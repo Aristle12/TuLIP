@@ -3116,7 +3116,7 @@ class sill_controls:
         self.model_setup()
         print('Read the HDF5 file - ',fileName,' into the class')
     
-    def plot_matrix(self,matrix=None,save_me:bool=False,vmax_perct=99,vmin_perct=1,cmap = 'Reds'):
+    def plot_matrix(self,matrix=None,save_me:bool=False, name_file_dir = None, vmax_perct=99,vmin_perct=1,cmap = 'Reds'):
         plt.figure()
         if matrix is None :
             # Calculate the percentile values
@@ -3132,29 +3132,32 @@ class sill_controls:
         plt.title('Node connection network')
         plt.colorbar()
         if save_me:
-            plt.savefig(self.name_file_Dir+'Network_Connection_Matrix.png')
+            if name_file_dir is None:
+                name_file_dir = os.getcwd()
+            plt.savefig(name_file_dir+'Network_Connection_Matrix.png')
             plt.close()
         else :
             plt.show()
-def plot_Full_Graph(self,graph_layout='spring',save_me:bool=False):
-    plt.figure()
-    if graph_layout == 'spring':
-        pos = nx.spring_layout(self.G_full)
-    elif graph_layout == 'circular':
-        pos = nx.circular_layout(self.G_full)
-    elif graph_layout == 'shell':
-        pos = nx.shell_layout(self.G_full)
-    elif graph_layout == 'spectral':
-        pos = nx.spectral_layout(self.G_full)
-    else:
-        raise ValueError(f"Invalid graph type: {graph_layout}")
-    plt.figure(figsize=(10, 10))  # Set the figure size to 10x10 inches
-    nx.draw(self.G_full, pos, with_labels=True, node_color='lightblue', edge_color='black')
-    if save_me:
-        plt.savefig(self.name_file_Dir+'Network_Plot.png')
-        plt.close()
-    else :
-        plt.show()
+    def plot_Full_Graph(self,G_full, graph_layout='spring',save_me:bool=False, name_file_dir = None):
+        if graph_layout == 'spring':
+            pos = nx.spring_layout(G_full, k=0.5, iterations = 100)
+        elif graph_layout == 'circular':
+            pos = nx.circular_layout(G_full)
+        elif graph_layout == 'shell':
+            pos = nx.shell_layout(G_full)
+        elif graph_layout == 'spectral':
+            pos = nx.spectral_layout(G_full)
+        else:
+            raise ValueError(f"Invalid graph type: {graph_layout}")
+        plt.figure(figsize=(10, 10))  # Set the figure size to 10x10 inches
+        nx.draw(G_full, pos, with_labels=True, node_color='lightblue', edge_color='black', node_size = 800, font_size = 16)
+        if save_me:
+            if name_file_dir is None:
+                name_file_dir = os.getcwd()
+            plt.savefig(name_file_dir+'Network_Plot.png')
+            plt.close()
+        else :
+            plt.show()
 
 class examples:
 

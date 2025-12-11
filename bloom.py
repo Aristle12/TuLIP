@@ -235,7 +235,7 @@ def plot_heatmap_average_emissions(fluxs, iters, save_dir):
     filename = 'avg_rates'
     plt.savefig(save_dir+'/'+filename+'.png', format = 'png')
 
-def plot_heatmap_warming(fluxs, iters, save_dir):
+def plot_heatmap_warming(fluxs, iters, save_dir, z_index, type = 't'):
     Ctot = 4.1261e19
 
     pco2i = 1000
@@ -259,48 +259,11 @@ def plot_heatmap_warming(fluxs, iters, save_dir):
     print(np.array(Cadd['pCO2'])[-1])
     print(Cadd.shape)
     print(np.array(Cadd['CO2add'])[-1])
-    '''
-    # Second case with different initial pCO2
-    pco2i = 500
 
-    # Calculate initial total carbon for the second case
-    Ctot_i = ((0.23 + 2233 / (pco2i + 34)) * Mrat * DICcorr + 1) * Matm * 1e-6 * pco2i * 12
-
-    # Create a DataFrame for the second case
-    Cadd2 = pd.DataFrame({'pCO2': pCO2})
-
-    # Calculate Cadd and CO2add for the second case
-    Cadd2['Cadd'] = (Matm * 1e-6 * Cadd2['pCO2'] * C_molmass * ((0.23 + 2233 / (Cadd2['pCO2'] + 34)) * Mrat * DICcorr + 1) - Ctot_i) / 1e12
-    Cadd2['CO2add'] = Cadd2['Cadd'] * 44 / 12
-
-    # Add CO2add_500 to the first DataFrame
-    Cadd['CO2add_500'] = Cadd2['CO2add']
-
-    # Plotting
-    plt.figure(figsize=(10, 6))
-    plt.plot(Cadd['CO2add'], Cadd['pCO2'])
-    plt.xlabel('Carbon added (Teragram)')
-    plt.ylabel('Final pCO2 (ppm)')
-    #plt.xlim(0, 1.5e7)
-    plt.title('Carbon added vs Final pCO2')
-    plt.show()
-
-    # Using seaborn for the second plot
-    plt.figure(figsize=(10, 6))
-    sns.lineplot(x=Cadd['CO2add'] / 1000, y=Cadd['pCO2'] - 1000)
-    sns.lineplot(x=Cadd['CO2add_500'] / 1000, y=Cadd['pCO2'] - 500, color='blue')
-    plt.xlabel('CO2 added (Petagram)')
-    plt.ylabel('pCO2 increase (ppm)')
-    plt.xlim(0, 60000)
-    plt.title('CO2 added vs pCO2 increase')
-    plt.show()
-    '''
     from scipy.interpolate import interp1d
 
     p = interp1d(Cadd['CO2add'], Cadd['pCO2'], kind='linear')
     #p = np.poly1d(z)
-    fluxs = np.array([int(3e9), int(3*10**(8.5)), int(3e8), int(3*10**(7.5)), int(3e7)])
-    iters = [0,3,1,4,2]
 
 
 
@@ -334,7 +297,7 @@ def plot_heatmap_warming(fluxs, iters, save_dir):
                 volume = volumes[itera]
                 print(format(volume, '.3e'))
 
-                z_index = [191, 284, 300, 493, 506]
+                
 
                 times = pd.read_csv(load_dir+str(format(volume, '.3e'))+'/300/times.csv')
                 time = times['time_steps']
@@ -415,7 +378,7 @@ def plot_heatmap_warming(fluxs, iters, save_dir):
 
                 z_index = [191, 284, 300, 493, 506]
 
-                times = pd.read_csv(load_dir+str(format(volume, '.3e'))+'/300/times.csv')
+                times = pd.read_csv(load_dir+str(format(volume, '.3e'))+'/'+str(z_index)+'/times.csv')
                 time = times['time_steps']
                 empl_params = pd.read_csv(load_dir+'emplacement_params'+str(float(volume))+'.csv')
                 empl_time = np.array(empl_params['empl_times'])[-1]-int(3e6)
@@ -430,8 +393,13 @@ def plot_heatmap_warming(fluxs, iters, save_dir):
                 cum_RCO2 = np.cumsum(tot_RCO2)
 
                 scales_csv = pd.read_csv(load_dir+'scales.csv')
-                scale = scales_csv['tot_slope'][itera]
-                inter = scales_csv['tot_ints'][itera]
+
+                if type == 's':
+                    scale = scales_csv['scale'][itera]
+                    inter = scales_csv['intercept'][itera]
+                else:
+                    scale = scales_csv['tot_slope'][itera]
+                    inter = scales_csv['tot_ints'][itera]
                 volume_scale = scales_csv['tot_volume'][itera]
                 print(format(volume_scale, '.3e'))
 
