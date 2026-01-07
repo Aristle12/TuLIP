@@ -9,6 +9,7 @@ from scipy.special import erf, erfinv
 from scipy.io import loadmat
 from scipy.interpolate import RegularGridInterpolator, interp1d
 from scipy.spatial import KDTree
+from scipy.linalg import solve_banded
 import pandas as pd
 import pyvista as pv
 import os
@@ -19,20 +20,66 @@ import autograd.numpy as anp
 import pdb
 import utilities as util
 import re
-import networkx as nx
-from scipy.linalg import solve_banded
+try:
+    import networkx as nx
+except ImportError:
+    nx = None
+    print("Warning: networkx not found")
+
+
+
+"""
+TuLIP: Thermally understanding Large Igneous Provinces
+==============================
+
+TuLIP is a Python library for simulating heat diffusion and thermal maturation in geological settings.
+It is designed to model the emplacement of sills (magma intrusions) and their thermal effects on surrounding rocks,
+including the generation of carbon emissions from organic-rich host rocks.
+
+This file contains the core physics solvers and utility classes for the simulation:
+- `cool`: Handles heat diffusion solvers (Implicit, ADI, Explicit).
+- `emit`: Handles chemical kinetics and emission calculations (SILLi, sillburp).
+- `rules`: Handles geometric rules for sill emplacement and mesh manipulation.
+- `sill_controls`: Integration class that orchestrates the simulation.
+
+Authors: [Aristle Monteiro, Tushar Mittal]
+Optimized by: Google DeepMind Agent
+"""
 
 
 class cool:
+    """
+    The `cool` class contains all the numerical solvers for heat diffusion.
+    
+    It supports multiple solving methods:
+    1.  **ADI (Alternating Direction Implicit)**: Optimized for speed and stability (`conv_smooth_solve_adi`).
+    2.  **Implicit Direct**: Solves the full matrix system using `pypardiso` or `scipy` (`straight_solver`).
+    3.  **Iterative**: Jacobian (`JacobianIt`) and Gauss-Seidell (`GSIt`) solvers (slower, for educational use).
+    4.  **Explicit**: Convolution-based explicit solvers (`conv_chain_solve`, `conv_smooth_solve`).
+    
+    It also handles the construction of the linear system (weight matrices) for the implicit solvers.
+    """
     def __init__(self):
         pass
     ###Functions to cool magma bodies###
 
     @staticmethod
     def is_nan(q):
-        '''
-        Alternative implementation of numpy's numpy.isnan. Originally created to allow for a nopython implementation in numba.
-        '''
+        """
+        Checks if an array contains any NaN (Not a Number) values.
+        
+        This is a JIT-friendly alternative to `np.isnan().any()` used for Numba compatibility.
+        
+        Parameters
+        ----------
+        q : array-like
+            The input array to check.
+            
+        Returns
+        -------
+        bool
+            True if any element is NaN, False otherwise.
+        """
         r = 0
         for i in range(0, len(q)):
             if np.isnan(q[i]):
@@ -44,119 +91,311 @@ class cool:
             return False
 
     @staticmethod
-    @jit
+    @staticmethod
     def avg_perm(k):
-        ##Function to return the averaged permeabilities required for heat diffusion in an anisotropic medium
+        """
+        Calculates averaged permeability (thermal diffusivity) at grid cell boundaries.
+        
+        In the Finite Volume Method, properties are defined at cell centers, but fluxes occur
+        across cell faces. We need the diffusivity at the face (harmonic or arithmetic mean).
+        Here, we compute the arithmetic mean of neighbors.
+        
+        Parameters
+        ----------
+        k : numpy.ndarray
+            The 2D diffusivity field (MxN array) at cell centers.
+            
+        Returns
+        -------
+        kiph : numpy.ndarray
+            Diffusivity at the "i plus half" face (between Row i and Row i+1).
+        kimh : numpy.ndarray
+            Diffusivity at the "i minus half" face (between Row i and Row i-1).
+        kjph : numpy.ndarray
+            Diffusivity at the "j plus half" face (between Column j and Column j+1).
+        kjmh : numpy.ndarray
+            Diffusivity at the "j minus half" face (between Column j and Column j-1).
+        """
         kiph = k.copy()
         kimh = k.copy()
         kjph = k.copy()
         kjmh = k.copy()
 
-        for i in range(0, len(k[:,1])-1):
-            for j in range(0, len(k[1,:])-1):
-                kiph[i,j] = (k[i,j]+k[i+1,j])/2 #Averaging permeabilities beterrn i and i+1
-                kjph[i,j] = (k[i,j]+k[i,j+1])/2 #Averaging permeabilities between j and j+1
-
-        for i in range(1,len(k[:,1])-1):
-            for j in range(1,len(k[1,:])-1):
-                kimh[i,j] = (k[i,j]+k[i+1,j])/2 #Averaging permeabilities between i and i-1
-                kjmh[i,j] = (k[i,j]+k[i,j+1])/2 #Averaging permeabilities between j and j-1
-
+        # Averaging permeability in i (Row) and j (Column) directions.
+        # k[i, :] refers to Row i.
+        
+        # kiph[i] = (k[i] + k[i+1]) / 2  -> Valid for i=0 to a-2
+        kiph[:-1, :] = (k[:-1, :] + k[1:, :]) / 2
+        
+        # kjph[j] = (k[j] + k[j+1]) / 2  -> Valid for j=0 to b-2
+        kjph[:, :-1] = (k[:, :-1] + k[:, 1:]) / 2
+        
+        # kimh[i] = (k[i] + k[i-1]) / 2  -> Valid for i=1 to a-1 (Shifted view)
+        kimh[1:, :] = (k[1:, :] + k[:-1, :]) / 2
+        
+        # kjmh[j] = (k[j] + k[j-1]) / 2  -> Valid for j=1 to b-1 (Shifted view)
+        kjmh[:, 1:] = (k[:, 1:] + k[:, :-1]) / 2
+        
         return kiph, kimh, kjph, kjmh
 
     def cheat_solver(self, Tf, a, q):
         """
-        Quick approximate alternative to set up initial temperature grid while testing code to avoid lengthy set up times for large grids
+        Approximates the initial thermal gradient quickly without running a full simulation.
+        Warning: This is a rough approximation for testing and should be replaced by a proper equilibrium solve.
+        
+        Parameters
+        ----------
+        Tf : numpy.ndarray
+            Temperature field to initialize.
+        a : int
+            Number of rows (depth).
+        q : float or nan
+            Heat flux at the bottom. If NaN, a fixed gradient based on T_top and T_bot is used.
+            
+        Returns
+        -------
+        Tf : numpy.ndarray
+            The initialized temperature field.
         """
-        if self.is_nan(q):
+        if self.is_nan(np.array([q])): # Wrap in array for is_nan compatibility
+            # Dirichlet-Dirichlet case: Linear interpolation from Top to Bottom
             T_top = Tf[0,0]
-            grad = (Tf[-1,0]-Tf[0,0])/a #Solve for temperature based on thermal gradient and depth
+            T_bot = Tf[-1,0]
+            grad = (T_bot - T_top)/a 
             for i in range(0,a):
                 Tf[i,:] = T_top + i*grad
         else:
+            # Neumann case: Fixed flux q
             for i in range(1, a):
-                Tf[i,:] = Tf[i-1,:]+(q/31.532) #This implementation is not recommended. Please use other solvers for custom qs
+                Tf[i,:] = Tf[i-1,:]+(q/31.532) # Note: 31.532 assumes specific conductivity hardcoded?
         return Tf
 
-    def straight_solver(self, Ab,dee, a, b):
+    def straight_solver(self, Ab, dee, a, b):
         """
-        Inverse matrix multiplication for small sized matrices - fast implementation due to parallelization in pypardiso
-        Ab = LHS weight matrix MxN
-        dee = RHS matrix M*Nx1
-        a = number of rows - M int
-        b = number of columns N int
+        Solves the linear system Ax = b directly for obtaining the temperature field.
+        This uses `pypardiso` (parallel sparse solver) if available, or `scipy.sparse.linalg` otherwise.
+        
+        Parameters
+        ----------
+        Ab : scipy.sparse.csc_matrix
+            The Coefficient Matrix (A) of shape (M*N, M*N). 
+            This represents the discretized heat equations for all nodes.
+        dee : numpy.ndarray
+            The Right-Hand Side Vector (b) of shape (M*N).
+            This contains the knowns (old temperature, source terms, boundary conditions).
+        a : int
+            Number of rows in the 2D grid.
+        b : int
+            Number of columns in the 2D grid.
+            
+        Returns
+        -------
+        Tf : numpy.ndarray
+            The solved temperature field reshaped back to (a, b).
         """
-        Tf = np.array(ps.spsolve(sc.csc_matrix(Ab), dee)) #Matrix multiplication for solving for temperature
+        # Solve Ax = b
+        solution_flat = ps.spsolve(sc.csc_matrix(Ab), dee)
+        Tf = np.array(solution_flat)
+        # Reshape the flat solution vector back to 2D grid (Fortran order column-major)
         Tf = Tf.reshape((a,b), order = 'F')
         return Tf
     ###Alternative functions to get initial thermal state. it is important to note that the straight solver will always be the fastest since there is only one matrix multiplication to perform###
     def JacobianIt(self, Ab, dee, a, b):
         """
-        Iterative solver for heat flux equation based on Jacobian iterative method - Slowest convergence rate, but sure to eventually converge
-        Ab = LHS weight matrix MxN
-        dee = RHS matrix M*Nx1
-        a = number of rows - M int
-        b = number of columns N int
+        Solves the linear system using the Jacobian Iterative Method.
+        
+        A x = b
+        (D + R) x = b
+        x_new = D^-1 (b - R * x_old)
+        
+        Parameters
+        ----------
+        Ab : scipy.sparse.csc_matrix
+            LHS Coefficient Matrix.
+        dee : numpy.ndarray
+            RHS Vector.
+        a, b : int
+            Grid dimensions.
+            
+        Returns
+        -------
+        T : numpy.ndarray
+            Solved temperature field.
         """
-        sc.linalg.use_solver(useUmfpack=True)
-        D = sc.csc_matrix(sc.diags(Ab.diagonal(),0))#np.diag(np.diag(Ab))
-        E = -(sc.tril(Ab, k=-1))
-        F = -(sc.triu(Ab, k=1))
-        do = sc.csc_matrix(ps.spsolve(D, sc.csc_matrix((E+F)))) #If ps.spsolve does not work, change to sp.linalg.spsolve (the scipy non-parallelized implementation)
-        T = dee
-        err = 1e10
-        iter = 10000
-        c = 0
-        while c<iter and err>1e-3:
-            c = c+1
-            T_new = do.dot(T)+ ps.spsolve(D, dee) #Same here: Change to ps.spsolve
-            err = np.max(T_new - T)
-            print(err, 'ln 109')
+        # Extract Diagonal
+        d = Ab.diagonal()
+        
+        # Calculate Inverse Diagonal (Vectorized)
+        # Avoid division by zero if any (though PDE matrix usually well-behaved)
+        with np.errstate(divide='ignore'):
+            d_inv = 1.0 / d
+            d_inv[np.isinf(d_inv)] = 0.0 # handle zero diagonals if any
+        
+        # R = L + U (Strictly Lower + Upper) = A - D
+        # Efficiently: Ab - Diag
+        R = Ab - sc.diags(d, 0)
+        
+        # Precompute D^-1 * b
+        constant_term = d_inv * dee
+        
+        # Initial Guess (Use RHS)
+        T = dee.copy()
+        
+        iter_max = 10000
+        tol = 1e-3
+        
+        # Iteration Loop
+        for c in range(iter_max):
+            # x_new = D^-1 * (b - R*x)
+            #       = D^-1*b - D^-1*(R*x)
+            #       = constant_term - d_inv * (R.dot(T))
+            
+            # Compute R*T (Sparse Mat-Vec mult)
+            RT = R.dot(T)
+            
+            # Update
+            T_new = constant_term - (d_inv * RT)
+            
+            # Error Check (Infinity Norm)
+            err = np.max(np.abs(T_new - T))
+            
+            if err < tol:
+                print(f'Jacobian Converged: {c} iterations, Error: {err:.2e}')
+                return T_new.reshape((a,b), order = 'F')
+            
             T = T_new
 
-        T = T.reshape((a,b), order = 'F')
-        print('Jacobian Iterations completed: ', c)
-        return T
+        print(f'Jacobian Max Iterations ({iter_max}) Reached. Final Error: {err:.2e}')
+        return T.reshape((a,b), order = 'F')
 
     def GSIt(self, Ab, dee, a, b):
         """
-        Iterative solver for heat flux equation based on Gauss-Seidell iterative method - Faster convergence rate per iteration than J and sure to eventually converge
-        Ab = LHS weight matrix MxN
-        dee = RHS matrix M*Nx1
-        a = number of rows - M int
-        b = number of columns N int
+        Solves the linear system using the Gauss-Seidel Iterative Method.
+        
+        Splitting: A = (D + L) + U
+        Iteration: (D + L) x_new = b - U x_old
+        x_new = (D + L)^-1 * (b - U x_old)
+        
+        Parameters
+        ----------
+        Ab : scipy.sparse.csc_matrix
+            LHS Coefficient Matrix.
+        dee : numpy.ndarray
+            RHS Vector.
+        a, b : int
+            Grid dimensions.
+            
+        Returns
+        -------
+        T : numpy.ndarray
+            Solved temperature field.
         """
-        D = sc.diags(Ab.diagonal(),0)
-        E = -(sc.tril(Ab, k=-1))
-        F = -(sc.triu(Ab, k=1))
-        tre = sc.csc_matrix(D - E)
-        do = sc.csc_matrix(ps.spsolve(tre, sc.csc_array(F)))
-        T = dee
-        err = 1e10
-        iter = 10000
-        c = 0
-        while c<iter and err>1e-3:
-            c = c+1
-            T_new = do.dot(T)+ ps.spsolve(tre, dee)
-            err = np.max(T_new - T)
-            print(err)
+        # Decomposition
+        # D = Diag, E = -Lower (Strict), F = -Upper (Strict)
+        # Original code definitions:
+        # A = D - E - F
+        # D = Diag
+        # E = - Lower
+        # F = - Upper
+        # A = D + Lower + Upper
+        #
+        # GS Split: (D + Lower) x_new = b - Upper x_old
+        # M = D + Lower
+        # N = - Upper
+        
+        # Consistent Extraction
+        D = sc.diags(Ab.diagonal(), 0)
+        Lower = sc.tril(Ab, k=-1)
+        Upper = sc.triu(Ab, k=1)
+        
+        # M = D + L (Lower Triangular)
+        M = D + Lower
+        M = sc.csc_matrix(M)
+        
+        # N = - U (RHS term)
+        # We need term -U * x. So N = -Upper.
+        N = -Upper
+        
+        # Pre-solve constant part: M^-1 * b
+        # Using pypardiso (ps) as requested.
+        try:
+            constant_term = ps.spsolve(M, dee)
+        except Exception as e:
+            # Fallback if ps fails (though redundant given imports, good for safety)
+            print(f"Pypardiso failed: {e}. Using scipy.")
+            import scipy.sparse.linalg as spla
+            constant_term = spla.spsolve(M, dee)
+
+        T = dee.copy()
+        iter_max = 10000
+        tol = 1e-3
+        
+        for c in range(iter_max):
+            # x_new = M^-1 b  + M^-1 (-U x_old)
+            #       = constant_term + M^-1 (N * x)
+            
+            # 1. N * x (Sparse Mat-Vec)
+            rhs_part = N.dot(T)
+            
+            # 2. M^-1 * (N*x)
+            try:
+                term_update = ps.spsolve(M, rhs_part)
+            except:
+                import scipy.sparse.linalg as spla
+                term_update = spla.spsolve(M, rhs_part)
+            
+            T_new = constant_term + term_update
+            
+            err = np.max(np.abs(T_new - T))
+            if err < tol:
+                print(f'GS Converged: {c} iterations, Error: {err:.2e}')
+                return T_new.reshape((a,b), order = 'F')
+            
             T = T_new
 
-        T = T.reshape((a,b), order = 'F')
-        print('GS Iterations completed: ', c)
-        return T
+        print(f'GS Max Iterations ({iter_max}) Reached. Final Error: {err:.2e}')
+        return T.reshape((a,b), order = 'F')
+
+
 
 
     def heat_flux(self, k, a, b, dx, dy, Tnow, method, q = np.nan):
         """
-        Fourier's law solver switch function. Choos between the straight, Jacobian, Gauss-Seidell and cheat implementations
-        method = straight/ Jacobian
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns N int
-        dx = spacing in x direction int
-        dy = spacing in y direction int
-        Tnow = temperature field at current time step MxN matrix - Note that you need to set the Dirichlet boundary values
+        Switch function to solve the heat diffusion equation using the selected method (Implicit).
+        
+        This function sets up the Linear System Ax = b for the implicit time step.
+        It handles boundary conditions (Dirichlet at top, Neumann at sides/bottom).
+        
+        **Important Coordinate System Note:**
+        In this implementation:
+        - Axis 0 (Rows, size `a`) corresponds to the `dy` spatial step (Y-axis/Depth).
+        - Axis 1 (Columns, size `b`) corresponds to the `dx` spatial step (X-axis/Width).
+        
+        Parameters
+        ----------
+        k : numpy.ndarray
+            Thermal diffusivity field (MxN).
+        a : int
+            Number of rows (Axis 0).
+        b : int
+            Number of columns (Axis 1).
+        dx : float
+            Grid spacing along Axis 1 (Columns).
+        dy : float
+            Grid spacing along Axis 0 (Rows).
+        Tnow : numpy.ndarray
+            Current temperature field. Dirichlet BCs should already be set.
+        method : str
+            Solver method: 'straight', 'Jacobian', 'GS', or 'cheat'.
+        q : float or nan
+            Heat flux at bottom boundary. 
+            - If nan: Dirichlet condition (fixed temp).
+            - If float: Neumann condition (fixed flux).
+            
+        Returns
+        -------
+        T_new : numpy.ndarray
+            Solved temperature field for the next time step.
         """
         if method == 'cheat':
                 return self.cheat_solver(Tnow,a, q)
@@ -164,45 +403,76 @@ class cool:
             if ~np.isnan(q).any():
                 Tnow[-1,:] = q*dy/k[-1,:]
             bee = Tnow.reshape((a*b), order = 'F')
-            #Set up the weight matrix for each node that takes into account the boundary conditions and the temperature of the adjacenet nodes
-            main_diag = np.zeros(a*b)
-            p1_diag = np.zeros(a*b - 1)
-            m1_diag = np.zeros(a*b-1)
-            pa_diag = np.zeros(a*b-a)
-            ma_diag = np.zeros(a*b-a)
-            index = 0
+            
+            # Vectorized Matrix Construction
+            main_diag = np.zeros((a, b))
+            p1_diag = np.zeros((a, b))
+            m1_diag = np.zeros((a, b))
+            pa_diag = np.zeros((a, b))
+            ma_diag = np.zeros((a, b))
+            
+            # Precompute terms
+            # Interior indices: 1 to a-1 (rows), 1 to b-1 (cols)
+            # Use views for concise code
+            k_ipv = k[2:, 1:-1]   # i+1 (Row Neighbor)
+            k_imv = k[:-2, 1:-1]  # i-1 (Row Neighbor)
+            k_jpv = k[1:-1, 2:]   # j+1 (Col Neighbor)
+            k_jmv = k[1:-1, :-2]  # j-1 (Col Neighbor)
+            k_cv = k[1:-1, 1:-1]  # center
+            
+            # Terms
+            # Row Gradients (Axis 0) -> dy
+            term_row = (k_ipv - k_imv) / (4 * dy**2)
+            base_row = k_cv / dy**2
 
-            for j in range(0,b):
-                for i in range(0,a):
-                    if i>0 and i<a-1 and j>0 and j<b-1:
-                        main_diag[index] = -(((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))
-                        p1_diag[index] = ((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))
-                        m1_diag[index-1] = ((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))
-                        pa_diag[index] = ((k[i,j]/dy**2)+((k[i,j+1]-k[i,j-1])/(4*dy**2)))
-                        ma_diag[index-a] = ((k[i,j]/dy**2)-((k[i,j+1]-k[i,j-1])/(4*dy**2)))
-                    if i==0:
-                        main_diag[index] = 1
-                    if j==0 and i!=0 and i!=a-1:
-                        main_diag[index] = -1
-                        pa_diag[index] = 1
-                    if j==b-1 and i!=0 and i!=a-1:
-                        main_diag[index] = 1
-                        ma_diag[index-a] = -1
-                    if i==a-1:
-                        if np.isnan(q).any():
-                            main_diag[index] = 1
-                        else:
-                            main_diag[index] = 1
-                            m1_diag[index-1] = -1
-                    index = index+1
-            #Af = sc.spdiags([main_diag, p1_diag, m1_diag, pb_diag, mb_diag], [0,1,-1,a,-a])
+            # Col Gradients (Axis 1) -> dx
+            term_col = (k_jpv - k_jmv) / (4 * dx**2)
+            base_col = k_cv / dx**2
+            
+            # Fill Diagonals (Interior)
+            main_diag[1:-1, 1:-1] = -(2 * base_row + 2 * base_col)
+            
+            # p1/m1: Row Neighbors (Axis 0) -> Use Row terms/dy
+            p1_diag[1:-1, 1:-1]   = base_row + term_row
+            m1_diag[1:-1, 1:-1]   = base_row - term_row
+            
+            # pa/ma: Col Neighbors (Axis 1) -> Use Col terms/dx
+            pa_diag[1:-1, 1:-1]   = base_col + term_col
+            ma_diag[1:-1, 1:-1]   = base_col - term_col
+            
+            # Boundaries
+            # i=0 (Top) - Dirichlet
+            main_diag[0, :] = 1
+            
+            # j=0 (Left), i!=0, i!=a-1 - Neumann
+            main_diag[1:-1, 0] = -1
+            pa_diag[1:-1, 0] = 1
+            
+            # j=b-1 (Right), i!=0, i!=a-1 - Neumann
+            main_diag[1:-1, -1] = 1
+            ma_diag[1:-1, -1] = -1
+            
+            # i=a-1 (Bottom)
+            if np.isnan(q).any():
+                main_diag[-1, :] = 1
+            else:
+                main_diag[-1, :] = 1
+                m1_diag[-1, :] = -1
+                
+            # Flatten in Fortran order
+            md = main_diag.flatten(order='F')
+            p1 = p1_diag.flatten(order='F')[:-1] # Remove last element (invalid for superdiagonal)
+            m1 = m1_diag.flatten(order='F')[1:]  # Remove first element (invalid for subdiagonal)
+            pa = pa_diag.flatten(order='F')[:-a]
+            ma = ma_diag.flatten(order='F')[a:]
+            
             Af = sc.lil_matrix((a*b,a*b))
             print('Weight matrix:', Af.shape)
-            Af.setdiag(main_diag, k=0)
-            Af.setdiag(p1_diag, k=1)
-            Af.setdiag(m1_diag,k=-1)
-            Af.setdiag(pa_diag, k=a)
-            Af.setdiag(ma_diag, k=-a)
+            Af.setdiag(md, k=0)
+            Af.setdiag(p1, k=1)
+            Af.setdiag(m1, k=-1)
+            Af.setdiag(pa, k=a)
+            Af.setdiag(ma, k=-a)
 
             if method =='straight':
                 return self.straight_solver(Af, bee, a, b)
@@ -219,48 +489,114 @@ class cool:
 
     def perm_smoothed_solve(self, k, a, b, dx, dy, dt, Tnow, q, Af, H):
         """
-        Solver for time varying heat diffusion equation building an averaged permeability field (for anisotropic heat diffusion)
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns N int
-        dx = spacing in x direction int
-        dy = spacing in y direction int
-        Tnow = temperature field at current time step MxN matrix
-        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
+        Explicit solver for anisotropic, time-varying diffusivity using Averaged Permeability.
+        
+        This solver builds (or reuses) the coefficient matrix `Af` based on the arithmetic mean 
+        of diffusivity at cell interfaces. It is more accurate for heterogeneous media.
+        
+        The equation solved is:
+        (1/H_lat) * dT/dt = Div(k * Grad(T)) + H_rad
+        
+        Discretized as:
+        (1 - Term_x - Term_y + H_rad)*T_new = T_old
+
+        Parameters
+        ----------
+        k : numpy.ndarray
+            Diffusivity field.
+        a, b : int
+            Grid dimensions (Rows, Cols).
+        dx, dy : float
+            Grid spacing (dx=Rows, dy=Cols).
+        dt : float
+            Time step.
+        Tnow : numpy.ndarray
+            Current temperature field (RHS vector source).
+        q : float or nan
+            Bottom boundary heat flux.
+        Af : scipy.sparse.lil_matrix or nan
+            Pre-computed weight matrix. If nan, it is built.
+        H : tuple (H_rad, H_lat)
+            H_rad: Radiogenic heat production term.
+            H_lat: Latent heat scaling factor (Effective Heat Capacity/Latent Heat ratio).
+            
+        Returns
+        -------
+        Tret : numpy.ndarray
+            New temperature field.
         """
         H_rad = H[0]
         H_lat = H[1] #This is the latent heat solution that should be divided and not the actual latent heat of crystalization. See get_latH for details
-        if np.isnan(Af):
+        
+        # Determine if Af is actually checking for NaN (it might be a matrix object)
+        build_matrix = False
+        if isinstance(Af, (float, int)) and np.isnan(Af):
+            build_matrix = True
+        elif isinstance(Af, np.ndarray) and np.isnan(Af).any():
+             # Array of nans?
+            build_matrix = True
+            
+        if build_matrix:
             #Generate the weight matrix if the thermal diffusivity is not constant and needs to be changed at every time step
             kiph, kimh, kjph, kjmh = self.avg_perm(k)
-            main_diag = np.zeros(a*b)
-            p1_diag = np.zeros(a*b - 1)
-            m1_diag = np.zeros(a*b-1)
-            pa_diag = np.zeros(a*b-a)
-            ma_diag = np.zeros(a*b-a)
-            index = 0
-
-            for j in range(0,b):
-                for i in range(0,a):
-                    if i>0 and i<a-1 and j>0 and j<b-1:
-                        main_diag[index] = -((((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2)))+ (H_rad[i,j]))+1)/H_lat[i,j]
-                        pa_diag[index] = kiph[i,j]*(dt/(dx**2))
-                        ma_diag[index-a] = kimh[i,j]*(dt/(dx**2))
-                        p1_diag[index] = kjph[i,j]*(dt/(dy**2))
-                        m1_diag[index-1] = kjmh[i,j]*(dt/(dy**2))
-                    if i==0 or i==a-1:
-                        main_diag[index] = 1
-                    if j==0 and i!=0 and i!=a-1:
-                        main_diag[index] = 1
-                    if j==b-1 and i!=0 and i!=a-1:
-                        main_diag[index] = 1
-                    index = index+1
+            
+            # Vectorized Matrix Build
+            main_diag = np.ones((a, b))
+            p1_diag = np.zeros((a, b)) # p1 is superdiag (k=1)
+            m1_diag = np.zeros((a, b)) # m1 is subdiag (k=-1)
+            pa_diag = np.zeros((a, b)) # pa is k=a
+            ma_diag = np.zeros((a, b)) # ma is k=-a
+            
+            # Constants
+            cx = dt / (dx**2)
+            cy = dt / (dy**2)
+            
+            # Interior views
+            kiph_in = kiph[1:-1, 1:-1]
+            kimh_in = kimh[1:-1, 1:-1]
+            kjph_in = kjph[1:-1, 1:-1]
+            kjmh_in = kjmh[1:-1, 1:-1]
+            H_rad_in = H_rad[1:-1, 1:-1]
+            H_lat_in = H_lat[1:-1, 1:-1]
+            
+            # Main Diag
+            # Term: Sum of outgoing fluxes (dividing by H_lat for effective heat capacity scaling)
+            # Main Diag
+            # Term: Sum of outgoing fluxes (dividing by H_lat for effective heat capacity scaling)
+            # Row neighbors (kiph, kimh) -> Y-direction -> Cy
+            # Col neighbors (kjph, kjmh) -> X-direction -> Cx
+            term = (kiph_in + kimh_in) * cy + (kjph_in + kjmh_in) * cx
+            main_diag[1:-1, 1:-1] = (1 - term + H_rad_in) / H_lat_in
+            
+            # Off Diags for Fortran Flattening (Column-Major):
+            # +/- 1 indices correspond to same Column, adjacent Row -> Y-axis neighbors (Depth) -> Uses cy
+            # +/- a indices correspond to same Row, adjacent Column -> X-axis neighbors (Width) -> Uses cx
+            
+            # pa (k=a): Right neighbor in Matrix (Column + 1) -> X-axis neighbors -> Cx
+            pa_diag[1:-1, 1:-1] = kiph_in * cx
+            
+            # ma (k=-a): Left neighbor in Matrix (Column - 1) -> X-axis neighbors -> Cx
+            ma_diag[1:-1, 1:-1] = kimh_in * cx
+            
+            # p1 (k=1): Bottom neighbor (Row + 1) -> Y-axis neighbors (Depth) -> Cy
+            p1_diag[1:-1, 1:-1] = kjph_in * cy
+            
+            # m1 (k=-1): Top neighbor (Row - 1) -> Y-axis neighbors (Depth) -> Cy
+            m1_diag[1:-1, 1:-1] = kjmh_in * cy
+            
+            # Flatten
+            md = main_diag.flatten(order='F')
+            p1 = p1_diag.flatten(order='F')[:-1]
+            m1 = m1_diag.flatten(order='F')[1:]
+            pa = pa_diag.flatten(order='F')[:-a]
+            ma = ma_diag.flatten(order='F')[a:]
+            
             Af = sc.lil_matrix((a*b,a*b))
-            Af.setdiag(main_diag, k=0)
-            Af.setdiag(p1_diag, k=1)
-            Af.setdiag(m1_diag,k=-1)
-            Af.setdiag(pa_diag, k=a)
-            Af.setdiag(ma_diag, k=-a)
+            Af.setdiag(md, k=0)
+            Af.setdiag(p1, k=1)
+            Af.setdiag(m1, k=-1)
+            Af.setdiag(pa, k=a)
+            Af.setdiag(ma, k=-a)
 
         bee = Tnow.reshape((a*b), order = 'F')
         Tret = np.array(Af.dot(bee)) #Perform the matrix multiplication
@@ -273,49 +609,115 @@ class cool:
 
     def perm_chain_solve(self, k, a, b, dx, dy, dt, Tnow, q, Af, H):
         """
-        Solver for time varying heat diffusion equation building an chain rule (for anisotropic heat diffusion)
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns N int
-        dx = spacing in x direction int
-        dy = spacing in y direction int
-        Tnow = temperature field at current time step MxN matrix
-        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
+        Implicit solver using the Chain Rule expansion of the diffusion equation.
+        
+        Expands Div(k * Grad(T)) into:
+        k * Laplacian(T) + Grad(k) * Grad(T)
+        
+        This form accounts for gradients in diffusivity (`dk/dx`, `dk/dy`) explicitly.
+        
+        Parameters
+        ----------
+        k : numpy.ndarray
+            Diffusivity field.
+        a, b : int
+            Grid dimensions.
+        dx, dy : float
+            Spacing.
+        dt : float
+            Time step.
+        Tnow : numpy.ndarray
+            Current temp.
+        q : float
+            Bottom flux.
+        Af : matrix or nan
+            Weight matrix.
+        H : tuple
+            (H_rad, H_lat).
+            
+        Returns
+        -------
+        Tret : numpy.ndarray
+            New temp field.
         """
         H_rad = H[0]
         H_lat = H[1] #This is the latent heat solution that should be divided and not the actual latent heat of crystalization. See get_latH for details
         k = k/H_lat
-        if np.isnan(Af):
+        
+        build_matrix = False
+        if isinstance(Af, (float, int)) and np.isnan(Af):
+            build_matrix = True
+        elif isinstance(Af, np.ndarray) and np.isnan(Af).any():
+            build_matrix = True
+            
+        if build_matrix:
             #Generate the weight matrix if the thermal diffusivity is not constant and needs to be changed at every time step
-            main_diag = np.zeros(a*b)
-            p1_diag = np.zeros(a*b - 1)
-            m1_diag = np.zeros(a*b-1)
-            pa_diag = np.zeros(a*b-a)
-            ma_diag = np.zeros(a*b-a)
+            main_diag = np.ones((a, b))
+            p1_diag = np.zeros((a, b))
+            m1_diag = np.zeros((a, b))
+            pa_diag = np.zeros((a, b))
+            ma_diag = np.zeros((a, b))
 
-            index = 0
+            cx = dt / (dx**2)
+            cy = dt / (dy**2)
+            
+            # Views
+            k_in = k[1:-1, 1:-1]
+            k_ip1 = k[2:, 1:-1]
+            k_im1 = k[:-2, 1:-1]
+            k_jp1 = k[1:-1, 2:]
+            k_jm1 = k[1:-1, :-2]
+            H_rad_in = H_rad[1:-1, 1:-1]
+            H_lat_in = H_lat[1:-1, 1:-1]
+            
+            # Terms
+            # main = (1 - ( 2*k*cx + 2*k*cy) + H_rad ) / H_lat
+            # Note: k is already k/H_lat.
+            # Terms
+            # main = (1 - ( 2*k*cy + 2*k*cx) + H_rad ) / H_lat
+            # Note: k is already k/H_lat.
+            # Row (Y) -> cy. Col (X) -> cx.
+            term = 2*k_in*cy + 2*k_in*cx
+            main_diag[1:-1, 1:-1] = (1 - term + H_rad_in) / H_lat_in
+            
+            # Gradient terms
+            # Gradients
+            # k_row_grad (Axis 0 - Y) -> Uses dy
+            k_ip1 = k[2:, 1:-1]
+            k_im1 = k[:-2, 1:-1]
+            k_row_grad = (k_ip1 - k_im1) / (4 * dy**2)
+            
+            # k_col_grad (Axis 1 - X) -> Uses dx
+            k_jp1 = k[1:-1, 2:]
+            k_jm1 = k[1:-1, :-2]
+            k_col_grad = (k_jp1 - k_jm1) / (4 * dx**2)
+            
+            # Diagonals
+            # p1/m1: Row Neighbors (Axis 0, Y) -> Use cy
+            p1_diag[1:-1, 1:-1] = (k_in/(dy**2) + k_row_grad) * dt
+            m1_diag[1:-1, 1:-1] = (k_in/(dy**2) - k_row_grad) * dt
+            
+            # pa/ma: Col Neighbors (Axis 1, X) -> Use cx
+            pa_diag[1:-1, 1:-1] = (k_in/(dx**2) + k_col_grad) * dt
+            ma_diag[1:-1, 1:-1] = (k_in/(dx**2) - k_col_grad) * dt
+            
+            # Main Diag
+            main_diag[1:-1, 1:-1] = - (2*k_in*cy + 2*k_in*cx) + 1
+            
+            # Flatten
+            md = main_diag.flatten(order='F')
+            p1 = p1_diag.flatten(order='F')[:-1]
+            m1 = m1_diag.flatten(order='F')[1:]
+            pa = pa_diag.flatten(order='F')[:-a]
+            ma = ma_diag.flatten(order='F')[a:]
 
-            for j in range(0,b):
-                for i in range(0,a):
-                    if i>0 and i<a-1 and j>0 and j<b-1:
-                        main_diag[index] = -(((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2)+ H_rad[i,j]))+1)/H_lat[i,j] 
-                        pa_diag[index] = ((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
-                        ma_diag[index-a] = ((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
-                        p1_diag[index] = ((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
-                        m1_diag[index-1] = ((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
-                    if i==0 or i==a-1:
-                        main_diag[index] = 1
-                    if j==0 and i!=0 and i!=a-1:
-                        main_diag[index] = 1
-                    if j==b-1 and i!=0 and i!=a-1:
-                        main_diag[index] = 1
-                    index = index+1
             Af = sc.lil_matrix((a*b,a*b))
-            Af.setdiag(main_diag, k=0)
-            Af.setdiag(p1_diag, k=1)
-            Af.setdiag(m1_diag,k=-1)
-            Af.setdiag(pa_diag, k=a)
-            Af.setdiag(ma_diag, k=-a)
+            Af.setdiag(md, k=0)
+            Af.setdiag(p1, k=1)
+            Af.setdiag(m1, k=-1)
+            Af.setdiag(pa, k=a)
+            Af.setdiag(ma, k=-a)
+            
         bee = Tnow.reshape((a*b), order = 'F')
         Tret = np.array(Af.dot(bee)) #Perform matrix multiplication
         Tret = Tret.reshape((a,b), order = 'F')
@@ -328,47 +730,133 @@ class cool:
     @jit(forceobj = True)
     def conv_chain_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
-        Solver for the heat diffusion equation (expanded via the chain rule) based on convolution method - faster when inhomogenous time varying permeability is used
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns - N int
-        dx = spacing in x direction - int
-        dy = spacing in y direction - int
-        dt = time step - int
-        Tf = temperature field at current time step - MxN matrix
-        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
+        Explicit solver using Chain Rule logic (Convolution/Stencil-based).
+        
+        Optimized for JIT compilation (currently forceobj=True).
+        Solves: Div(k Grad T) = k*Laplacian(T) + Grad(k)*Grad(T) + Source
+        
+        Parameters
+        ----------
+        k : numpy.ndarray
+            Diffusivity field.
+        a, b : int
+            Grid dimensions.
+        dx, dy : float
+            Spacing.
+        dt : float
+            Time step.
+        Tf : numpy.ndarray
+            Current temperature field.
+        H : tuple
+            (H_rad, H_lat).
+        q : float or nan
+            Bottom flux.
+            
+        Returns
+        -------
+        Tnow : numpy.ndarray
+            Updated temperature.
         """
         H_rad = H[0]
         H_lat = H[1]
-        Tnow = np.zeros((a,b))
+        
+        # Precompute constants
+        cx = dt / (dx**2)
+        cy = dt / (dy**2)
+        
+        # Slices
+        T_cent = Tf[1:-1, 1:-1]
+        T_ip1 = Tf[2:, 1:-1]
+        T_im1 = Tf[:-2, 1:-1]
+        T_jp1 = Tf[1:-1, 2:]
+        T_jm1 = Tf[1:-1, :-2]
+        
+        k_cent = k[1:-1, 1:-1]
+        H_rad_in = H_rad[1:-1, 1:-1]
+        
+        # Gradients
+        # Gradients
+        # Row Gradient (dK/dy) -> Axis 0 -> Y
+        dk_dy = (k[2:, 1:-1] - k[:-2, 1:-1]) / (4 * dy**2) * dt
+        
+        # Column Gradient (dK/dx) -> Axis 1 -> X
+        dk_dx = (k[1:-1, 2:] - k[1:-1, :-2]) / (4 * dx**2) * dt
+        
+        # Coefficients
+        # Main term: 1 - 2*k*cy - 2*k*cx
+        
+        term_main = 1.0 - (2 * k_cent * cy + 2 * k_cent * cx)
+        
+        # Neighbors
+        # Row (i+/-1, Y): (k/dy2 +/- dk/dy ) * dt
+        c_ip1 = (k_cent * cy) + dk_dy
+        c_im1 = (k_cent * cy) - dk_dy
+        
+        # Col (j+/-1, X): (k/dx2 +/- dk/dx ) * dt
+        c_jp1 = (k_cent * cx) + dk_dx
+        c_jm1 = (k_cent * cx) - dk_dx
+        
+        # Update Interior
+        Tnow = np.copy(Tf)
+        Tnow[1:-1, 1:-1] = (
+            term_main * T_cent +
+            c_ip1 * T_ip1 +
+            c_im1 * T_im1 +
+            c_jp1 * T_jp1 +
+            c_jm1 * T_jm1 +
+            H_rad_in
+        )
+        
+        # Boundaries
         T_surf = Tf[0,0]
         T_bot = Tf[-1,0]
-        for i in range(1,a-1):
-            for j in range(1,b-1):
-                Tnow[i,j] =  ((-((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt)+1)*Tf[i,j] + (((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i+1,j] + (((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt)*Tf[i-1,j] + (((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j+1] + (((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt)*Tf[i,j-1]+(H_rad[i,j]))
-        for i in range(1,a-1):
-            Tnow[i,0] = Tnow[i,2]
-            Tnow[i,b-1] = Tnow[i,b-3]
-        Tnow[0,:] = T_surf
+        
+        # Left/Right (Columns 0 and -1) -> Copy neighbor
+        Tnow[1:-1, 0] = Tnow[1:-1, 2]
+        Tnow[1:-1, -1] = Tnow[1:-1, -3]
+        
+        # Top (Row 0)
+        Tnow[0, :] = T_surf
+        
+        # Bottom (Row -1)
         if (np.isnan(np.array(q)).any()):
-            #Tnow[-1,:] = Tnow[-2,:]+ (0.02857*dy)
-            Tnow[-1,:] = T_bot
+            Tnow[-1, :] = T_bot
         else:
-            Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
+            # Gradient condition
+            # Original: Tnow[-2,:] + (q * dy / k[-1,:])
+            Tnow[-1, :] = Tnow[-2, :] + (q * dy / k[-1, :])
+            
         return Tnow
 
     @jit(forceobj = True)
     def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
         """
-        Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns - N int
-        dx = spacing in x direction - int
-        dy = spacing in y direction - int
-        dt = time step int
-        Tf = temperature field at current time step - MxN matrix
-        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
+        Explicit solver using Averaged Permeability logic (Convolution/Stencil-based).
+        
+        Uses arithmetic mean of diffusivity at cell faces. Less sensitive to K-gradients than chain rule.
+        Solves: (T_new - T_old)/dt = (1/H_lat) * [ Div(k_avg * Grad(T)) + H_rad ]
+        
+        Parameters
+        ----------
+        k : numpy.ndarray
+            Diffusivity field.
+        a, b : int
+            Grid dimensions.
+        dx, dy : float
+            Spacing.
+        dt : float
+            Time step.
+        Tf : numpy.ndarray
+            Current temp.
+        H : tuple
+            (H_rad, H_lat).
+        q : float or nan
+            Bottom flux.
+            
+        Returns
+        -------
+        Tnow : numpy.ndarray
+            Updated temperature.
         """
         H_rad = H[0]
         H_lat = H[1]
@@ -397,11 +885,11 @@ class cool:
         kjmh_s = kjmh[1:-1, 1:-1]
 
         Tnow[1:-1, 1:-1] = (
-        (1 - (kiph_s + kimh_s) * Cx - (kjph_s + kjmh_s) * Cy) * T_C
-        + (kiph_s * Cx) * T_S
-        + (kimh_s * Cx) * T_N
-        + (kjph_s * Cy) * T_E
-        + (kjmh_s * Cy) * T_W
+        (1 - (kiph_s + kimh_s) * Cy - (kjph_s + kjmh_s) * Cx) * T_C
+        + (kiph_s * Cy) * T_S
+        + (kimh_s * Cy) * T_N
+        + (kjph_s * Cx) * T_E
+        + (kjmh_s * Cx) * T_W
         + H_rad[1:-1, 1:-1]*dt
         )/H_lat[1:-1, 1:-1]
     
@@ -421,61 +909,69 @@ class cool:
         else:
             Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
         return Tnow
-    '''
-    def conv_smooth_solve(self, k, a, b, dx, dy, dt, Tf, H, q = np.nan):
-        """
-        Solver for the heat diffusion equation (expanded via averaging permeability) based on convolution method - faster when inhomogenous time varying permeability is used
-        k = Diffusivity field (anisotropic) MxN matrix
-        a = number of rows - M int
-        b = number of columns - N int
-        dx = spacing in x direction - int
-        dy = spacing in y direction - int
-        dt = time step int
-        Tf = temperature field at current time step - MxN matrix
-        q = Heat flux at the bottom boundary - N int If q is left as nan, the boundary condition changes to Dirichlet i.e., constant temp
-        """
-        H_rad = H[0]
-        H_lat = H[1]
-        kiph, kimh, kjph, kjmh = self.avg_perm(k)/H_lat
-        Tnow = np.zeros((a,b))
-        T_surf = Tf[0,0]
-        T_bot = Tf[-1,0]
-        for i in range(1,a-1):
-            for j in range(1,b-1):
-                Tnow[i,j] = ((-(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1)*Tf[i,j] + (kiph[i,j]*(dt/(dx**2)))*Tf[i+1,j] + (kimh[i,j]*(dt/(dx**2)))*Tf[i-1,j] + (kjph[i,j]*(dt/(dy**2)))*Tf[i,j+1] + (kjmh[i,j]*(dt/(dy**2)))*Tf[i,j-1]+(H_rad[i,j]))
-
-        for i in range(1,a-1):
-            Tnow[i,0] = Tnow[i,2]
-            Tnow[i,b-1] = Tnow[i,b-3]
-            Tnow[0,:] = T_surf
-        if (np.array(np.isnan(np.array(q))).any()):
-            Tnow[-1,:] = T_bot
-        else:
-            Tnow[-1,:] = Tnow[-2,:]+ (q*dy/k[-1,:])
-
-        return Tnow 
-    ''' 
+    
     def conv_smooth_solve_adi(self, k, a, b, dx, dy, dt, Tf, H, q=np.nan):
         """
-        Solver for the heat diffusion equation using the 
-        Crank-Nicholson (Peaceman-Rachford ADI)
+        Solves the Heat Diffusion Equation using the Alternating Direction Implicit (ADI) method.
+        Specifically, the Peaceman-Rachford ADI scheme.
         
-        IMPROVEMENTS:
-        1. Fully Second-Order Accurate (Implicit Boundaries).
-        2. Fixed "Leak" (Corrected diffusivity indices at boundaries).
-        3. Removed incorrect division by H_lat.
+        Stability: Unconditionally stable (though accuracy degrades with large dt).
+        Complexity: O(N) due to tridiagonal matrix solves.
+        
+        The method splits the time step `dt` into two halves `dt/2`:
+        
+        **Step 1:** Implicit in Axis 0 (Rows/Y), Explicit in Axis 1 (Cols/X).
+        Solves for intermediate `T*`.
+        System: (I - Ay/2) * T* = (I + Ax/2) * Tn + Source/2
+        
+        **Step 2:** Implicit in Axis 1 (Cols/X), Explicit in Axis 0 (Rows/Y).
+        Solves for final `T_new`.
+        System: (I - Ax/2) * T_new = (I + Ay/2) * T* + Source/2
+        
+        **Axis Mapping:**
+        - Axis 0 (Rows i): Corresponds to `dy` spacing. Diffusivities `kiph`, `kimh`.
+        - Axis 1 (Cols j): Corresponds to `dx` spacing. Diffusivities `kjph`, `kjmh`.
+        
+        Parameters
+        ----------
+        k : numpy.ndarray
+            Diffusivity field.
+        a : int
+            Number of rows (Axis 0).
+        b : int
+            Number of columns (Axis 1).
+        dx : float
+            Spacing along Axis 1 (Cols).
+        dy : float
+            Spacing along Axis 0 (Rows).
+        dt : float
+            Time step.
+        Tf : numpy.ndarray
+            Current temperature field.
+        H : tuple
+            (H_rad, H_lat).
+        q : float or nan
+            Heat flux at bottom (Neumann condition).
+        
+        Returns
+        -------
+        Tnow : numpy.ndarray
+            Updated temperature field.
         """
         H_rad = np.array(H[0], dtype = float)
         H_lat = np.array(H[1], dtype = float)
         
-        # --- 1. GET DIFFUSIVITIES (CORRECTED) ---
+        # --- 1. GET DIFFUSIVITIES ---
         kiph, kimh, kjph, kjmh = self.avg_perm(k)/H_lat
         
-        # Create intermediate (T_star) and final (Tnow) arrays
+        # Normalize Source Term (consistent with Explicit solver)
+        # Explicit solver: Main term divided by H_lat. H_rad*dt also divided by H_lat.
+        # So Q_source should be H_rad * dt / H_lat
+        Q_source = (H_rad * dt) / H_lat
+        
         T_star = np.array(Tf) 
         Tnow = np.zeros_like(Tf)
 
-        # --- Pre-calculate constants ---
         dt2 = dt / 2.0
         Cx2 = dt2 / (dx**2)
         Cy2 = dt2 / (dy**2)
@@ -484,164 +980,260 @@ class cool:
         T_bot = Tf[-1, 0]
 
         # ===============================================================
-        # STEP 1: Implicit in X (Rows), Explicit in Y
+        # STEP 1: Implicit in Y (Rows - Axis 0), Explicit in X (Cols - Axis 1)
         # ===============================================================
         
-        # --- CALCULATE RHS_explicit_y (RHS for Step 1) ---
-        # This represents (I + dt/2 * Diff_y) * T^n + H/2
-        # We must calculate this for ALL columns, including 0 and b-1
+        # --- RHS Explicit X ---
+        # (I + Ax * dt/2) * Tn
+        # We process INTERIOR columns j=1 to b-2
+        RHS_step1_base = np.zeros_like(Tf)
         
-        RHS_step1 = np.zeros_like(Tf)
+        # Storage for the ACTUAL RHS used (including boundary additions)
+        RHS_step1_used = np.zeros_like(Tf)
         
-        # A. Interior Nodes (Same as before)
-        RHS_step1[1:-1, 1:-1] = (
-            (1.0 - (kjph[1:-1, 1:-1] + kjmh[1:-1, 1:-1]) * Cy2) * Tf[1:-1, 1:-1]
-            + (kjph[1:-1, 1:-1] * Cy2) * Tf[1:-1, 2:]
-            + (kjmh[1:-1, 1:-1] * Cy2) * Tf[1:-1, :-2]
-            + H_rad[1:-1, 1:-1] / 2.0 
+        # Interior Nodes (j=1 to b-2, i=1 to a-2)
+        # Uses kjph/kjmh (X-diffusivity? Wait. avg_perm docs: kjph is Col boundary (X). kiph is Row boundary (Y).)
+        # RHS Explicit should clearly use X-Diffusivity (kjph, kjmh) and Cx.
+        # Check avg_perm usage:
+        # kiph/kimh -> Row Faces (i+1/2). Correct for Implicit Row loop.
+        # kjph/kjmh -> Col Faces (j+1/2). Correct for Explicit Col neighbors.
+        
+        RHS_step1_base[1:-1, 1:-1] = (
+            (1.0 - (kjph[1:-1, 1:-1] + kjmh[1:-1, 1:-1]) * Cx2) * Tf[1:-1, 1:-1]
+            + (kjph[1:-1, 1:-1] * Cx2) * Tf[1:-1, 2:]  # T[i, j+1]
+            + (kjmh[1:-1, 1:-1] * Cx2) * Tf[1:-1, :-2] # T[i, j-1]
+            + Q_source[1:-1, 1:-1] / 2.0 
         )
         
-        # B. Left Wall (i=0) - Vertical Diffusion
-        # Uses kjph[1:-1, 0] and kjmh[1:-1, 0]
-        RHS_step1[1:-1, 0] = (
-            (1.0 - (kjph[1:-1, 0] + kjmh[1:-1, 0]) * Cy2) * Tf[1:-1, 0]
-            + (kjph[1:-1, 0] * Cy2) * Tf[1:-1, 1]  # Down neighbor (j+1) is at index 1? No.
-            # Wait, indices for y-neighbors are [j+1] and [j-1]
-            # Tf[2:, 0] is j+1, Tf[:-2, 0] is j-1
-            + (kjph[1:-1, 0] * Cy2) * Tf[2:, 0]
-            + (kjmh[1:-1, 0] * Cy2) * Tf[:-2, 0]
-            + H_rad[1:-1, 0] / 2.0
-        )
-
-        # C. Right Wall (i=b-1) - Vertical Diffusion
-        RHS_step1[1:-1, -1] = (
-            (1.0 - (kjph[1:-1, -1] + kjmh[1:-1, -1]) * Cy2) * Tf[1:-1, -1]
-            + (kjph[1:-1, -1] * Cy2) * Tf[2:, -1]
-            + (kjmh[1:-1, -1] * Cy2) * Tf[:-2, -1]
-            + H_rad[1:-1, -1] / 2.0
-        )
-
-        # Loop over ROWS (j)
-        for j in range(1, a - 1): 
-            ab = np.zeros((3, b))
-            kiph_r = kiph[j, :]
-            kimh_r = kimh[j, :]
+        # RHS for Bottom Row (if Neumann)
+        # i = a-1.
+        if not np.isnan(np.array(q)).any():
+            # Bottom row indices [ -1, 1:-1 ]
+            # Neighbors: T[-1, 2:] (East), T[-1, :-2] (West) -> X neighbors
             
-            # Interior
-            ab[2, 1:] = -kimh_r[1:] * Cx2
-            ab[1, :]  = 1.0 + (kiph_r + kimh_r) * Cx2
-            ab[0, :-1] = -kiph_r[:-1] * Cx2
+            row_idx = -1
+            RHS_step1_base[row_idx, 1:-1] = (
+                (1.0 - (kjph[row_idx, 1:-1] + kjmh[row_idx, 1:-1]) * Cx2) * Tf[row_idx, 1:-1]
+                + (kjph[row_idx, 1:-1] * Cx2) * Tf[row_idx, 2:]  # T[i, j+1]
+                + (kjmh[row_idx, 1:-1] * Cx2) * Tf[row_idx, :-2] # T[i, j-1]
+                + Q_source[row_idx, 1:-1] / 2.0 
+            )
 
-            # Implicit Neumann Left (i=0) - Uses kiph (inner)
-            ab[1, 0] = 1.0 + 2.0 * kiph_r[0] * Cx2
-            ab[0, 1] = -2.0 * kiph_r[0] * Cx2
+        # --- LHS Implicit Y (Rows) ---
+        # Solve for T_star[:, j] for j in 1..b-2
+        
+        for j in range(1, b - 1): # Loop INTERIOR columns only
+            num_unknowns = a - 2 # Rows 1 to a-2
+            if not np.isnan(np.array(q)).any():
+                num_unknowns = a - 1 # Rows 1 to a-1 (Bottom is variable)
+
+            if num_unknowns <= 0: continue
             
-            # Implicit Neumann Right (i=b-1) - Uses kimh (inner)
-            ab[2, -2] = -2.0 * kimh_r[-1] * Cx2
-            ab[1, -1] = 1.0 + 2.0 * kimh_r[-1] * Cx2
+            kiph_c = kiph[:, j]
+            kimh_c = kimh[:, j]
+            
+            # Tridiagonal Matrix construction
+            ab = np.zeros((3, num_unknowns))
+            
+            # Indices relative to unknowns [0..N-1] mapping to rows [1..N]
+            
+            # Main Diagonal: 1 + (kiph + kimh) * Cy2  (Y-Implicit uses Cy)
+            ab[1, :] = 1.0 + (kiph_c[1:num_unknowns+1] + kimh_c[1:num_unknowns+1]) * Cy2
+            
+            # Upper Diagonal (k=1, connects i to i+1): -kiph * Cy2
+            ab[0, 1:] = -kiph_c[1:num_unknowns] * Cy2
+            
+            # Lower Diagonal (k=-1, connects i to i-1): -kimh * Cy2
+            ab[2, :-1] = -kimh_c[2:num_unknowns+1] * Cy2
+            
+            # --- RHS Logic ---
+            rhs_vec = RHS_step1_base[1:num_unknowns+1, j].copy()
+            
+            # --- Boundaries (X-direction) ---
+            # Top (i=0): Dirichlet T_surf
+            # Term was -kimh[1] * T[0]. Move to RHS.
+            rhs_vec[0] += (kimh_c[1] * Cy2) * T_surf
+            
+            # Bottom (i=a-1 or i=a):
+            if np.isnan(np.array(q)).any():
+                # Dirichlet T_bot at i=a-1
+                rhs_vec[-1] += (kiph_c[num_unknowns] * Cy2) * T_bot
+            else:
+                # Neumann (Flux q) at i=a-1
+                # Modify Matrix for last node (index -1 in system, i=a-1 in grid)
+                # T[a] (ghost) = T[a-2] + Flux
+                # See derivation in previous step:
+                # Coeff of T[a-2] (which is T[system_last-1]) gets added -kiph term.
+                # ab[2, -2] corresponds to coeff of T[system_last-1] in equ for T[system_last].
+                # Wait, ab[2, -1]? No ab[2] is lower diag. 
+                # Last element of lower diag is ab[2, -1] ?? No.
+                # solve_banded `ab` shape (3, N).
+                # ab[2] is lower. entries ab[2, 1]...ab[2, N-1].
+                # ab[2, j] is A[j, j-1].
+                # The last row `N-1`. entry A[N-1, N-2]. This is ab[2, N-1]. (using column index of A)
+                # Wait, scipy docs: "ab[u + i - j, j] == a[i,j]"
+                # Lower diag: i = j+1. index = 1 + j+1 - j = 2. Correct.
+                # We want A[N-1, N-2]. j=N-2.
+                # So ab[2, N-2].
+                # Yes, ab[2, -2] in python slice (second to last element of array).
+                
+                # Substitute T[a] = T[a-2] + Flux
+                # T[a-2] term change. Coeff of T[a-2] is Lower Diagonal.
+                # ab[2, -2] corresponds to lower diagonal element of last row.
+                ab[2, -2] -= kiph_c[num_unknowns] * Cy2 
+                
+                flux_val = q[j] * dy / k[a-1, j] # Approx. Flux q -> Q = -k * dT/dy
+                rhs_vec[-1] += (kiph_c[num_unknowns] * Cy2) * flux_val
 
-            rhs_vec = RHS_step1[j, :]
-            T_star[j, :] = solve_banded((1, 1), ab, rhs_vec)
+            # SAVE the final rhs_vec for Step 2 stability trick
+            RHS_step1_used[1:num_unknowns+1, j] = rhs_vec
 
-        # Fix T_star boundaries for Step 2
+            # Solve
+            T_star[1:num_unknowns+1, j] = solve_banded((1, 1), ab, rhs_vec)
+
+        # Apply Y-Boundaries to T_star (Slave Condition)
+        T_star[:, 0] = T_star[:, 2]
+        T_star[:, -1] = T_star[:, -3]
+        
+        # Apply X-Boundaries to T_star (Explicit/Dirichlet)
         T_star[0, :] = T_surf
         if np.isnan(np.array(q)).any():
             T_star[-1, :] = T_bot
+        else:
+             T_star[-1, :] = T_star[-2, :] + (q * dy / k[-1, :])
 
         # ===============================================================
-        # STEP 2: Implicit in Y (Cols), Explicit in X
+        # STEP 2: Implicit in X (Cols - Axis 1), Explicit in Y (Rows - Axis 0)
         # ===============================================================
+        
+        # --- RHS Explicit Y (Rows) ---
+        # (I + Ay * dt/2) * T*
+        
+        RHS_step2_base = np.zeros_like(T_star)
 
-        # --- STABILITY TRICK ---
-        # Instead of calculating Explicit X (which is unstable at boundaries),
-        # we derive it from Step 1 results.
-        # Formula: RHS_step2 = 2 * T_star - RHS_step1 + H_rad
+        # Interior Nodes (j=1 to b-2, i=1 to a-2)
+        # Explicitly calculating Y-direction fluxes (Rows) -> Uses Cy2
+        # kiph: i+1/2 (Bottom face). kimh: i-1/2 (Top face).
         
-        # Note: RHS_step1 already contains H_rad/2.
-        # We need (I+Ax)T* + H/2.
-        # We know (I-Ax)T* = RHS_step1.
-        # So (I+Ax)T* = 2T* - RHS_step1.
-        # So Target = 2T* - RHS_step1 + H/2.
-        # But wait, RHS_step1 was defined as (I+Ay)T^n + H/2. 
-        # So we strictly add the *new* H/2.
+        RHS_step2_base[1:-1, 1:-1] = (
+            (1.0 - (kiph[1:-1, 1:-1] + kimh[1:-1, 1:-1]) * Cy2) * T_star[1:-1, 1:-1]
+            + (kiph[1:-1, 1:-1] * Cy2) * T_star[2:, 1:-1]  # T[i+1, j] (Row neighbor)
+            + (kimh[1:-1, 1:-1] * Cy2) * T_star[:-2, 1:-1] # T[i-1, j] (Row neighbor)
+            + Q_source[1:-1, 1:-1] / 2.0 
+        )
         
-        RHS_step2 = 2.0 * T_star - RHS_step1 + H_rad
+        # --- LHS Implicit X (Cols) ---
+        # Solve for T_now[i, :] for i in 1..a-2
+        # Implicitly solving X-direction (Cols) -> Uses Cx2
         
-        # Note: This trick works perfectly for the interior. 
-        # For the boundaries, it relies on T_star being correct. 
-        # Since we fixed T_star calculation at the walls (by fixing RHS_step1 B and C above),
-        # this is now valid and stable everywhere.
-
-        # Loop over COLUMNS (i)
-        for i in range(b): 
-            kjph_c = kjph[1:, i]
-            kjmh_c = kjmh[1:, i]
+        for i in range(1, a - 1): # Loop ROWS
+            num_unknowns = b - 2 # Cols 1 to b-2
+            if num_unknowns <= 0: continue
             
-            # --- CASE A: BOTTOM IS DIRICHLET ---
-            if np.isnan(np.array(q)).any():
-                num_unknowns = a - 2
-                if num_unknowns <= 0: continue 
-                
-                ab = np.zeros((3, num_unknowns))
-                ab[2, 1:]   = -kjmh_c[1:num_unknowns] * Cy2
-                ab[1, :]    = 1.0 + (kjph_c[:num_unknowns] + kjmh_c[:num_unknowns]) * Cy2
-                ab[0, :-1]  = -kjph_c[:num_unknowns-1] * Cy2
-
-                rhs_vec = RHS_step2[1:a-1, i] # Use the stable RHS
-                
-                rhs_vec[0] += (kjmh_c[0] * Cy2) * T_surf
-                rhs_vec[-1] += (kjph_c[num_unknowns-1] * Cy2) * T_bot
-
-                Tnow[1:a-1, i] = solve_banded((1, 1), ab, rhs_vec)
+            # Row slice of diffusivities (X-direction limits)
+            kjph_r = kjph[i, :]
+            kjmh_r = kjmh[i, :]
             
-            # --- CASE B: BOTTOM IS NEUMANN ---
-            else:
-                num_unknowns = a - 1
-                if num_unknowns <= 0: continue
-                
-                ab = np.zeros((3, num_unknowns))
-                ab[2, 1:]   = -kjmh_c[1:] * Cy2
-                ab[1, :-1]  = 1.0 + (kjph_c[:-1] + kjmh_c[:-1]) * Cy2
-                ab[0, :-1]  = -kjph_c[:-1] * Cy2
-                
-                rhs_vec = RHS_step2[1:, i] # Use the stable RHS
-                
-                rhs_vec[0] += (kjmh_c[0] * Cy2) * T_surf
-                
-                ab[2, -2] = -2.0 * kjmh_c[-1] * Cy2
-                ab[1, -1] = 1.0 + 2.0 * kjmh_c[-1] * Cy2
-                
-                rhs_vec[-1] += (dt * q[i] / dy) 
-                
-                Tnow[1:, i] = solve_banded((1, 1), ab, rhs_vec)
+            # Tridiagonal Construction
+            ab = np.zeros((3, num_unknowns))
+            
+            # Main Diag: 1 + (kjph + kjmh) * Cx2
+            ab[1, :] = 1.0 + (kjph_r[1:b-1] + kjmh_r[1:b-1]) * Cx2
+            
+            # Upper Diag (k=1, j to j+1): -kjph * Cx2
+            ab[0, 1:] = -kjph_r[1:b-2] * Cx2
+            
+            # Lower Diag (k=-1, j to j-1): -kjmh * Cx2
+            ab[2, :-1] = -kjmh_r[2:b-1] * Cx2
+            
+            # RHS
+            rhs_vec = RHS_step2_base[i, 1:b-1].copy()
+            
+            # Boundaries (Y-direction / Cols)
+            # Left (j=0): Ghost T[i, 0] = T[i, 2] (Reflecting)
+            # Equ for j=1:
+            # Coeffs: -kjmh[1]*T[0] + Main*T[1] - kjph[1]*T[2] = RHS
+            # T[0] = T[2].
+            # -kjmh[1]*T[2] + Main*T[1] - kjph[1]*T[2]
+            # Combine T[2] coeffs: -(kjph[1] + kjmh[1])*Cx2.
+            # Upper Diag term for T[2] (rel index 1) corresponds to j=1 eqn.
+   
+            ab[0, 1] -= kjmh_r[1] * Cx2
+            
+            # Right (j=b-1): Ghost T[i, b-1] = T[i, b-3] (Reflecting)
+            # Last unknown is index num-1 (j=b-2).
+            # Equ for j=b-2:
+            # -kjmh*T[b-3] + Main*T[b-2] - kjph*T[b-1] = RHS
+            # T[b-1] = T[b-3].
+            # Combine T[b-3]. Coeff of T[b-3] is Lower Diag.
+            # ab[2, -2] (second to last of array, which is last valid lower diag).
+            
+            ab[2, -2] -= kjph_r[b-2] * Cx2
+            
+            # Solve
+            Tnow[i, 1:b-1] = solve_banded((1, 1), ab, rhs_vec)
 
-        # Final Stamping
+        # Apply Y-Boundaries to Tnow
+        Tnow[:, 0] = Tnow[:, 2]
+        Tnow[:, -1] = Tnow[:, -3]
+        
+        # Apply X-Boundaries
         Tnow[0, :] = T_surf
         if np.isnan(np.array(q)).any():
-            Tnow[-1, :] = T_bot
-            
+             Tnow[-1, :] = T_bot
+        else:
+             Tnow[-1, :] = Tnow[-2, :] + (q * dy / k[-1, :])
+             
         return Tnow
 
 
     @staticmethod
     def func_assigner(func, *args, **kwargs):
-        '''
-        Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
-        func: The function to be called.
-        *args: Positional arguments to be passed to the function.
-        **kwargs: Keyword arguments to be passed to the function.
-        '''
+        """
+        Dynamically calls a function with provided arguments.
+        
+        This wrapper allows for flexible function calls, useful when the specific
+        function to be executed is determined at runtime (e.g., specific phase behavior).
+        
+        Parameters
+        ----------
+        func : callable
+            Function to execute.
+        *args
+            Positional arguments.
+        **kwargs
+            Keyword arguments.
+            
+        Returns
+        -------
+        result : Any
+            Return value of the function.
+        """
         result = func(*args,**kwargs)
         return result
     
     @staticmethod
     def calcF(T_field, T_solidus, T_liquidus):
-        '''
-        Arbitrary method to calculate the fraction of melt remaining based on temperature
-        T_field: A 2D numpy array representing the temperature field.
-        T_liquidus: An optional float representing the liquidus temperature, default is 1250.
-        T_solidus: An optional float representing the solidus temperature, default is 800.
-        '''
+        """
+        Calculates melt fraction (F) based on temperature using a smoothed step function.
+        
+        Uses a tanh-based smoothing to transition between Solid (F=0) and Liquid (F=1).
+        This smooth transition is crucial for numerical stability when taking derivatives (latent heat).
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field.
+        T_solidus : float
+            Solidus temperature (F starts increasing). Default usually 800.
+        T_liquidus : float
+            Liquidus temperature (F reaches 1). Default usually 1250.
+            
+        Returns
+        -------
+        F : numpy.ndarray
+            Melt fraction field (0 to 1).
+        """
         def safe_tanh(x):
             """Clip inputs to tanh to avoid overflow in cosh during gradients."""
             x_clipped = anp.clip(x, -50, 50)  # Prevents overflow in cosh
@@ -673,6 +1265,29 @@ class cool:
         
     @staticmethod
     def calcF_from_csv(T_field, dir_csv, temp_col: str, fraction_column: str, T_liquidus, T_solidus):
+        """
+        Calculates melt fraction (F) by interpolating valid phase diagram data from a CSV.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field.
+        dir_csv : str
+            Path to the CSV file containing phase data.
+        temp_col : str
+            Column name for temperature.
+        fraction_column : str
+            Column name for melt fraction.
+        T_liquidus : float
+            Liquidus temp (used for smoothing bounds).
+        T_solidus : float
+            Solidus temp (used for smoothing bounds).
+            
+        Returns
+        -------
+        F : numpy.ndarray
+            Melt fraction.
+        """
         def smooth_step(val, lower_bound, upper_bound, steepness=10):
             """Smoothly transitions between 0 and 1 using tanh."""
             return 0.5 * (anp.tanh((val - lower_bound) / (upper_bound - lower_bound + 1e-12) * steepness) + 1)
@@ -694,15 +1309,39 @@ class cool:
 
     @staticmethod
     def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, L = 4e5, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
-        '''
-        Get the latent heat of crystallization term for the ehat diffusion equation based onthe model of Karakas et al. (2017)
-        T_field: A 2D numpy array representing the temperature field.
-        lithology: A 2D numpy array representing the lithology types.
-        melt: A string specifying the type of melt, default is 'basalt'.
-        rho_melt: A float representing the density of the melt, default is 2850 kg/m³.
-        T_liquidus: A float representing the liquidus temperature, default is 1250.
-        T_solidus: A float representing the solidus temperature, default is 800.
-        '''
+        """
+        Calculates the Effective Specific Heat term to account for Latent Heat of Crystallization.
+        
+        The heat equation with phase change is:
+        (rho*Cp + rho*L*dF/dT) * dT/dt = ...
+        
+        We define H_lat = (Cp + L*dF/dT) / Cp = 1 + (L/Cp)*dF/dT.
+        Then solving for T corresponds to diffusion with a modified heat capacity.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field.
+        lithology : numpy.ndarray
+            Lithology map (unused in default implementation, but kept for interface).
+        melt : str
+            Melt type (e.g. 'basalt'). Unused in current logic.
+        specific_heat : float
+            Cp (J/kg/K).
+        L : float
+            Latent heat of fusion (J/kg).
+        T_liquidus, T_solidus : float
+            Phase change bounds.
+        curve_func : callable
+            Function F(T) to calculate melt fraction.
+        args : tuple
+            Arguments for curve_func.
+            
+        Returns
+        -------
+        H_lat : numpy.ndarray
+            Scaling factor for the heat equation LHS.
+        """
         H_lat = np.ones_like(T_field)
         if args is None:
             args = (T_solidus, T_liquidus)
@@ -711,7 +1350,7 @@ class cool:
         phi_cr = elementwise_grad(curve_func)
         phi_vals = phi_cr(T_field[lithology==melt], *args)
         if np.isnan(phi_vals).any():
-           raise ValueError('Invalid value (NaN) encountered in melt fraction function')
+           raise ValueError('Invalid value (NaN) encountered in melt fraction function. You should either change the melt fraction function or the liquidus temperature to solve this issue...')
         H_lat[lithology==melt] = (1 + (phi_vals*L/specific_heat))
         H_lat[lithology!=melt] = 1
         return H_lat
@@ -757,6 +1396,9 @@ class cool:
     
     @staticmethod
     def get_specific_heat(T_field, rock, density, dy):
+        '''
+        Function to get specfic heat as a function of temperature for specific rock types.
+        '''
         a,b = density.shape
         pressure = np.zeros((a,b))
         for i in range(1,a):
@@ -828,97 +1470,369 @@ class cool:
             return Tnow
         elif method=='smooth':
             if k_const:
-                kiph, kimh, kjph, kjmh = self.avg_perm(k)/H[1]
-                main_diag = np.zeros(a*b)
-                p1_diag = np.zeros(a*b - 1)
-                m1_diag = np.zeros(a*b-1)
-                pa_diag = np.zeros(a*b-a)
-                ma_diag = np.zeros(a*b-a)
-                index = 0
-
-
-
-                for j in range(0,b):
-                    for i in range(0,a):
-                        if i>0 and i<a-1 and j>0 and j<b-1:
-                            main_diag[index] = -(((kiph[i,j]+kimh[i,j])*(dt/(dx**2)))+((kjph[i,j]+kjmh[i,j])*(dt/(dy**2))))+1
-                            pa_diag[index] = kiph[i,j]*(dt/(dx**2))
-                            ma_diag[index-a] = kimh[i,j]*(dt/(dx**2))
-                            p1_diag[index] = kjph[i,j]*(dt/(dy**2))
-                            m1_diag[index-1] = kjmh[i,j]*(dt/(dy**2))
-                        if i==0 or i==a-1:
-                            main_diag[index] = 1
-                        if j==0 and i!=0 and i!=a-1:
-                            main_diag[index] = 1
-                        if j==b-1 and i!=0 and i!=a-1:
-                            main_diag[index] = 1
-                        index = index+1
+                res = self.avg_perm(k)
+                kiph, kimh, kjph, kjmh = [x/H[1] for x in res]
+                
+                # Vectorized Matrix Build
+                main_diag = np.ones((a, b))
+                p1_diag = np.zeros((a, b))
+                m1_diag = np.zeros((a, b))
+                pa_diag = np.zeros((a, b))
+                ma_diag = np.zeros((a, b))
+                
+                cx = dt / (dx**2)
+                cy = dt / (dy**2)
+                
+                # Interior views
+                kiph_in = kiph[1:-1, 1:-1]
+                kimh_in = kimh[1:-1, 1:-1]
+                kjph_in = kjph[1:-1, 1:-1]
+                kjmh_in = kjmh[1:-1, 1:-1]
+                
+                # Main
+                term = (kiph_in + kimh_in) * cx + (kjph_in + kjmh_in) * cy
+                main_diag[1:-1, 1:-1] = -term + 1
+                
+                # Off Diags
+                # p1/m1 (Row Neighbors, k=1) use kiph/kimh (Row Avg) and cx (dx)
+                p1_diag[1:-1, 1:-1] = kiph_in * cx
+                m1_diag[1:-1, 1:-1] = kimh_in * cx
+                
+                # pa/ma (Col Neighbors, k=a) use kjph/kjmh (Col Avg) and cy (dy)
+                pa_diag[1:-1, 1:-1] = kjph_in * cy
+                ma_diag[1:-1, 1:-1] = kjmh_in * cy
+                
+                # Flatten
+                md = main_diag.flatten(order='F')
+                p1 = p1_diag.flatten(order='F')[:-1]
+                m1 = m1_diag.flatten(order='F')[1:]
+                pa = pa_diag.flatten(order='F')[:-a]
+                ma = ma_diag.flatten(order='F')[a:]
 
                 Af = sc.lil_matrix((a*b,a*b))
-                Af.setdiag(main_diag, k=0)
-                Af.setdiag(p1_diag, k=1)
-                Af.setdiag(m1_diag,k=-1)
-                Af.setdiag(pa_diag, k=a)
-                Af.setdiag(ma_diag, k=-a)
+                Af.setdiag(md, k=0)
+                Af.setdiag(p1, k=1)
+                Af.setdiag(m1, k=-1)
+                Af.setdiag(pa, k=a)
+                Af.setdiag(ma, k=-a)
             else:
                 Af = np.nan
 
             return self.perm_smoothed_solve(k/H[1], a, b, dx, dy, dt, Tnow, q, Af, H)
         elif method=='chain':
             if k_const:
-                k = k/H[1]
-                main_diag = np.zeros(a*b)
-                p1_diag = np.zeros(a*b - 1)
-                m1_diag = np.zeros(a*b-1)
-                pa_diag = np.zeros(a*b-a)
-                ma_diag = np.zeros(a*b-a)
+                k_scaled = k/H[1] # Local copy
+                
+                # Vectorized Matrix Build
+                main_diag = np.ones((a, b))
+                p1_diag = np.zeros((a, b))
+                m1_diag = np.zeros((a, b))
+                pa_diag = np.zeros((a, b))
+                ma_diag = np.zeros((a, b))
 
-                index = 0
+                cx = dt / (dx**2)
+                cy = dt / (dy**2)
+                
+                # Views
+                k_in = k_scaled[1:-1, 1:-1]
+                k_ip1 = k_scaled[2:, 1:-1]
+                k_im1 = k_scaled[:-2, 1:-1]
+                # k_jp1 = k_scaled[1:-1, 2:]
+                # k_jm1 = k_scaled[1:-1, :-2]
+                
+                # Terms
+                term = 2*k_in*cx + 2*k_in*cy
+                main_diag[1:-1, 1:-1] = -term + 1
+                
+                # Gradients
+                # k_row_grad (Axis 0)
+                k_ip1 = k_scaled[2:, 1:-1]
+                k_im1 = k_scaled[:-2, 1:-1]
+                k_row_grad = (k_ip1 - k_im1) / (4 * dx**2)
+                
+                # k_col_grad (Axis 1)
+                k_jp1 = k_scaled[1:-1, 2:]
+                k_jm1 = k_scaled[1:-1, :-2]
+                k_col_grad = (k_jp1 - k_jm1) / (4 * dy**2)
+                
+                # Diagonals
+                # p1/m1: Row Neighbors (Axis 0, dx)
+                p1_diag[1:-1, 1:-1] = (k_in/(dx**2) + k_row_grad) * dt
+                m1_diag[1:-1, 1:-1] = (k_in/(dx**2) - k_row_grad) * dt
+                
+                # pa/ma: Col Neighbors (Axis 1, dy)
+                pa_diag[1:-1, 1:-1] = (k_in/(dy**2) + k_col_grad) * dt
+                ma_diag[1:-1, 1:-1] = (k_in/(dy**2) - k_col_grad) * dt
 
-                for j in range(0,b):
-                    for i in range(0,a):
-                        if i>0 and i<a-1 and j>0 and j<b-1:
-                            main_diag[index] = -((((2*k[i,j])/dx**2)+((2*k[i,j])/dy**2))*dt)+1
-                            pa_diag[index] = ((k[i,j]/dx**2)+((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
-                            ma_diag[index-a] = ((k[i,j]/dx**2)-((k[i+1,j]-k[i-1,j])/(4*dx**2)))*dt
-                            p1_diag[index] = ((k[i,j]/dy**2)+((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
-                            m1_diag[index-1] = ((k[i,j]/dy**2)-((k[i+1,j]-k[i-1,j])/(4*dy**2)))*dt
-                        if i==0 or i==a-1:
-                            main_diag[index] = 1
-                        if j==0 and i!=0 and i!=a-1:
-                            main_diag[index] = 1
-                        if j==b-1 and i!=0 and i!=a-1:
-                            main_diag[index] = 1
-                        index = index+1
-                #Af = sc.spdiags([main_diag, p1_diag, m1_diag, pb_diag, mb_diag], [0,1,-1,a,-a])
+                # Flatten
+                md = main_diag.flatten(order='F')
+                p1 = p1_diag.flatten(order='F')[:-1]
+                m1 = m1_diag.flatten(order='F')[1:]
+                pa = pa_diag.flatten(order='F')[:-a]
+                ma = ma_diag.flatten(order='F')[a:]
+
                 Af = sc.lil_matrix((a*b,a*b))
-                Af.setdiag(main_diag, k=0)
-                Af.setdiag(p1_diag, k=1)
-                Af.setdiag(m1_diag,k=-1)
-                Af.setdiag(pa_diag, k=a)
-                Af.setdiag(ma_diag, k=-a)
+                Af.setdiag(md, k=0)
+                Af.setdiag(p1, k=1)
+                Af.setdiag(m1, k=-1)
+                Af.setdiag(pa, k=a)
+                Af.setdiag(ma, k=-a)
             else:
                 Af = np.nan
             return self.perm_chain_solve(k/H[1], a, b, dx, dy, dt, Tnow, q, Af, H)
         else:
             raise ValueError('diff_solve solution method not supported')
 
+@jit(nopython=True, cache=True)
+def _sillburp_core(T_field, progress_of_reactions, rate_of_reactions,
+                   reaction_energies, no_reactions, As, dt, n_reactions,
+                   oil_production_rate_accum):
+    """
+    JIT-compiled core logic for the Sillburp organic matter degradation model.
+    calculate the degradation of organic matter and production of gases/oil.
+    
+    This function handles the kinetics for multiple reaction channels (Labile, Refractory, Inert, Oil).
+    It updates the progress of reactions (P) and reaction rates (R) in place.
+    
+    Parameters
+    ----------
+    T_field : numpy.ndarray
+        Temperature field (degree C).
+    progress_of_reactions : numpy.ndarray
+        Accumulated fraction of reaction completed (4, N_approx, a, b).
+    rate_of_reactions : numpy.ndarray
+        Current rate of reaction (4, N_approx, a, b).
+    reaction_energies : numpy.ndarray
+        Activation energies for each approximated reaction channel.
+    no_reactions : array-like
+        Number of approximations for each kerogen type.
+    As : array-like
+        Arrhenius pre-exponential factors.
+    dt : float
+        Time step.
+    n_reactions : int
+        Number of reaction types (usually 4).
+    oil_production_rate_accum : numpy.ndarray
+        Accumulator for oil production (modified in place).
+        
+    Returns
+    -------
+    progress_of_reactions, rate_of_reactions, oil_production_rate_accum
+    """
+    
+    a, b = T_field.shape
+    
+    # Constants
+    reactants_LABILE = 0
+    reactants_REFRACTORY = 1
+    reactants_VITRINITE = 2
+    reactants_OIL = 3
+    
+    mass_frac_labile_to_gas = 0.2
+    
+    # Temperature setup
+    T_K = T_field + 273.15
+    RT = 8.314 * T_K
+    
+    # Iterate reactions
+    for i_reac in range(n_reactions):
+        n_approx = no_reactions[i_reac]
+        A_val = As[i_reac]
+        
+        # Slices
+        # reaction_energies: (n_reactions, max_approx)
+        E_slice = reaction_energies[i_reac, :n_approx]
+        
+        # Calculate reaction rates for this group: (n_approx, a, b)
+        reaction_rates = np.empty((n_approx, a, b), dtype=np.float64)
+        for k in range(n_approx):
+            reaction_rates[k] = A_val * np.exp(-E_slice[k] / RT)
+            
+        exp_rate_dt = np.exp(-reaction_rates * dt)
+        
+        # P_old view (read-only for calculations)
+        P_old_slice = progress_of_reactions[i_reac, :n_approx]
+        
+        # Mask
+        do_mask = P_old_slice < 1.0
+        
+        if i_reac != reactants_OIL:
+            # Standard Kinetics
+            for k in range(n_approx):
+                for ia in range(a):
+                    for ib in range(b):
+                        if do_mask[k, ia, ib]:
+                            p_old = P_old_slice[k, ia, ib]
+                            exp_term = exp_rate_dt[k, ia, ib]
+                            
+                            val = 1.0 - (1.0 - p_old) * exp_term
+                            if val > 1.0: val = 1.0
+                            P_new = val
+                            
+                            # Update Progress
+                            progress_of_reactions[i_reac, k, ia, ib] = P_new
+                            
+                            # Update Rate
+                            R_new = (1.0 - p_old) * (1.0 - exp_term) / dt
+                            rate_of_reactions[i_reac, k, ia, ib] = R_new
+                            
+                            # Labile -> Oil Accumulation
+                            if i_reac == reactants_LABILE:
+                                rate = reaction_rates[k, ia, ib]
+                                contrib = -rate * (1.0 - P_new) / n_approx
+                                oil_production_rate_accum[ia, ib] += contrib
+            
+            # Post-reaction adjustment for Labile
+            if i_reac == reactants_LABILE:
+                oil_production_rate_accum *= (1.0 - mass_frac_labile_to_gas)
+
+        else:
+            # OIL Kinetics (depends on accumulated oil)
+            for k in range(n_approx):
+                for ia in range(a):
+                    for ib in range(b):
+                        # S_over_k = oil_accum / (rate * n_approx)
+                        rate = reaction_rates[k, ia, ib]
+                        denom = rate * n_approx
+                        
+                        s_k = 0.0
+                        if denom != 0.0:
+                            s_k = oil_production_rate_accum[ia, ib] / denom
+                        
+                        if do_mask[k, ia, ib]:
+                            p_old = P_old_slice[k, ia, ib]
+                            exp_term = exp_rate_dt[k, ia, ib]
+                            
+                            # P_new = 1 - S/k - (1 - P_old - S/k) * exp
+                            term_inner = 1.0 - p_old - s_k
+                            val = 1.0 - s_k - term_inner * exp_term
+                            
+                            if val > 1.0: val = 1.0
+                            P_new = val
+                            
+                            # Update Progress
+                            progress_of_reactions[i_reac, k, ia, ib] = P_new
+                            
+                            # Update Rate
+                            R_new = (1.0 - p_old - s_k) * (1.0 - exp_term) / dt
+                            rate_of_reactions[i_reac, k, ia, ib] = R_new
+
+    return progress_of_reactions, rate_of_reactions, oil_production_rate_accum
+
+@jit(nopython=True, cache=True)
+def _SILLi_core(T_field, W, calc_parser, dt, E, f, A, R):
+    """
+    JIT-compiled core logic for the SILLi (EasyRo) vitrinite reflectance model.
+    
+    This function computes the 'Easy%Ro' type maturation by iterating through 
+    parallel reaction channels with different activation energies.
+    
+    Parameters
+    ----------
+    T_field : numpy.ndarray
+        Temperature field (degree C).
+    W : numpy.ndarray
+        Array keeping track of remaining reactant fraction for each channel (N_E, a, b).
+    calc_parser : numpy.ndarray
+        Boolean mask of where to calculate (shale/sandstone).
+    dt : float
+        Time step (seconds).
+    E : numpy.ndarray
+        Activation energies (J/mol).
+    f : numpy.ndarray
+        Stoichiometric factors weighting each channel.
+    A : float
+        Frequency factor (1/s).
+    R : float
+        Gas constant (J/mol/K).
+        
+    Returns
+    -------
+    Frac : numpy.ndarray
+        Total fraction of conversion (Sum of f_i * (1-W_i)).
+    W : numpy.ndarray
+        Updated W array.
+    """
+    a, b = T_field.shape
+    n_E = len(E)
+    
+    # Pre-calculate constants
+    T_K = T_field + 273.15
+    RT = R * T_K
+    
+    Frac = np.zeros((a, b), dtype=np.float64)
+    
+    # To avoid allocating (n_E, a, b) for fl, we accumulate Frac directly
+    # Frac = sum(fl) = sum(f[l] * (1 - W[l]))
+    
+    for l in range(n_E):
+        val_E = E[l]
+        val_f = f[l]
+        
+        # Calculate k
+        # k = A * exp(-E/RT)
+        # Using explicit loops to avoid temporary array allocation if possible,
+        # but vectorized math within the block is fine for Numba
+        
+        # Vectorized operations (Numba handles these efficiently)
+        k_slice = A * np.exp(-val_E / RT)
+        
+        # Update W in place
+        # W_new = max(W_old * exp(-k*dt), 0)
+        # We can read/write W[l]
+        w_slice = W[l]
+        exp_kdt = np.exp(-k_slice * dt)
+        
+        for i in range(a):
+            for j in range(b):
+                val_w = w_slice[i, j] * exp_kdt[i, j]
+                if val_w < 0.0: val_w = 0.0
+                w_slice[i, j] = val_w
+                
+                # fl contribution
+                # fl = f * (1 - W)
+                fl_val = val_f * (1.0 - val_w)
+                Frac[i, j] += fl_val
+                
+    return Frac, W
+
 class emit:
+    """
+    The `emit` class handles chemical kinetics and carbon emission models.
+    
+    It includes methods for:
+    1.  **SILLi**: Simulating thermal maturation and vitrinite reflectance (Easy%Ro).
+    2.  **Sillburp**: Simulating kinetic breakdown of organic matter types (Labile, Refractory, etc.).
+    3.  **Carbonate Breakdown**: Calculating CO2 release from decarbonation reactions.
+    4.  **Initial CO2**: estimating initial dissolved CO2 in equilibrium.
+    """
     def __init__(self):
-        #Initilize the class. No variables needed
         pass
     
     @staticmethod
     def get_init_CO2_percentages(T_field, lithology, density, dy):
-        '''
-        The get_init_CO2_percentages method calculates the initial exsolved CO2 percentages for different lithologies based on temperature and pressure conditions 
-        i.e., ensuring the CO2 is in equilibrium with the PT conditions. 
-        It uses interpolation to estimate CO2 values from pre-loaded data for specific rock types.
-        T_field: 2D array representing the temperature field.
-        lithology: 2D array indicating the type of rock at each location.
-        density: 2D array of rock densities.
-        dy: Scalar representing the vertical distance between layers.
-        '''
+        """
+        Calculates the initial exsolved CO2 percentages for carbonate rocks in equilibrium.
+        
+        Uses phase diagrams (interpolated from loaded .mat files) to determine the equilibrium 
+        CO2 content based on Temperature and Pressure (derived from density/depth).
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field (degree C).
+        lithology : numpy.ndarray
+            Lithology map (strings).
+        density : numpy.ndarray
+            Density field (kg/m3) for lithostatic pressure calculation.
+        dy : float
+            Layer thickness (m).
+            
+        Returns
+        -------
+        init_CO2 : numpy.ndarray
+            Equilibrium CO2 percentage field.
+        """
         a,b = lithology.shape
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         #Read in the data for temeprature pressure stability
@@ -959,17 +1873,38 @@ class emit:
                     elif lithology[i,j]=='marl':
                         init_CO2[i,j]== marl_inter([T_field[i,j],pressure])
         return init_CO2
+
+
     @staticmethod
     def get_breakdown_CO2(T_field, lithology, density, breakdownCO2, dy, dt):
-        '''
-        Calculate the amount of CO2 exsolved from the breakdown of carbonate rocks
-        T_field: 2D array representing the temperature field.
-        lithology: 2D array indicating the type of rock at each location.
-        density: 2D array of rock densities.
-        breakdownCO2: 2D array of initial CO2 breakdown values.
-        dy: Scalar representing the vertical distance between layers.
-        dt: Scalar representing the time step.
-        '''
+        """
+        Calculates the instantaneous CO2 release rate from decarbonation reactions.
+        
+        It compares current equilibrium CO2 capacity (based on P-T) with the previous tracked capacity.
+        If the rock can hold less CO2 than before, the difference is released.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field.
+        lithology : numpy.ndarray
+            Lithology map.
+        density : numpy.ndarray
+            Density field.
+        breakdownCO2 : numpy.ndarray
+            Previous cumulative internal CO2 capacity (or state).
+        dy : float
+            Depth increment.
+        dt : float
+            Time step.
+            
+        Returns
+        -------
+        RCO2_breakdown : numpy.ndarray
+            Rate of CO2 release (kg/m3/s or similar units depending on calibration).
+        max_breakdown_co2 : numpy.ndarray
+            Updated cumulative breakdown state to be passed to next step.
+        """
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         a, b = T_field.shape
         #Read in the data for percentage CO2 released at the temeprature and pressure grid
@@ -1028,16 +1963,47 @@ class emit:
 
     
     @staticmethod
-    @jit(forceobj=True)
     def SILLi_emissions(T_field, density, lithology, porosity, TOC_prev, dt, TOCo=np.nan, W=np.nan):
-        '''
-        Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
-        T_field - temperature field (array)
-        dT = Rate of cooloing array
-        density - Rock density array
-        lithology - Lithology array
-        porosity - porosity array
-        '''
+        """
+        Calculates thermal maturation and carbon emissions using the Easy%Ro model (Sweeney & Burnham, 1990).
+        
+        This implementation is JIT-optimized ("SILLi_core") to handle large grids efficiently.
+        It models the degradation of Vitrinite (proxy for all organic matter) via 
+        parallel first-order Arrhenius reactions.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field (degree C).
+        density : numpy.ndarray
+            Rock density (kg/m3).
+        lithology : numpy.ndarray
+            Lithology map.
+        porosity : numpy.ndarray
+            Porosity map (fraction).
+        TOC_prev : numpy.ndarray
+            Total Organic Carbon from previous step (fraction).
+        dt : float
+            Time step (seconds).
+        TOCo : numpy.ndarray
+            Initial Total Organic Carbon (at t=0). Required after first step.
+        W : numpy.ndarray
+            State variable tracking remaining potential for each reaction channel. 
+            Shape: (N_reactions, a, b).
+            
+        Returns
+        -------
+        RCO2 : numpy.ndarray
+            Diffusive CO2 flux (kg/m3/s converted to percent/s scale? Depends on usage).
+        Rom : numpy.ndarray
+             mass rate of organic matter loss (kg/m3/s).
+        percRo : numpy.ndarray
+            Calculated Vitrinite Reflectance (%Ro).
+        TOC : numpy.ndarray
+            Updated Total Organic Carbon.
+        W : numpy.ndarray
+            Updated state variable.
+        """
         calc_parser = (lithology=='shale') | (lithology=='sandstone')
         break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
         calc_parser = calc_parser | break_parser
@@ -1048,18 +2014,22 @@ class emit:
         E = np.array([34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72], dtype = float)*4184 #J/mole
         f = np.array([0.03, 0.03, 0.04, 0.04, 0.05, 0.05, 0.06, 0.04, 0.04, 0.07, 0.06, 0.06, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02, 0.02, 0.01], dtype = float)
         T_field = T_field.astype(np.float64)
-        T_field = T_field + 273.15
+        
+        # Handle Initialization
         if np.isnan(W).all():
-            W = np.ones((len(E),a, b))
+            W = np.ones((len(E),a, b), dtype=np.float64)
             TOCo = TOC_prev
+            
         if np.isnan(np.array(TOCo, dtype = float)).any():
             raise ValueError('TOCo cannot be NaN after the first time step')
-        fl = np.zeros_like(W)
-        for l in range(0, len(E)):
-            k = A*np.exp(-E[l]/(R*T_field))
-            W[l] = np.maximum(W[l]*np.exp(-k*dt),0)
-            fl[l,:,:] = f[l]*(1-W[l,:,:])
-        Frac = np.sum(fl, axis = 0)
+        
+        # Ensure types for JIT
+        dt = float(dt)
+        
+        # Call JIT Core
+        Frac, W = _SILLi_core(T_field, W, calc_parser, dt, E, f, A, R)
+        
+        # Post-process results (Vectorized)
         percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
         TOC = TOCo*(1-Frac)*calc_parser
         dTOC = (TOC_prev-TOC)/dt
@@ -1068,9 +2038,16 @@ class emit:
         return RCO2, Rom, percRo, TOC, W
 
     def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
-        '''
-        Untested function for the analytical solution of the Easy Ro model
-        '''
+        """
+        Analytical solution for the Easy%Ro model.
+        
+        Note: This function is currently marked as 'Untested' and serves as a reference 
+        or alternative implementation to the numerical integration in `SILLi_emissions`.
+        
+        Parameters
+        ----------
+        (Similar to SILLi_emissions, with 'I_prev' as the integration state variable)
+        """
         calc_parser = (lithology=='shale') | (lithology=='sandstone')
         a1 = 2.334733
         a2 = 0.250621
@@ -1099,9 +2076,9 @@ class emit:
         return RCO2, Rom, percRo, I_curr, TOC
 
     def analyticalRo_I(T_field):
-        '''
-        Initialization of I for the analytical solution of the EasyRo model
-        '''
+        """
+        Initializes the integral state variable 'I' for the analytical Easy%Ro solution.
+        """
 
         a = len(T_field[:,0])
         b = len(T_field[0,:])
@@ -1121,10 +2098,17 @@ class emit:
 
     @staticmethod
     def get_sillburp_reaction_energies():
-        '''
-        Function to create the reaction energies required for sillburp model for thermogenic carbon emissions. 
-        These generate normal distributions of activation energies for each component (Jonees et al. 2019)
-        '''
+        """
+        Generates the Activation Energy distributions for the Sillburp model.
+        
+        Based on Jones et al. (2019). Creates normal distributions of activation energies
+        for Labile, Refractory, and Inert Kerogen components.
+        
+        Returns
+        -------
+        reaction_energies : numpy.ndarray
+             Array of activation energies for each approximated reaction channel.
+        """
         sqrt_2pi = np.sqrt(2 * np.pi)
         n_reactions = 4
         mean_E = [208e3, 279e3, 242e3, 230e3]  # mean activation energies for the reactions
@@ -1160,94 +2144,102 @@ class emit:
                 E_0 = E_1
         return reaction_energies
     @staticmethod
-    @jit(forceobj = True)
     def sillburp(T_field, TOC_prev, density, lithology, porosity, dt, reaction_energies, TOCo=None, oil_production_rate=0, progress_of_reactions=np.nan, rate_of_reactions = np.nan, weights = None):
-        '''
-        Python implementation of the sillburp model of Jones et al. (2019)
-        T_field - Temperature field array
-        TOC_prev - Total organic content at the previous time step. If the first time step, leave TOCo blank and make this the TOC content
-        density - Density array of the slice
-        lithology - Lithology array of the slice
-        porosity - Porosity field of the slice
-        dt - Time step
-        reaction_energies - Reaction energy arrays. These are most easily generated from the get_sillburp_reaction_energies() function. The model is designed to be used with these energies
-        TOCo - Total organic carbon content of the slice at the initial time
-        oil_production_rate - Rate of oil production as calculated by this model
-        progress_reactions - The progress of reactions at the current time step. Leave blank at the initial time step
-        rate_of_reactions - The rate of reaction progress at the current time step
-        weights - Array containing the distribution of different components of reaction groups - The order of weights is ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
-        '''
-        #TOCo = np.array(TOCo, dtype=float)
-
+        """
+        Calculates thermogenic carbon emissions using the Sillburp model (Jones et al., 2019).
+        
+        This model is more detailed than Easy%Ro, accounting for different kerogen types 
+        (Labile, Refractory, Inert) and the intermediate generation of oil before cracking to gas.
+        
+        This implementation uses a JIT-compiled core (`_sillburp_core`) for performance.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field.
+        TOC_prev : numpy.ndarray
+            Total Organic Carbon from previous step.
+        density, lithology, porosity: numpy.ndarray
+            Rock properties.
+        dt : float
+            Time step.
+        reaction_energies : numpy.ndarray
+            Pre-calculated activation energies (from `get_sillburp_reaction_energies`).
+        TOCo : numpy.ndarray
+            Initial TOC (required after first step).
+        progress_of_reactions : numpy.ndarray
+            State variable: Fraction of reaction completed for each channel.
+        rate_of_reactions : numpy.ndarray
+            State variable: Current reaction rates.
+        weights : numpy.ndarray or None
+            Optional weights for averaging reaction products.
+            
+        Returns
+        -------
+        RCO2 : numpy.ndarray
+             CO2 generation rate.
+        Rom : numpy.ndarray
+             Organic Matter loss rate.
+        progress_of_reactions : numpy.ndarray
+             Updated state.
+        oil_production_rate : numpy.ndarray
+             Rate of oil generation/cracking.
+        TOC : numpy.ndarray
+             Updated TOC.
+        rate_of_reactions : numpy.ndarray
+             Updated rates.
+        """
         if TOCo is None:
             TOCo = TOC_prev
         
         a, b = T_field.shape
         calc_parser = (lithology == 'shale') | (lithology == 'sandstone')
         n_reactions = 4
-        reactants = ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
-        OIL = reactants.index('OIL')
-        no_reactions = [7, 21, 55, 7]  # Number of reactions for each kerogen type
         
-        As = [1.58e13, 1.83e18, 4e10, 1e13]  # pre-exponential constants for the different reactions
+        # Constants for JIT
+        no_reactions = np.array([7, 21, 55, 7], dtype=np.int64)
+        As = np.array([1.58e13, 1.83e18, 4e10, 1e13], dtype=np.float64)
+        
+        # Initialize arrays if needed
         if np.isnan(progress_of_reactions).all():
-            progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b))
-            progress_of_reactions_old = np.zeros_like(progress_of_reactions)
+            progress_of_reactions = np.zeros((n_reactions, max(no_reactions), a, b), dtype=np.float64)
             rate_of_reactions = np.zeros_like(progress_of_reactions)
-            #oil_production_rate = np.zeros((a,b))
-        else:
-            progress_of_reactions_old = progress_of_reactions.copy()
-        #S_over_k = np.zeros((a,b))
         
-        do_labile_reaction = progress_of_reactions[reactants.index('LABILE'), :, :, :] < 1
-        do_refractory_reaction = progress_of_reactions[reactants.index('REFRACTORY'), :, :, :] < 1
-        do_oil_reaction = progress_of_reactions[reactants.index('OIL'), :, :, :] < 1
-        do_vitrinite_reaction = progress_of_reactions[reactants.index('VITRINITE'), :, :, :] < 1
-        do_reaction = np.array([do_labile_reaction, do_refractory_reaction, do_vitrinite_reaction, do_oil_reaction])
-        mass_frac_labile_to_gas = 0.2
+        # Ensure correct types for JIT
+        T_field = T_field.astype(np.float64)
+        reaction_energies = reaction_energies.astype(np.float64)
+        dt = float(dt)
         
-        for i in range(a):
-            for j in range(b):
-                for i_reaction in range(n_reactions):
-                    for i_approx in range(no_reactions[i_reaction]):
-                        if ~do_reaction[i_reaction, i_approx, i, j]:#.all():
-                            continue
-                        initial_product_conc = progress_of_reactions[i_reaction, i_approx, i, j]
-                        activation_energy = reaction_energies[i_reaction, i_approx]
-                        reaction_rate = As[i_reaction] * np.exp(-activation_energy / 8.314 / (T_field[i, j] + 273.15))
-                        
-                        if reactants[i_reaction] != 'OIL':
-                            progress_of_reactions[i_reaction, i_approx, i, j] = min((1.0 - (1.0 - initial_product_conc) * np.exp(-reaction_rate * dt)), 1)
-                            rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc) * (1.0 - np.exp(-reaction_rate * dt)) / dt
-                        else:
-                            S_over_k = 0.0 if reaction_rate == 0 else oil_production_rate / reaction_rate / no_reactions[OIL]
-                            progress_of_reactions[i_reaction, i_approx, i, j] = min(1.0 - S_over_k - (1.0 - initial_product_conc - S_over_k) * np.exp(-reaction_rate * dt), 1)
-                            rate_of_reactions[i_reaction, i_approx, i, j] = (1.0 - initial_product_conc - S_over_k) * (1.0 - np.exp(-reaction_rate * dt)) / dt
-                        
-                        if i_reaction == reactants.index('LABILE'):
-                            if i_approx == 0:
-                                oil_production_rate = 0.0
-                            oil_production_rate += -reaction_rate * (1.0 - progress_of_reactions[i_reaction, i_approx, i, j]) / no_reactions[reactants.index('LABILE')]
-                            if i_approx == no_reactions[reactants.index('LABILE')] - 1:
-                                oil_production_rate *= (1.0 - mass_frac_labile_to_gas)
+        # Oil production accumulator
+        oil_production_rate_accum = np.zeros_like(T_field)
+        
+        # Call JIT core
+        progress_of_reactions, rate_of_reactions, oil_production_rate_accum = _sillburp_core(
+            T_field, progress_of_reactions, rate_of_reactions, 
+            reaction_energies, no_reactions, As, dt, n_reactions, 
+            oil_production_rate_accum
+        )
+        
+        # Final Outputs
+        oil_production_rate = oil_production_rate_accum
         products_progress = np.zeros((n_reactions, a, b))
+        
         if weights is None:
             for i_reaction in range(0,n_reactions):
                 products_progress[i_reaction,:, :] = np.mean(progress_of_reactions[i_reaction,0:no_reactions[i_reaction],:,:], axis  = 0)
             products_progress = np.mean(products_progress, axis=0)
-            #time_step_summarized = np.mean(time_step_progress, axis=0)
-            #time_step_summarized = np.mean(time_step_summarized, axis=0)
+            
             TOC = TOCo * (1-products_progress) * calc_parser
             dTOC = (TOC_prev - TOC)/dt
             Rom = (1 - porosity) * density * dTOC
             RCO2 = Rom * 3.67
         else:
             if weights.shape!=products_progress.shape:
-                print(weights)
                 raise IndexError(f'Shape of weights must be {products_progress.shape}')
             for i_reaction in range(0,n_reactions):
                 products_progress[i_reaction,:,:] = np.mean(progress_of_reactions[i_reaction,0:no_reactions[i_reaction],:,:], axis = 0)
             products_progress = np.average(products_progress, axis=0, weights = weights)
+            
             TOC = TOCo * (1-products_progress) * calc_parser
             dTOC = (TOC_prev - TOC)/dt
             Rom = (1 - porosity) * density * dTOC
@@ -1257,15 +2249,34 @@ class emit:
 
 
 class rules:
+    """
+    The `rules` class contains heuristic rules and geometric utilities for the simulation.
+    
+    It handles:
+    1.  **Sill Emplacement**: Deciding when and where to emplace sills.
+    2.  **Geometry**: Generating random heights, widths, and positions for sills based on specified distributions and parameters.
+    3.  **Mesh Manipulation**: Pushing strata down to accommodate new sills.
+    4.  **Properties**: Managing lithology and property dictionaries.
+    """
     def __init__(self):
         pass
     @staticmethod
     def to_emplace(t_now, t_thresh):
-        '''
-        Boolean function that decides whether or not to emplace sills based on if the time since the last sill was emplaced exceeds the threshold
-        t_now - time since last sill was emplaced
-        t_thresh - threhold time for sill emplacement
-        '''
+        """
+        Determines if a new sill should be emplaced based on time threshold.
+        
+        Parameters
+        ----------
+        t_now : float
+            Time elapsed since last event. 
+        t_thresh : float
+            Time threshold triggering emplacement.
+            
+        Returns
+        -------
+        bool
+            True if t_now >= t_thresh i.e., if enough time has lapsed since last event.
+        """
         if (t_now<t_thresh):
             return False
         elif t_now>=t_thresh:
@@ -1273,9 +2284,22 @@ class rules:
 
     @staticmethod
     def build_lith_dict(lithology):
-        '''
-        Function to build lithology dictionary (str to int) based on the lithology array provided. Values are assigned in order of appearance of new rock types
-        '''
+        """
+        Builds a dictionary mapping integer IDs to lithology names.
+        
+        This allows optimizing storage/calculation by handling integers in the core logic 
+        while maintaining string labels for reference.
+        
+        Parameters
+        ----------
+        lithology : numpy.ndarray
+            2D array of lithology strings (or objects).
+            
+        Returns
+        -------
+        lith_dict : dict
+            Mapping {int_id: 'rock_name'}.
+        """
         a,b = lithology.shape
         lith_dict = {0:str(lithology[0,0])}
         n = 1
@@ -1288,11 +2312,22 @@ class rules:
 
     @staticmethod
     def build_prop_dict(prop, lithology):
-        '''
-        Function to build dictionary assigning the invariant properties with lithology based on the two arrays provided
-        prop - 2D array containing the values of the particular proerty
-        lithology - 2D array containing the rock at each position
-        '''
+        """
+        Builds a dictionary mapping lithology names to constant properties (like density/porosity).
+        Assumes property is constant for a given lithology type in the input arrays.
+        
+        Parameters
+        ----------
+        prop : numpy.ndarray
+            Property field.
+        lithology : numpy.ndarray
+            Lithology field.
+            
+        Returns
+        -------
+        prop_dict : dict
+            Mapping {'rock_name': property_value}.
+        """
         a,b = lithology.shape
         prop_dict = {lithology[0,0]: prop[0,0]}
         for i in range(a):
@@ -1303,29 +2338,53 @@ class rules:
     @staticmethod
     def single_sill(T_field, x_space, height, width, thick, T_mag):
         """
-        Emplacing a simple rectangular sill without a dike tail
-        T_field: A 2D numpy array representing the temperature field.
-        x_space: The x-coordinate for the center of the sill in nodes.
-        height: The y-coordinate for the center of the sill in nodes.
-        width: The width of the sill in nodes.
-        thick: The thickness of the sill in nodes.
-        T_mag: The temperature of the intruding magma.
+        Emplaces a single rectangular sill at a specified location.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field (modified in place).
+        x_space : int
+            Center Column index.
+        height : int
+            Center Row index.
+        width : int
+            Width in nodes.
+        thick : int
+            Thickness in nodes.
+        T_mag : float
+            Magma temperature.
+            
+        Returns
+        -------
+        T_field : numpy.ndarray
+            Updated temperature field.
         """
         T_field[int(height-(thick//2)):int(height+(thick//2)), int(x_space-(width//2)):int(x_space+(width//2))] = T_mag
         return T_field
     @staticmethod
     def circle_sill(T_field, x_space, height, r, T_mag, a, b, dx, dy):
         """
-        Emplacing a simple circular sill without the dike tail
-        T_field: 2D numpy array representing the temperature field.
-        x_space: x-coordinate for the center of the sill in nodes.
-        height: y-coordinate for the center of the sil in nodes.
-        r: radius of the sill in nodes.
-        T_mag: temperature magnitude of the sill.
-        a: number of nodes in the y-direction.
-        b: number of nodes in the x-direction.
-        dx: spacing in the x-direction in m.
-        dy: spacing in the y-direction in m.
+        Emplaces a circular sill.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+             Modified in place.
+        x_space, height : int
+             Center indices (col, row).
+        r : float
+             Radius in meters.
+        T_mag : float
+             Magma temp.
+        a, b : int
+             Grid dimensions.
+        dx, dy : float
+             Grid spacing (m).
+             
+        Returns
+        -------
+        T_field
         """
         x = np.arange(0,b*dx, dx)
         y = np.arange(0, a*dy, dy)
@@ -1340,12 +2399,28 @@ class rules:
 
     def randn_heights(self, n_sills, l_sill, h_sill, sd, dy):
         """
-        Get random emplacement heights over a normal distribution within the specified range. Output is in nodes.
-        n_sills - number of sills int
-        l_sills - Depth of lowest sill emplacement range (m) int
-        h_sills - Depth of shallowest depth emplacement range (m) int
-        sd = Standard Deviation of the heights distribution
-        dy - Grid spacing in the y direction (m) int
+        Generates random emplacement depths (heights) from a Normal Distribution.
+        
+        The distribution is centered between `l_sill` (low/deep) and `h_sill` (high/shallow).
+        Values outside the [h_sill, l_sill] range are resampled recursively.
+        
+        Parameters
+        ----------
+        n_sills : int
+            Number of sills.
+        l_sill : float
+            Lower bound (Deepest depth in m). Note: In geological plotting dependent on y-axis, 'lower' often means deeper (higher y-index).
+        h_sill : float
+             Upper bound (Shallowest depth in m).
+        sd : float
+             Standard deviation of the distribution (m).
+        dy : float
+             Grid spacing (m).
+             
+        Returns
+        -------
+        heights : numpy.ndarray
+             Array of Row indices (nodes) for sill centers.
         """
         if h_sill<l_sill:
             pass
@@ -1364,11 +2439,25 @@ class rules:
 
     def x_spacings(self, n_sills, x_min, x_max, sd, dx):
         """
-        Nodes for x-coordinate space chosen as a random normal distribution
-        n_sills - number of sills int
-        x_min - The lower range (left side) (m) int
-        x_max - The upper range (right side) (m) int
-        sd - Standard deviation of the distribution. For the entire distribution to fit within the range, a maximum of 10% of the distribution is recommended. 
+        Generates random horizontal positions (Column indices) from a Normal Distribution.
+        
+        Centered between x_min and x_max.
+        
+        Parameters
+        ----------
+        n_sills : int
+             Number of sills.
+        x_min, x_max : float
+             Range bounds (m).
+        sd : float
+             Standard deviation (m).
+        dx : float
+             Grid spacing (m).
+             
+        Returns
+        -------
+        space : numpy.ndarray
+             Column indices.
         """
         space = np.round((sd/dx)*np.random.randn(n_sills)+ np.mean([x_min/dx, x_max/dx]))
         while ((space>x_max/dx).any() or (space<x_min/dx).any()):
@@ -1381,12 +2470,21 @@ class rules:
     @staticmethod
     def uniform_heights(n_sills, l_sill, h_sill, dy):
         """
-        Get heights spacing for sill emplacement randomly picked from a uniform distribution
-        n_sills: Number of heights to generate.
-        l_sill: Lower bound of the height range in m.
-        h_sill: Upper bound of the height range in m.
-        dy: Grid spacing in the y-direction.
-        Returns emplacement depths in node spacings
+        Generates random emplacement depths from a Uniform Distribution.
+        
+        Parameters
+        ----------
+        n_sills : int
+            Number of sills.
+        l_sill, h_sill : float
+            Depth bounds (m).
+        dy : float
+            Grid spacing (m).
+            
+        Returns
+        -------
+        heights : numpy.ndarray
+            Row indices.
         """
         heights = np.round(np.random.uniform(l_sill, h_sill, n_sills)/dy)
         return heights
@@ -1394,23 +2492,42 @@ class rules:
     @staticmethod
     def uniform_x(n_sills, x_min, x_max, dx):
         """
-        Nodes for x-coordinate space chosen as a random normal distribution
-        n_sills: Number of x-coordinate nodes to generate.
-        x_min: Minimum value of the x-coordinate range.
-        x_max: Maximum value of the x-coordinate range.
-        dx: Grid spacing in the x-direction.
-        Returns x-coordinates in node spacings
+        Generates random horizontal positions from a Uniform Distribution.
+        
+        Parameters
+        ----------
+        n_sills : int
+            Number of sills.
+        x_min, x_max : float
+            Range bounds (m).
+        dx : float
+            Grid spacing (m).
+            
+        Returns
+        -------
+        space : numpy.ndarray
+            Column indices.
         """
         space = np.round(np.random.uniform(x_min, x_max, n_sills)/dx)
         return space
     @staticmethod
     def empirical_CDF(n_sills, xarray, cdf):
         """
-        Function to give random numbers from a specific empirical distribution
-        n_sills - number of sills needed int
-        xarray - array of domain for empirical CDF
-        cdf - array of CDF for the x array
-        Returns distribution in units of inputs
+        Samples random values from a user-provided Empirical Cumulative Distribution Function (CDF).
+        
+        Parameters
+        ----------
+        n_sills : int
+            Number of samples needed.
+        xarray : numpy.ndarray
+            Domain values (x-axis of CDF).
+        cdf : numpy.ndarray
+            Cumulative probability values (y-axis of CDF, 0 to 1).
+            
+        Returns
+        -------
+        why : numpy.ndarray
+            Sampled values.
         """
         why = np.zeros(n_sills)
         for k in range(0,n_sills):
@@ -1422,16 +2539,30 @@ class rules:
     @staticmethod
     def get_scaled_dims(min_min, min_max, mar, sar, heights, n_sills):
         """
-        Linearly scaled with height (inversely) plus noise for both aspect ratio and shape
-        Returns the width and height respectively in the number of nodes
-        min_min = Minimum value for the thickness (m)
-        min_max = Maximum value for the thickness (m)
-        mar = Mean aspect ratio (Width/Thickness)
-        sar = Standard deviation for the distribution of the aspect ratios
-        n_sills = Number of sills
-        dx = Node spacing in the x-direction
-        dy = Node spacing in the y-direction
-        Returns dims in length units
+        Generates sill dimensions (width, height) scaling linearly with depth (heights).
+        
+        Assumes deeper sills might be larger/smaller based on the scaling logic.
+        Also adds random noise to aspect ratio and dimensions.
+        
+        Parameters
+        ----------
+        min_min, min_max : float
+            Minimum/Maximum thickness bounds (m).
+        mar : float
+            Mean Aspect Ratio (Width/Thickness).
+        sar : float
+            Standard Deviation of Aspect Ratio.
+        heights : numpy.ndarray
+            Emplacement depths (nodes). Used to scale dimensions.
+        n_sills : int
+            Number of sills.
+            
+        Returns
+        -------
+        major : numpy.ndarray
+            Widths (major axis) in length units (m).
+        minor : numpy.ndarray
+            Thicknesses (minor axis) in length units (m).
         """
         fact_min = ((min_max-min_min)/min_max)*((np.max(heights)-np.min(heights))/np.max(heights))
         major = np.zeros(n_sills)
@@ -1444,13 +2575,23 @@ class rules:
     @staticmethod
     def randn_dims(min_min, min_max, sd_min, mar, sar, n_sills):
         """
-        Random normal distribution of dims for aspect ratio and shape
-        min_min = Minimum value for the thickness (m)
-        min_max = Maximum value for the thickness (m)
-        mar = Mean aspect ratio (Width/Thickness)
-        sar = Standard deviation for the distribution of the aspect ratios
-        n_sills = Number of sills
-        Returns dims in length units
+        Generates sill dimensions using a Normal Distribution.
+        
+        Parameters
+        ----------
+        min_min, min_max : float
+             Thickness bounds (m).
+        sd_min : float
+             Standard deviation for thickness (m).
+        mar, sar : float
+             Mean and SD for Aspect Ratio.
+        n_sills : int
+             Count.
+             
+        Returns
+        -------
+        major, minor : numpy.ndarray
+             Dimensions in meters.
         """
         aspect_ratio = sar*np.random.randn(n_sills) + mar
         for i in range(len(aspect_ratio)):
@@ -1468,13 +2609,21 @@ class rules:
     @staticmethod
     def uniform_dims(min_min, min_max, min_ar, max_ar, n_sills):
         """
-        Random uniform distribution of dims for aspect ratio and shape
-        min_min = Minimum value for the thickness (m)
-        min_max = Maximum value for the thickness (m)
-        min_ar = Minimum aspect ratio (Width/Thickness)
-        max_ar =  Maximum aspect ratio
-        n_sills = Number of sills
-        Returns dims in length units
+        Generates sill dimensions using a Uniform Distribution.
+        
+        Parameters
+        ----------
+        min_min, min_max : float
+            Thickness bounds (m).
+        min_ar, max_ar : float
+            Aspect Ratio bounds.
+        n_sills : int
+            Count.
+            
+        Returns
+        -------
+        major, minor : numpy.ndarray
+            Dimensions in meters.
         """
         aspect_ratio = np.random.uniform(min_ar, max_ar, n_sills)
         minor = np.round(np.random.randn(min_min, min_max, n_sills))
@@ -1482,14 +2631,27 @@ class rules:
         return major, minor
     @staticmethod
     def value_pusher(array, new_value, push_index, push_value):
-        '''
-        Insert values in specified index and pushed the values down by a specified amount. 
-        This function works, but is a less efficient version of rules.value_pusher2D
-        array: A 2D numpy array to be modified.
-        new_value: The value to be inserted into the array.
-        push_index: A tuple indicating the (x, y) index where the new value will be inserted.
-        push_value: An integer indicating how many positions to shift the existing values downwards.
-        '''
+        """
+        Inserts a single value into a 2D array and shifts column values down.
+        
+        Note: Less efficient than `value_pusher2D`. Operations are column-specific.
+        
+        Parameters
+        ----------
+        array : numpy.ndarray
+             Target array.
+        new_value : float/int
+             Value to insert.
+        push_index : tuple (row, col)
+             Insertion point.
+        push_value : int
+             Number of rows to shift down (thickness of insertion).
+             
+        Returns
+        -------
+        array : numpy.ndarray
+             Modified array.
+        """
         x,y = push_index
         if push_value<=0:
             raise ValueError("push_value must be greater than 0")
@@ -1501,30 +2663,52 @@ class rules:
         array[x:x+push_value,y] = new_value
         return array
     @staticmethod
-    def prop_updater(lithology, prop_dict: dict, property: str):
-        '''
-        This function updates the associated rock properties once everything has shifted.
-        lithology: A 2D numpy array representing different rock types.
-        lith_dict: A dictionary mapping integer keys to rock type names.
-        prop_dict: A dictionary mapping rock type names to their properties.
-        property: A string indicating the specific property to update.
-        Returns a 2D array.
-        '''
+    def prop_updater(lithology, prop_dict: dict, properrty: str):
+        """
+        Updates a property array based on the lithology map and a property dictionary.
+        
+        Used after mesh manipulation (shifting/pushing) to ensure properties 
+        (density, porosity, etc.) match the new lithology positions.
+        
+        Parameters
+        ----------
+        lithology : numpy.ndarray
+             Lithology map.
+        prop_dict : dict
+             Mapping of {lithology: {property_name: value}}.
+        property : str
+             Key of the property to returning (e.g., 'Density').
+             
+        Returns
+        -------
+        prop : numpy.ndarray
+             Updated property field.
+        """
         prop = np.zeros_like(lithology)
         for rock in prop_dict.keys():
-            prop[lithology==rock] = prop_dict[rock][property]
+            prop[lithology==rock] = prop_dict[rock][properrty]
         return prop
     
 
     @staticmethod
     def value_pusher2D(array, new_value, row_index, push_amount):
-        '''
-        Modify a 2D numpy array by inserting a new value at specified row indices and shifting existing values downwards by a specified amount for each column.
-        array: A 2D numpy array to be modified.
-        new_value: The value to be inserted into the array.
-        row_index: A list of row indices for each column where the new value will be inserted.
-        push_amount: A list of integers indicating how many positions to shift the existing values downwards for each column.
-        '''
+        """
+        Vectorized shifting of 2D array columns to simulate intrusion of sills.
+        
+        Moves values downwards in each column by `push_amount` starting from `row_index`.
+        Fills the gap with `new_value`.
+        
+        Parameters
+        ----------
+        array : numpy.ndarray
+            Target array.
+        new_value : float/int
+            Value to fill in the opened space (e.g., magma property).
+        row_index : numpy.ndarray (1D, length=cols)
+            Start row for shift in each column.
+        push_amount : numpy.ndarray (1D, length=cols)
+            Amount to shift in each column.
+        """
         a,b = array.shape
         if len(row_index) != b or len(push_amount) != b:
             raise ValueError("row_index and push_values must have the same length as the number of columns")
@@ -1538,11 +2722,23 @@ class rules:
 
     @staticmethod
     def index_finder(array, string):
-        '''
-        Function to check and return the indices of an array that contains the specified string
-        array: A numpy array of strings or elements that can be converted to strings. Prefered dtype is object.
-        string: A string to search for within each element of the array.
-        '''
+        """
+        Finds indices where a string matches or contains a substring in an object array.
+        
+        Used for identifying specific sill IDs in the 3D sill cube.
+        Custom logic: 'Only check if the character BEFORE `string` is a digit' suggests avoiding partial matches like '10s' when searching for '1s'.
+        
+        Parameters
+        ----------
+        array : numpy.ndarray
+            Array of strings/objects.
+        string : str
+            Target substring (e.g., '1s100').
+            
+        Returns
+        -------
+        boolean mask : numpy.ndarray
+        """
         if not np.issubdtype(array.dtype, np.str_):
             array = array.astype(str)
         
@@ -1559,24 +2755,45 @@ class rules:
 
 
     def mult_sill(self, T_field,  majr, minr, height, x_space, dx, dy, rock = np.array([]), emplace_rock = 'basalt', T_mag = 1000, shape = 'elli', dike_empl = True, push = False):
-        '''
-        Emplace sills in a 2D temperature array and optionallu update the lithology array with the sills. 
-        Optionally push the rocks downward, or overwrite the rocks in the field.
-        T_field: A 2D numpy array representing the temperature field.
-        majr: Major axis length of the sill.
-        minr: Minor axis length of the sill.
-        height: Y-coordinate for the center of the sill.
-        x_space: X-coordinate for the center of the sill.
-        dx: Spacing in the x-direction.
-        dy: Spacing in the y-direction.
-        rock: Optional 2D numpy array representing rock types.
-        emplace_rock: Type of rock to emplace, default is 'basalt'.
-        T_mag: Temperature magnitude of the sill.
-        shape: Shape of the sill, either 'rect' or 'elli'.
-        dike_empl: Boolean indicating if a dike tail should be emplaced.
-        push: Boolean indicating if the sill should be pushed into the field.
-        Returns the temperature field and an array indicating where the sill was emplaced and optionally the lithology array
-        '''
+        """
+        Emplaces a single sill with advanced options.
+        
+        Options include:
+        - Rectangular ('rect') or Elliptical ('elli') shape.
+        - Updating a lithology ('rock') map simultaneously.
+        - 'Pushing' existing strata down (`push=True`) vs Overwriting (`push=False`).
+        - Adding a vertical feeder dike (`dike_empl=True`).
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+             Temperature field to modify.
+        majr : float
+             Major axis length (width) in m. (Code converts to nodes).
+        minr : float
+             Minor axis length (thickness) in m. (Code converts to nodes).
+        height, x_space : float
+             Center coordinates (indices).
+        dx, dy : float
+             Grid spacing.
+        rock : numpy.ndarray
+             Lithology map (optional).
+        emplace_rock : str
+             Rock type string for the new sill.
+        T_mag : float
+             Magma temperature.
+        shape : str
+             'rect' or 'elli'.
+        dike_empl : bool
+             If True, adds a vertical channel from the sill down to the bottom boundary.
+        push : bool
+             If True, uses `value_pusher2D` to displace existing rocks.
+             
+        Returns
+        -------
+        if rock provided: T_field, rock, new_dike (mask)
+        else: T_field, new_dike
+        """
         a,b = T_field.shape
         new_dike = np.zeros_like(T_field)
         majr = majr//dx
@@ -1639,12 +2856,27 @@ class rules:
     @staticmethod
     def get_chemH(T_field, rho, CU, CTh, CK, T_sol, dike_net, a, b):
         """
-        Untested function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
-        T_field = Temp field, int
-        rho = Density kg/m3
-        CU, CTh = U, Th concentrations in ppm, array
-        CK = K conc in wt %, array
-        T_sol = Solidus temperature
+        Calculates radiogenic heat production and latent heat of crystallization.
+        
+        Based on Rybach and Cermack (1982).
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field.
+        rho : float or numpy.ndarray
+            Density field (kg/m3).
+        CU, CTh, CK : numpy.ndarray
+            Concentrations of Uranium (ppm), Thorium (ppm), Potassium (%).
+        T_sol : float
+            Solidus temperature.
+        dike_net : numpy.ndarray
+             Mask indicating location of magmatic intrusions (for latent heat).
+             
+        Returns
+        -------
+        H : numpy.ndarray
+             Heat generation term (W/m3).
         """
         J = 4e5 #J/kg latent heat of crystallization
         Cp = 850 #J/kgK specific heat capacity
@@ -1661,9 +2893,23 @@ class rules:
 
     @staticmethod
     def rotate_nodes(coords_array, theta, center = (0,0)):
-        '''
-        Rotate the given coordinates by specified angle clockwise
-        coords_array: array containing the row and column indices'''
+        """
+        Rotates 2D coordinates clockwise by angle `theta`.
+        
+        Parameters
+        ----------
+        coords_array : list or array
+            [row_index, col_index] i.e. [y, x].
+        theta : float
+            Rotation angle in degrees.
+        center : tuple
+            Center of rotation (y, x).
+            
+        Returns
+        -------
+        x1, y1 : numpy.ndarray
+             Rotated coordinates.
+        """
         # Convert theta to radians and adjust for clockwise rotation
         theta_rad = np.radians(theta + 90)  # Add 90 for N orientation along z-axis
 
@@ -1687,17 +2933,34 @@ class rules:
 
 
     def sill_3Dcube(self, x, y, z, dx, dy, n_sills, x_coords, y_coords, z_coords, maj_dims, min_dims, empl_times, shape='elli', dike_tail=False, orientations = True, dike_width = None):
-        '''
-        Function to generate sills in 3D space to employ fluxes as a control for sill emplacement.
-        Choose any 1 slice for a 2D cooling model, or multiple slices for multiple cooling models
-        x, y, z = width, height and third dimension extension of the crustal slice (m)
-        n_sills = Number of sills to be emplaced
-        dx, dy = Node spacing
-        x_coords = x coordinates for the center of the sills
-        y_coords = y coordinates for the center of the sills
-        z_coords = z coordinates for the center of the sills
-        maj_dims, minor dims = dimensions of the 2D sills. Implicit assumption of circularity in the z-direction is present in the code (m)
-        '''
+        """
+        Generates a 3D "Sill Cube" containing strings identifying sills at each voxel.
+        
+        This cube is pre-calculated to map where sills will be at any given time/slice.
+        Strings like "3s1000" means Sill #3 emplaced at time 1000.
+        
+        Parameters
+        ----------
+        x, y, z : float
+             Physical dimensions of the crustal block (m).
+        dx, dy : float
+             Grid spacing (m). Note: z assumed to have dx spacing? code uses c = int(z//dx).
+        n_sills : int
+             Number of sills.
+        x_coords, y_coords, z_coords : numpy.ndarray
+             Center coordinates (Indices? Or meters? Code suggests z_coords are checked against z_len (indices?)).
+             Note: Variable naming in `mult_sill` used meters for inputs but code converted. Here usually inputs are pre-converted or matching logic. 
+             Looking at `sillcube` generation `z_coords[l] - maj_dims[l]`, these are likely indices.
+        maj_dims, min_dims : numpy.ndarray
+             Dimensions (m? code converts: maj_dims/dx).
+        empl_times : numpy.ndarray
+             Emplacement times.
+             
+        Returns
+        -------
+        sillcube : numpy.ndarray (dtype=object)
+             3D array of strings.
+        """
         a = int(y // dy)
         b = int(x // dx)
         c = int(z // dx)
@@ -1793,13 +3056,30 @@ class rules:
 
         return sillcube
     def emplace_3Dsill(self, T_field, sillcube, n_rep, T_mag, z_index, curr_empl_time):
-        '''
-        Function to empalce a sill into the 2D slice T_field
-        T_field = 2D temperature array
-        sillcube = 3D sill array
-        n_rep = the number of the sill being emplaced
-        z_index = The 2D slice from the 3D sill array being considered
-        '''
+        """
+        Emplaces a specific sill from the 3D sillcube into a 2D Temperature slice.
+        
+        Searches the 2D slice of `sillcube` (at `z_index`) for the string key corresponding 
+        to the sill (`n_rep`) and time (`curr_empl_time`). Sets T_field to T_mag there.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            2D Temperature slice.
+        sillcube : numpy.ndarray
+            3D Sill Cube.
+        n_rep : int
+            Sill ID to emplace.
+        T_mag : float
+            Magma temperature.
+        z_index : int
+            Which Z-slice of the cube corresponds to the current 2D model plane.
+        
+        Returns
+        -------
+        T_field : numpy.ndarray
+            Updated temperature.
+        """
         string_finder = str(n_rep)+'s'+str(curr_empl_time)
         if len(sillcube.shape)!=3:
             raise IndexError('sillcube array must be three-dimensional')
@@ -1808,32 +3088,33 @@ class rules:
         T_field[self.index_finder(sillcube[z_index], string_finder)] = T_mag
         return T_field
 
-    @staticmethod
-    def lithology_3Dsill(rock, sillcube, nrep, z_index, rock_type = 'basalt'):
-        '''
-        Function to keep track of lithology changes in the 2D array
-        rock = 2D lithology array
-        sillcube = 3D sill array
-        nrep = number of the sill being emplaced
-        z_index = The 2D slice from the 3D sill array being considered
-        rock_type = the type of rock formed by the magma
-        '''
-        sillcube[sillcube==nrep] = rock_type
-        rock_2d = sillcube[z_index,:,:]
-        rock[rock_2d==rock_type]==rock_type
-        return rock
 
     def sill3D_pushy_emplacement(self, props_array, props_dict, sillsquare, n_rep, mag_props_dict, curr_empl_time):
-        '''
-        Function used to modify a 3D properties array including temperature by emplacing a sill and shifting existing values downwards. 
-        It identifies the emplacement location using a string identifier, calculates the necessary shifts, and updates the properties array accordingly.
-        props_array: A 3D NumPy array containing property values.
-        props_dict: A dictionary mapping property names to their indices in props_array.
-        sillsquare: A 2D NumPy array containing string identifiers for emplacement.
-        n_rep: An integer representing the sill number.
-        mag_props_dict: A dictionary mapping property names to new values for emplacement.
-        curr_empl_time: An integer representing the current emplacement time.
-        '''
+        """
+        Emplaces a sill into a set of 2D property arrays using the "Push" mechanism.
+        
+        Instead of overwriting, it inserts the sill and shifts the existing rock/properties downwards.
+        
+        Parameters
+        ----------
+        props_array : numpy.ndarray
+             3D Array containing stacked 2D property fields (Temp, Lith, Porosity, etc.).
+             Shape: (N_properties, Rows, Cols).
+        props_dict : dict
+             Mapping {Property_Name: Index_in_props_array}.
+        sillsquare : numpy.ndarray
+             2D extracted slice from sillcube containing emplacement keys.
+        n_rep : int
+             Sill ID.
+        mag_props_dict : dict
+             Properties of the magma to insert.
+        curr_empl_time : int
+             Time of emplacement (used for key generation).
+             
+        Returns
+        -------
+        props_array, row_push_start, columns_pushed
+        """
         string_finder = str(n_rep)+'s'
         T_field_index = props_dict['Temperature']
         T_field = props_array[T_field_index]
@@ -1868,7 +3149,18 @@ class rules:
         return props_array, row_push_start, columns_pushed
 
 class sill_controls:
-    #Class that contains functions that make functions from the other classes easier to use for specific use cases.
+    #Class that contains functions that make functions from the other classes easier to use for specific use cases
+    """
+    The `sill_controls` class orchestrates the model setup, execution, and property management.
+    
+    It serves as a "Controller" in the MVC sense, linking the "Cooling" physics (`cool`), 
+    the "Rules" logic (`rules`), and the state management of the simulation.
+    
+    It handles:
+    1.  **Initialization**: Setting up grids, properties, and constants.
+    2.  **Property Management**: Translating strings (rock names) to physical properties (rho, Cp, k).
+    3.  **High-Level Workflows**: Generating sill swarms (`build_sillcube`), calculating distances, and getting initial states.
+    """
     def __init__(self, x, y, dx, dy, 
                  T_liquidus = 1250, T_solidus = 800, include_external_heat = True,
                  k_const = True, kc_val = 7.884e7, cp = 1, cp_const = True,
@@ -1876,21 +3168,36 @@ class sill_controls:
                  rock_prop_dict = None, magma_prop_dict = None,lith_plot_dict=None,
                  sill_cube_dir='sillcubes/',k_func=None, cp_func = None, melt_rock = 'basalt',
                  melt_fraction_function = None, melt_function_args = None):
-        '''
-        x - Horizontal extent of the crust m
-        y - Vertical extent of the crust m
-        T_liquidus - Liquidus of thr magma
-        T_solidus - Solidus of the magma
-        kc_val = Thermal conductivity W/mK
-        cp = Initial specific heat capacity value for initialization 
-        calculate_closest_sill = False (is done at the time of sill emplacement)
-        calculate_all_sills_distances = False (is not used if calculate_closest_sill = False)
-        calculate_at_all_times = False (calculate this at each timestep in the simulation)
-        rock_prop_dict - Properties dictionary of ythe rocks in the crust
-        magma_prop_dict - Properties dictionary of the magma
-        Properties to include in the rock properties dictionary - Each dictionary entry should be the name of the rock, with further dictionary entries including the density, porosity, and total organic content (labelled as TOC)
-        lith_plot_dict - Translation of rock valuies from strings to arbitrary integers for plotting purposes.
-        '''
+        """
+        Initializes the simulation controller.
+        
+        Parameters
+        ----------
+        x, y : float
+            Physical dimensions of the crustal block (meters).
+        dx, dy : float
+            Grid spacing (meters).
+        T_liquidus, T_solidus : float
+            Magma phase change temperatures (C).
+        include_external_heat : bool
+            If True, calculates Latent Heat and Radiogenic Heat.
+        k_const : bool
+            If True, uses constant thermal conductivity `kc_val`.
+        kc_val : float
+            Constant thermal conductivity value.
+        cp : float
+            Initial specific heat capacity (reference).
+        cp_const : bool
+            If True, uses constant or simple lookup for Cp.
+        calculate_closest_sill : bool
+            Enable proximity analysis for thermal interaction.
+        rock_prop_dict, magma_prop_dict : dict
+            Custom property dictionaries.
+        k_func, cp_func : callable
+            Custom functions for temperature/pressure dependent properties.
+        melt_rock : str
+            Type of rock melting.
+        """
         ###
         self.x = x
         self.y = y
@@ -2025,15 +3332,25 @@ class sill_controls:
         self.melt_fraction_function = melt_fraction_function
         self.args = melt_function_args
 
-
-
     def generate_sill_2D_slices(self, fluxy_list,iter_list,z_index_list, lat_range = None, file_dir = None):
-        '''
-        Function to generate 2D slices from the 3D cube
-        fluxy_list - List of fluxes
-        iter_list - Integer list of volumes of sills from the n_sills file
-        z_index_list - List of z indices of the cubes to extract
-        '''
+        """
+        Extracts 2D slices from pre-calculated 3D sill cubes for 2D simulation usage.
+        
+        This allows running multiple 2D cross-sections from a single 3D stochastic generation.
+        
+        Parameters
+        ----------
+        fluxy_list : list of float
+            List of magma fluxes to process.
+        iter_list : list of int
+            List of iteration indices (indices in the n_sills_dataframe).
+        z_index_list : list of int
+            List of Z-indices (slices) to extract from the cube.
+        lat_range : list, optional
+            Lateral range filter.
+        file_dir : str, optional
+            Root directory for sill cubes.
+        """
         file_dir = self.sill_cube_dir if file_dir is None else file_dir
         for flux in fluxy_list:
             load_dir = file_dir+str(format(flux, '.3e'))+'/'+str(lat_range) if lat_range is not None  else file_dir+str(format(flux, '.3e'))
@@ -2053,6 +3370,29 @@ class sill_controls:
         print(f"Done generate_sill_2D_slices with {z_index_list} slices")
     
     def sill_controls_get_k(self, T_field, rock, density, dy, return_all = False):
+        """
+        Retreives or calculates thermal properties (Conductivity, Specific Heat) for the grid.
+        
+        Handles both constant and temperature-dependent property logic based on initialization flags.
+        
+        Parameters
+        ----------
+        T_field : numpy.ndarray
+            Temperature field.
+        rock : numpy.ndarray
+            Lithology field.
+        density : numpy.ndarray
+            Density field.
+        dy : float
+            Grid spacing.
+        return_all : bool
+            If True, returns (Diffusivity 'k', Cp, Thermal_Conductivity).
+            If False, returns only Diffusivity 'k'. (Note: variable `k` here usually denotes diffusivity = cond / (rho*cp)).
+            
+        Returns
+        -------
+        k (diffusivity) [and Cp, Conductivity if return_all=True]
+        """
         if not self.k_const:
             thermal_conductivity = self.k_func(T_field, rock, density, dy)
         else:
@@ -2070,11 +3410,22 @@ class sill_controls:
             return k
 
     def get_physical_properties(self, rock, rock_prop_dict):
-        '''
-        Function to return arrays of physical properties of density, porosity, and TOC based on rock type at a given node
-        rock: A 2D numpy array representing the types of rocks at different nodes.
-        rock_prop_dict: An optional dictionary mapping rock types to their properties.
-        '''
+        """
+        Converts a Lithology map (strings) into physical property arrays using a dictionary lookup.
+        
+        Parameters
+        ----------
+        rock : numpy.ndarray
+            2D array of rock types (str or object).
+        rock_prop_dict : dict
+            Mapping of rock types to properties.
+            
+        Returns
+        -------
+        porosity : numpy.ndarray
+        density : numpy.ndarray
+        TOC : numpy.ndarray
+        """
         a,b = rock.shape
         porosity = np.zeros_like(rock)
         density = np.zeros_like(rock)
@@ -2087,14 +3438,24 @@ class sill_controls:
                 TOC[i,j] = rock_prop_dict[rock[i,j]]['TOC']
         return porosity, density, TOC
     
+
     @staticmethod
     def func_assigner(func, *args, **kwargs):
-        '''
-        Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
-        func: The function to be called.
-        *args: Positional arguments to be passed to the function.
-        **kwargs: Keyword arguments to be passed to the function.
-        '''
+        """
+        Wrapper to dynamically call a function with unpacking arguments.
+        
+        Mostly a helper to keep code clean when switching between different distribution functions 
+        (normal, uniform, empirical) that take different arguments.
+        
+        Parameters
+        ----------
+        func : callable
+        *args, **kwargs : arguments
+        
+        Returns
+        -------
+        result : return value of func
+        """
         result = func(*args,**kwargs)
         # If the result is a tuple or list, enumerate it
         #if isinstance(result, (tuple, list)):
@@ -2150,6 +3511,16 @@ class sill_controls:
             all_sills_data = pd.DataFrame()
             all_sill_ids = np.unique(sills_array[sills_array!=no_sill])
             
+            # Optimization: Build Global KDTree of all hot points once
+            hot_mask = (T_field > T_solidus) & (sills_array != no_sill)
+            if np.any(hot_mask):
+                hot_points_flat = points[hot_mask.ravel()]
+                hot_sill_ids_flat = sills_array.ravel()[hot_mask.ravel()]
+                global_tree = KDTree(hot_points_flat)
+            else:
+                global_tree = None
+                hot_sill_ids_flat = np.array([])
+
             for sill_id in all_sill_ids: 
                 # Initialize data for this sill
                 sills_data = pd.DataFrame({'sills': sill_id}, index=[0])
@@ -2165,42 +3536,88 @@ class sill_controls:
                 )
                 query_points = points[is_edge.ravel()]
                 
-                # Find other hot sills
-                condition = (T_field > T_solidus) & (~is_curr_sill) & (sills_array != no_sill)
-                filtered_points = points[condition.ravel()]
-                
-                # Initialize default values
+                # Default values
                 saved_distance = 1e30
                 saved_index = 'N/A'
                 saved_temperature = -1
                 saved_sill = 'N/A'
                 closest_curr_sill = 'N/A'
-                closest_sill_width_curr = 0
-                closest_sill_width = 0
-                closest_sill_thickness = 0
-                closest_sill_thickness_curr = -1
-                closest_sill_center_curr = 'N/A'
-                closest_sill_center = 'N/A'
                 
-                # Get current sill dimensions
+                # Dimensions
                 if np.any(is_curr_sill):
                     curr_sill_width, curr_sill_thickness, curr_sill_center = get_width_and_thickness(is_curr_sill)
                 else:
                     curr_sill_width = curr_sill_thickness = 0
                     curr_sill_center = 'N/A'
                 
-                # Find closest sill if edges exist
-                if len(query_points) > 0 and len(filtered_points) > 0:
-                    tree = KDTree(filtered_points)
-                    distances, indices = tree.query(query_points)  # Batch query
-                    min_idx = np.argmin(distances)
-                    index1 = filtered_points[indices[min_idx]]
+                # Find closest sill using Global Tree
+                if len(query_points) > 0 and global_tree is not None:
+                    # Query k neighbors to skip self
+                    k_neighbors = 10 
+                    # Clip k if fewer points exist
+                    k_safe = min(k_neighbors, len(hot_sill_ids_flat))
                     
-                    saved_distance = distances[min_idx]
-                    saved_index = str(index1)
-                    saved_temperature = T_field[index1[0], index1[1]]
-                    saved_sill = sills_array[index1[0], index1[1]]
-                    closest_curr_sill = str(query_points[min_idx])
+                    distances, indices = global_tree.query(query_points, k=k_safe)
+                    
+                    # Ensure 2D arrays even if k=1
+                    if k_safe == 1:
+                        distances = distances[:, None]
+                        indices = indices[:, None]
+                        
+                    # Filter self
+                    found_min = False
+                    
+                    # indices map to hot_sill_ids_flat
+                    neighbor_ids = hot_sill_ids_flat[indices] # (N_query, k)
+                    
+                    # Mask of valid neighbors (id != curr)
+                    valid_mask = (neighbor_ids != sill_id)
+                    
+                    if np.any(valid_mask):
+                        # Set invalid distances to inf
+                        valid_dists = np.where(valid_mask, distances, np.inf)
+                        
+                        # Min over neighbors
+                        min_dist_per_point = np.min(valid_dists, axis=1)
+                        # Min over all query points
+                        min_idx_query = np.argmin(min_dist_per_point)
+                        min_val = min_dist_per_point[min_idx_query]
+                        
+                        if min_val < 1e29:
+                            # Retrieve the neighbor index that gave this
+                            # valid_dists[min_idx_query] is array of k distances
+                            k_idx = np.argmin(valid_dists[min_idx_query])
+                            global_idx = indices[min_idx_query, k_idx]
+                            
+                            saved_distance = min_val
+                            index1 = hot_points_flat[global_idx]
+                            closest_curr_sill = str(query_points[min_idx_query])
+                            
+                            saved_index = str(index1)
+                            saved_temperature = T_field[index1[0], index1[1]]
+                            saved_sill = sills_array[index1[0], index1[1]]
+                            found_min = True
+                    
+                    if not found_min:
+                        # Fallback: If 10 neighbors were all self, or something tricky.
+                        # Rebuild tree excluding self (Slow Path, but rare if k=10 is checked)
+                        # Only if current sill is HOT (otherwise it wouldn't be in global tree)
+                        # Explicitly filter points
+                        # Original Logic:
+                        condition = (T_field > T_solidus) & (~is_curr_sill) & (sills_array != no_sill)
+                        filtered_points = points[condition.ravel()]
+                        
+                        if len(filtered_points) > 0:
+                            tree_fallback = KDTree(filtered_points)
+                            d, i = tree_fallback.query(query_points)
+                            min_idx = np.argmin(d)
+                            index1 = filtered_points[i[min_idx]]
+                            
+                            saved_distance = d[min_idx]
+                            saved_index = str(index1)
+                            saved_temperature = T_field[index1[0], index1[1]]
+                            saved_sill = sills_array[index1[0], index1[1]]
+                            closest_curr_sill = str(query_points[min_idx])
                     
                     # Get closest sill dimensions
                     is_closest_sill_curr = (sills_array == saved_sill) & (T_field > T_solidus)
@@ -2312,29 +3729,50 @@ class sill_controls:
             return sills_data
 
     def build_sillcube(self, z, dt, thickness_range, aspect_ratio, depth_range, z_range, lat_range, phase_times, tot_volume, flux, n_sills, shape = 'elli', depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
-        '''
-        generates a 3D representation of sills in a geological model. It calculates emplacement heights, lateral spacings, and dimensions of sills based on specified distributions and parameters. 
-        The method calculates the emplacement times for each sill based on specified flux rates, considering thermal maturation and cooling phases, and returns the constructed sill cube along with relevant parameters.
-        Inputs - 
-        z: The third dimension extension of the crustal slice.
-        dt: Time step for the simulation.
-        thickness_range: Range for sill thickness.
-        aspect_ratio: Mean and standard deviation for aspect ratio.
-        depth_range: Range for sill emplacement depth - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required 
-        z_range: Range for z-coordinate - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
-        lat_range: Range for lateral coordinates - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
-        phase_times: Times for thermal maturation and cooling.
-        tot_volume: Total volume of sills to be emplaced.
-        flux: Emplacement flux.
-        n_sills: Number of sills to be emplaced.
-        shape: Shape of the sills, default is 'elli'.
-        depth_function, lat_function, dims_function: Functions to determine distributions.
-        Returns - 
-        sillcube: A 3D numpy array representing the sill emplacement.
-        n_sills: The number of sills emplaced.
-        params: An array containing emplacement times, heights, lateral spacings, widths, and thicknesses.
-
-        '''
+        """
+        Generates a 3D stochastic model of sill emplacement over time.
+        
+        This is a complex high-level function that:
+        1.  Samples random distributions for sill geometry (depth, location, dimensions).
+        2.  Calculates emplacement timing based on magma flux rates.
+        3.  Checks for volume constraints and iterates until the target total volume is reached.
+        4.  Generates visualization plots (Depth, Width/Thickness distributions, Volume vs Time).
+        5.  Calls `rules.sill_3Dcube` to construct the final 3D string array.
+        
+        Parameters
+        ----------
+        z : float
+            Z-dimension extent (m).
+        dt : float
+            Time step.
+        thickness_range : list
+            [min, max, sd] for thickness.
+        aspect_ratio : list
+            [mean, sd] for aspect ratio.
+        depth_range, z_range, lat_range : list
+            [min, max, sd] for spatial bounds.
+        phase_times : list
+            [thermal_maturation_time, cooling_time]. Used to offset emplacement start.
+        tot_volume : float
+            Target total volume of magma (m3).
+        flux : float
+            Magma supply rate (m3/s).
+        n_sills : int
+            Estimated number of sills (used for initial array sizing).
+        shape : str
+            'elli' or 'rect'.
+        depth_function, lat_function, dims_function : str or callable
+            Distribution types ('normal', 'uniform', 'empirical').
+            
+        Returns
+        -------
+        sillcube : numpy.ndarray
+             3D string array.
+        n_sills : int
+             Actual number of sills emplaced.
+        params : numpy.ndarray
+             [empl_times, empl_heights, x_space, width, thickness]
+        """
         x = self.x
         y = self.y
         dx = self.dx
@@ -2539,26 +3977,34 @@ class sill_controls:
         return sillcube, n_sills, params
     
     def get_silli_initial_thermogenic_state(self, props_array, dt, method, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
-        '''
-        Function to get the background CO2 release for the silli model over the thermal maturation time before the emplacement fo sills begins
-        Inputs - 
-        props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
-        dt: A scalar representing the time step for the simulation.
-        method: A string indicating the method used for solving the diffusion equation.
-        time: Optional scalar for the total simulation time.
-        lith_plot_dict: Optional dictionary mapping lithology names to indices.
-        rock_prop_dict: Optional dictionary mapping rock types to their properties.
-
-        Returns - 
-        current_time: The current simulation time.
-        tot_RCO2: A list of total CO2 emissions over time.
-        props_array: The updated properties array.
-        RCO2_silli: CO2 emissions from SILLi.
-        Rom_silli: Rate of organic matter conversion.
-        percRo_silli: Vitrinite reflectance percentage.
-        curr_TOC_silli: Current TOC values.
-        W_silli: Weight fractions of remaining reactants.
-        '''
+        """
+        Runs a "background" thermal maturation model for the initial condition.
+        
+        Calculates the thermal maturation and CO2 release that occurs *during the thermal maturation phase* 
+        (before sills start emplacing). This establishes the baseline TOC and vitrinite reflectance 
+        of the crust before the magmatic event.
+        
+        Parameters
+        ----------
+        props_array : numpy.ndarray
+            3D array of property fields.
+        dt : float
+            Time step.
+        method : str
+            Solver method name.
+        time : float
+            Total duration of this initialization phase.
+            
+        Returns
+        -------
+        current_time : float
+        tot_RCO2 : list
+             Time series of CO2 release.
+        props_array : numpy.ndarray
+             Updated properties (TOC lowered, etc.).
+        RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli
+             Final states of the SILLi variables.
+        """
         dx = self.dx
         dy = self.dy
 
@@ -2682,7 +4128,7 @@ class sill_controls:
 
     def get_sillburp_initial_thermogenic_state(self, props_array, dt, method, sillburp_weights = None, time = np.nan, lith_plot_dict = None, rock_prop_dict = None):
         '''
-        Function to get the background CO2 release for the sillburp model over the thermal maturation time before the emplacement fo sills begins
+        Function to get the background CO2 release for the sillburp model over the thermal maturation time before the emplacement of sills begins
         Inputs - 
         props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
         dt: A scalar representing the time step for the simulation.
@@ -3136,25 +4582,25 @@ class sill_controls:
             plt.close()
         else :
             plt.show()
-def plot_Full_Graph(self,graph_layout='spring',save_me:bool=False):
-    plt.figure()
-    if graph_layout == 'spring':
-        pos = nx.spring_layout(self.G_full)
-    elif graph_layout == 'circular':
-        pos = nx.circular_layout(self.G_full)
-    elif graph_layout == 'shell':
-        pos = nx.shell_layout(self.G_full)
-    elif graph_layout == 'spectral':
-        pos = nx.spectral_layout(self.G_full)
-    else:
-        raise ValueError(f"Invalid graph type: {graph_layout}")
-    plt.figure(figsize=(10, 10))  # Set the figure size to 10x10 inches
-    nx.draw(self.G_full, pos, with_labels=True, node_color='lightblue', edge_color='black')
-    if save_me:
-        plt.savefig(self.name_file_Dir+'Network_Plot.png')
-        plt.close()
-    else :
-        plt.show()
+    def plot_Full_Graph(self,graph_layout='spring',save_me:bool=False):
+        plt.figure()
+        if graph_layout == 'spring':
+            pos = nx.spring_layout(self.G_full)
+        elif graph_layout == 'circular':
+            pos = nx.circular_layout(self.G_full)
+        elif graph_layout == 'shell':
+            pos = nx.shell_layout(self.G_full)
+        elif graph_layout == 'spectral':
+            pos = nx.spectral_layout(self.G_full)
+        else:
+            raise ValueError(f"Invalid graph type: {graph_layout}")
+        plt.figure(figsize=(10, 10))  # Set the figure size to 10x10 inches
+        nx.draw(self.G_full, pos, with_labels=True, node_color='lightblue', edge_color='black')
+        if save_me:
+            plt.savefig(self.name_file_Dir+'Network_Plot.png')
+            plt.close()
+        else :
+            plt.show()
 
 class examples:
 
@@ -3275,3 +4721,5 @@ class examples:
         tot_RCO2 = carbon_model_params[0]
         plt.plot(time_steps[np.where(time_steps==current_time)[0][0]:], np.log10(tot_RCO2[np.where(time_steps==current_time)[0][0]:]))
         plt.savefig('plots/CarbonEmisisons.png', format = 'png')
+
+
