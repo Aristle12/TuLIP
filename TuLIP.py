@@ -90,6 +90,7 @@ class cool:
         else:
             return False
 
+    @staticmethod
     def avg_perm(k):
         """
         Calculates averaged permeability (thermal diffusivity) at grid cell boundaries.
