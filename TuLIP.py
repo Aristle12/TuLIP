@@ -90,8 +90,6 @@ class cool:
         else:
             return False
 
-    @staticmethod
-    @staticmethod
     def avg_perm(k):
         """
         Calculates averaged permeability (thermal diffusivity) at grid cell boundaries.
@@ -538,7 +536,7 @@ class cool:
             
         if build_matrix:
             #Generate the weight matrix if the thermal diffusivity is not constant and needs to be changed at every time step
-            kiph, kimh, kjph, kjmh = self.avg_perm(k)
+            kiph, kimh, kjph, kjmh = cool.avg_perm(k)
             
             # Vectorized Matrix Build
             main_diag = np.ones((a, b))
@@ -860,8 +858,7 @@ class cool:
         """
         H_rad = H[0]
         H_lat = H[1]
-        kiph, kimh, kjph, kjmh = self.avg_perm(k)
-        kiph, kimh, kjph, kjmh = self.avg_perm(k)
+        kiph, kimh, kjph, kjmh = cool.avg_perm(k)
         kiph = kiph/H_lat
         kimh = kimh/H_lat
         kjph = kjph/H_lat
@@ -962,7 +959,7 @@ class cool:
         H_lat = np.array(H[1], dtype = float)
         
         # --- 1. GET DIFFUSIVITIES ---
-        kiph, kimh, kjph, kjmh = self.avg_perm(k)/H_lat
+        kiph, kimh, kjph, kjmh = cool.avg_perm(k)/H_lat
         
         # Normalize Source Term (consistent with Explicit solver)
         # Explicit solver: Main term divided by H_lat. H_rad*dt also divided by H_lat.
@@ -1470,7 +1467,7 @@ class cool:
             return Tnow
         elif method=='smooth':
             if k_const:
-                res = self.avg_perm(k)
+                res = cool.avg_perm(k)
                 kiph, kimh, kjph, kjmh = [x/H[1] for x in res]
                 
                 # Vectorized Matrix Build
@@ -3306,13 +3303,11 @@ class sill_controls:
             self.rock_prop_dict = rock_prop_dict
         #Lithology dictionary to translate rock types into numerical codes for numpy arrays
         if lith_plot_dict is None:
-            self.lith_plot_dict = {'granite':0,
-                            'shale':1,
-                            'sandstone':2,
-                            'peridotite':3,
-                            'basalt':4,
-                            'peridotite': 5,
-                            self.magma_prop_dict['Lithology']:6}
+            all_liths = {
+                **self.rock_prop_dict, 
+                self.magma_prop_dict['Lithology']: self.magma_prop_dict
+                }
+            self.lith_plot_dict = {name: i for i, name in enumerate(all_liths.keys())}
         else:
             self.lith_plot_dict = lith_plot_dict
         
@@ -3393,6 +3388,14 @@ class sill_controls:
         -------
         k (diffusivity) [and Cp, Conductivity if return_all=True]
         """
+        magma_name = self.magma_prop_dict['Lithology']
+        if magma_name not in self.rock_prop_dict:
+            self.rock_prop_dict[magma_name] = {
+                'Porosity': self.magma_prop_dict['Porosity'],
+                'Density': self.magma_prop_dict['Density'],
+                'TOC': self.magma_prop_dict['TOC'],
+                'Specific Heat': self.magma_prop_dict['Specific Heat']
+            }
         if not self.k_const:
             thermal_conductivity = self.k_func(T_field, rock, density, dy)
         else:
@@ -3403,7 +3406,21 @@ class sill_controls:
             specific_heat = self.rool.prop_updater(rock, self.rock_prop_dict, 'Specific Heat')
             specific_heat[rock==self.magma_prop_dict['Lithology']] = self.magma_prop_dict['Specific Heat']
         specific_heat = np.array(specific_heat, dtype = float)
-        k = np.array(thermal_conductivity/density/specific_heat, dtype = float)
+        try:
+            k = np.array(thermal_conductivity/density/specific_heat, dtype = float)
+        except:
+            target = self.magma_prop_dict['Lithology']
+            actual_unique = np.unique(rock)
+
+            if target not in actual_unique:
+                print(f"--- INTERMITTENT ERROR DETECTED ---")
+                print(f"Looking for: '{target}'")
+                print(f"Found in array: {actual_unique}")
+                # This check helps see if the name changed slightly
+                import difflib
+                matches = difflib.get_close_matches(target, [str(x) for x in actual_unique])
+                print(f"Close matches: {matches}")
+                print("Did you add solid rock properties for the melt in the rock properties dictionary?")
         if return_all:
             return k, np.array(specific_heat, dtype = float), np.array(thermal_conductivity, dtype = float)
         else:
@@ -4301,6 +4318,14 @@ class sill_controls:
             prop_dict = self.prop_dict
         if magma_prop_dict==None:
             magma_prop_dict = self.magma_prop_dict
+        magma_name = self.magma_prop_dict['Lithology']
+        if magma_name not in self.rock_prop_dict:
+            self.rock_prop_dict[magma_name] = {
+                'Porosity': self.magma_prop_dict['Porosity'],
+                'Density': self.magma_prop_dict['Density'],
+                'TOC': self.magma_prop_dict['TOC'],
+                'Specific Heat': self.magma_prop_dict['Specific Heat']
+            }
         if dt is None:
             dts = np.array([time_steps[i]-time_steps[i-1] for i in range(1, len(time_steps))])
             dts = np.append(dts[0],dts)
@@ -4308,7 +4333,7 @@ class sill_controls:
             dts = np.repeat(dt,len(time_steps))
         rock = np.array(props_array[self.rock_index])
         density = np.array(props_array[self.dense_index], dtype = float)
-        porosity = np.array(props_array[self.poros_index], dtype = float)
+        porosity = np.array(props_array[self.poros_index], dtype = float) 
         T_field = np.array(props_array[self.Temp_index], dtype = float)
         specific_heat = np.array(props_array[self.sph_index])
         TOC1 = self.rool.prop_updater(rock, rock_prop_dict, 'TOC')
