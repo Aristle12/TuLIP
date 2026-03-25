@@ -2950,7 +2950,7 @@ class rules:
              Note: Variable naming in `mult_sill` used meters for inputs but code converted. Here usually inputs are pre-converted or matching logic. 
              Looking at `sillcube` generation `z_coords[l] - maj_dims[l]`, these are likely indices.
         maj_dims, min_dims : numpy.ndarray
-             Dimensions (m? code converts: maj_dims/dx).
+             Dimensions (m).
         empl_times : numpy.ndarray
              Emplacement times.
              
@@ -3398,9 +3398,9 @@ class sill_controls:
                 'Specific Heat': self.magma_prop_dict['Specific Heat']
             }
         if not self.k_const:
-            thermal_conductivity = self.k_func(T_field, rock, density, dy)
+            thermal_conductivity = np.array(self.k_func(T_field, rock, density, dy))
         else:
-            thermal_conductivity = self.thermal_conductivity
+            thermal_conductivity = np.array(self.thermal_conductivity)
         if not self.cp_const:
             specific_heat = self.cp_func(T_field, rock, density, dy)
         else:
@@ -3411,8 +3411,8 @@ class sill_controls:
             k = np.array(thermal_conductivity/density/specific_heat, dtype = float)
         except:
             target = self.magma_prop_dict['Lithology']
-            actual_unique = np.unique(rock)
-
+            actual_unique = np.unique(list(self.rock_prop_dict.keys()))
+            print(target, actual_unique)
             if target not in actual_unique:
                 print(f"--- INTERMITTENT ERROR DETECTED ---")
                 print(f"Looking for: '{target}'")
@@ -3422,6 +3422,10 @@ class sill_controls:
                 matches = difflib.get_close_matches(target, [str(x) for x in actual_unique])
                 print(f"Close matches: {matches}")
                 print("Did you add solid rock properties for the melt in the rock properties dictionary?")
+                raise ValueError(f"Target lithology '{target}' not found in rock array. Check for typos or missing entries in rock_prop_dict.")
+            else:
+                print(f"Rock shape: {rock.shape}, Density shape: {density.shape}, Specific Heat shape: {specific_heat.shape}, Thermal Conductivity shape: {thermal_conductivity.shape}")
+                raise ValueError("Array division failed. You might have a mismatch in array shapes")
         if return_all:
             return k, np.array(specific_heat, dtype = float), np.array(thermal_conductivity, dtype = float)
         else:
@@ -4112,8 +4116,9 @@ class sill_controls:
             for l in trange(0, len(t_steps)):
                 T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
                 if (T_field>max_T).any():
-                    plt.imshow(T_field)
+                    plt.imshow(np.array(T_field, dtype = float))
                     plt.colorbar()
+                    plt.title(t_steps[l])
                     plt.show()
                     print("Warning: T_field is not stable!")
                 if np.isnan(np.array(T_field, dtype = float)).any():

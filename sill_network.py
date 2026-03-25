@@ -24,7 +24,7 @@ for i in range(0, len(fluxs)):
         conf_mat = np.zeros((n_sills[j], n_sills[j]))
         sill_distance = pd.read_csv(load_dir+'sill_distances.csv')
         choose = np.where(sill_distance['distance']<1e31)[0]
-        sill_distance['criteria'] = 3*np.array(sill_distance['width of closest sill'])
+        sill_distance['criteria'] = np.array(sill_distance['width of closest sill'])
         for k in range(n_sills[j]):
             if k in sill_distance['sills'].values:
                 row = sill_distance.loc[sill_distance['sills'] == k].iloc[0]
@@ -49,4 +49,4 @@ for i in range(0, len(fluxs)):
                 print(f'sill is {sills[m]}')
             conf_mat[sills[m], closest_sill[m]] = 1/(distance[m]+1e-6)
         sc_dist.plot_Full_Graph(conf_mat)
-    ''' 
+    '''

@@ -24,7 +24,7 @@ def truncate(number):
 def validator (n_sills, emplace_params):
     return bool(int(n_sills) == len(emplace_params[0,:]))
 
-def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None, lat_range = None, thickness_range = None, aspect_ratio = None, depth_range = None, shape = None, depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None):
+def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None, lat_range = None, thickness_range = None, aspect_ratio = None, depth_range = None, shape = None, depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None, k = 31.536):
     def int_maker(sillcube):
         for i in tqdm(range(sillcube.shape[0]), desc = "Creating ints"):
             layer = sillcube[i]
@@ -50,15 +50,15 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
 
     n_sills_array = []
     #Initializing time_steps
-    k = 31.536
+    
     dt = np.round((min(dx,dy)**2)/(5*k),3)
 
-    if depth_range is None:
+    if thickness_range is None:
         ###Setting up sill dimensions and locations###
         min_thickness = 100 #m
         max_thickness = 600 #m
         sd_thickness = 500
-        depth_range = [min_thickness, max_thickness, sd_thickness]
+        thickness_range = [min_thickness, max_thickness, sd_thickness]
 
     if aspect_ratio is None:
         mar = 19.23
@@ -248,7 +248,7 @@ def cooler(iter, z_index, flux, lat_range = None, sc=None,diff_val=31.536,temp_g
         if len(np.where(time_steps==empl_times[j])[0])==0:
             min_diff = np.min(np.abs(time_steps - empl_times[j]))
             print(f'Sill {j} is not in time_steps and difference to closest time step is {min_diff:.2e}')
-            time_index = np.where(min_diff==np.abs(time_steps - empl_times[j]))[0]
+            time_index = np.where(min_diff==np.abs(time_steps - empl_times[j]))[0][0]
             if min_diff<dt:
                 empl_times[j] = time_steps[time_index]
                 print(f'Emplacement time for sill {j} has been readjusted and is now at {np.where(time_steps==empl_times[j])[0]}')
