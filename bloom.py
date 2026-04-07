@@ -108,7 +108,7 @@ def scale_emissions(z_indexs, dx, dy, load_dir):
                     print(f'Difference between empl_time and time is {np.min(np.abs(time - empl_time))}')
                     raise ValueError(f'Emplacement time {empl_time} is not in time steps')
             tot_time.append(len(time)*dts[0])
-            empl_end_time.append(float(time.iloc[empl_index])-curr_time)
+            empl_end_time.append(float(time.iloc[empl_index].item())-curr_time)
             
             dts = np.append(dts, [dts[-1]])
             tot_RCO2 = np.array(times['tot_RCO2']-times['tot_RCO2'][0])
@@ -141,16 +141,14 @@ def scale_emissions(z_indexs, dx, dy, load_dir):
         scale_ints.append(intercept)
         tot_slopes.append(tot_slope)
         tot_ints.append(tot_intercept)
-        plt.plot(cum_volume, cum_CO2, 'ro', markersize = 10)
+        #plt.plot(cum_volume, cum_CO2, 'ro')
         #plt.plot(cum_volume, empl_CO2s_cum, 'go')
         #y = cum_volume*slope + intercept
-        z = cum_volume*tot_slope + tot_intercept
+        #z = cum_volume*tot_slope + tot_intercept
         #plt.plot(cum_volume, y, 'b-')
-        plt.plot(cum_volume, z, 'k-', linewidth =2)
-        plt.title(format(volume,'.3e'))
-        os.makedirs('present_plots', exist_ok=True)
-        plt.savefig('present_plots/'+str(format(volume,'.3e'))+'_scale.png', format = 'png', bbox_inches = 'tight')
-        plt.close()
+        #plt.plot(cum_volume, z, 'g-')
+        #plt.title(format(volume,'.3e'))
+        #plt.show()
     #print(len(sill_volumes), len(vol_CO2s), len(empl_CO2s), len(scale_factors), len(scale_ints), len(tot_slopes), len(tot_ints))
     scales = pd.DataFrame({'tot_volume': sill_volumes, 'tot_CO2': vol_CO2s, 'scale': scale_factors, 'intercept': scale_ints, 'tot_slope': tot_slopes, 'tot_ints': tot_ints})
     scales.to_csv(load_dir+'scales.csv')
@@ -205,7 +203,6 @@ def plot_average_emission_rates(fluxs, itera):
 
     # Set the title of the colorbar
     #cbar.set_label(r'Rates (GtCO$_2$/yr)', rotation=270, labelpad=15)
-    os.makedirs('present_plots', exist_ok=True)
     plt.savefig('present_plots/CO2_emissions_per_slice.png', format = 'png', bbox_inches = 'tight')
 
 def plot_heatmap_average_emissions(fluxs, iters, save_dir):
