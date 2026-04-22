@@ -602,7 +602,7 @@ class cool:
         Tret = Tret.reshape((a,b), order = 'F')
         Tret[:,0] = Tret[:,2]
         Tret[:,-1] = Tret[:,-3]
-        if ~np.isnan(q).any():
+        if not np.isnan(np.array(q)).any():
             Tret[-1,:] = Tret[-2,:]+ (q*dy/k[-1,:])
         return Tret
 
@@ -722,7 +722,7 @@ class cool:
         Tret = Tret.reshape((a,b), order = 'F')
         Tret[:,0] = Tret[:,2]
         Tret[:,-1] = Tret[:,-3]
-        if ~np.isnan(q).any():
+        if not np.isnan(np.array(q)).any():
             Tret[-1,:] = Tret[-2,:]+ (q*dy/k[-1,:])
         return Tret
 
@@ -859,11 +859,9 @@ class cool:
         """
         H_rad = H[0]
         H_lat = H[1]
-        kiph, kimh, kjph, kjmh = cool.avg_perm(k)
-        kiph = kiph/H_lat
-        kimh = kimh/H_lat
-        kjph = kjph/H_lat
-        kjmh = kjmh/H_lat
+        # --- 1. GET DIFFUSIVITIES ---
+        kiph, kimh, kjph, kjmh = self.avg_perm(k)
+        
         Tnow = np.array(Tf)
 
         # Pre-calculate constants
@@ -882,14 +880,14 @@ class cool:
         kjph_s = kjph[1:-1, 1:-1]
         kjmh_s = kjmh[1:-1, 1:-1]
 
-        Tnow[1:-1, 1:-1] = (
-        (1 - (kiph_s + kimh_s) * Cy - (kjph_s + kjmh_s) * Cx) * T_C
+        Tnow[1:-1, 1:-1] = T_C + (
+        -(kiph_s + kimh_s) * Cy * T_C - (kjph_s + kjmh_s) * Cx * T_C
         + (kiph_s * Cy) * T_S
         + (kimh_s * Cy) * T_N
         + (kjph_s * Cx) * T_E
         + (kjmh_s * Cx) * T_W
-        + H_rad[1:-1, 1:-1]*dt
-        )/H_lat[1:-1, 1:-1]
+        + (H_rad[1:-1, 1:-1] * dt)
+        ) / H_lat[1:-1, 1:-1]
     
         # --- Apply Boundary Conditions (also vectorized) ---
         T_surf = Tf[0,0]
@@ -1646,7 +1644,8 @@ def _sillburp_core(T_field, progress_of_reactions, rate_of_reactions,
         for k in range(n_approx):
             reaction_rates[k] = A_val * np.exp(-E_slice[k] / RT)
             
-        exp_rate_dt = np.exp(-reaction_rates * dt)
+        dt_sec = dt * 31536000.0 # Convert years to seconds for the kinetic exponent
+        exp_rate_dt = np.exp(-reaction_rates * dt_sec)
         
         # P_old view (read-only for calculations)
         P_old_slice = progress_of_reactions[i_reac, :n_approx]
@@ -1753,10 +1752,10 @@ def _SILLi_core(T_field, W, calc_parser, dt, E, f, A, R):
     """
     a, b = T_field.shape
     n_E = len(E)
-    
     # Pre-calculate constants
     T_K = T_field + 273.15
     RT = R * T_K
+    dt_sec = float(dt * 31536000.0) # Correct unit mismatch against s^-1 frequency factor
     
     Frac = np.zeros((a, b), dtype=np.float64)
     
@@ -1776,10 +1775,10 @@ def _SILLi_core(T_field, W, calc_parser, dt, E, f, A, R):
         k_slice = A * np.exp(-val_E / RT)
         
         # Update W in place
-        # W_new = max(W_old * exp(-k*dt), 0)
+        # W_new = max(W_old * exp(-k*dt_sec), 0)
         # We can read/write W[l]
         w_slice = W[l]
-        exp_kdt = np.exp(-k_slice * dt)
+        exp_kdt = np.exp(-k_slice * dt_sec)
         
         for i in range(a):
             for j in range(b):
