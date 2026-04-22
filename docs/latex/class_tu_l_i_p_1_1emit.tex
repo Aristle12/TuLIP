@@ -1,0 +1,119 @@
+\doxysection{Tu\+LIP.\+emit Class Reference}
+\hypertarget{class_tu_l_i_p_1_1emit}{}\label{class_tu_l_i_p_1_1emit}\index{TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1emit_adf94e0eb142f004a60f98d912cb02e01}\label{class_tu_l_i_p_1_1emit_adf94e0eb142f004a60f98d912cb02e01} 
+{\bfseries \+\_\+\+\_\+init\+\_\+\+\_\+} (self)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1emit_a958838eb097f94cd141d0cd9a0768a6b}{analytical\+\_\+\+Ro}} (T\+\_\+field, dT, density, lithology, porosity, I\+\_\+prev, TOC\+\_\+prev, dt, TOCo, W)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1emit_aaa0c22818e5d04e46d665e430a23c3e0}{analytical\+Ro\+\_\+I}} (T\+\_\+field)
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1emit_adc20ca097b82026b9abba81428284284}{get\+\_\+init\+\_\+\+CO2\+\_\+percentages}} (T\+\_\+field, lithology, density, dy)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1emit_a92c6a341c1055ec9dffb8bd45bebe2fb}{get\+\_\+breakdown\+\_\+\+CO2}} (T\+\_\+field, lithology, density, breakdown\+CO2, dy, dt)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1emit_ad033525e1b86acc07a6e91aed8773206}{SILLi\+\_\+emissions}} (T\+\_\+field, density, lithology, porosity, TOC\+\_\+prev, dt, TOCo=np.\+nan, W=np.\+nan)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1emit_ac2ee01506239050d4bb4eb308a8e18dd}{get\+\_\+sillburp\+\_\+reaction\+\_\+energies}} ()
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1emit_a7a58edac69db1034f9e6f9932ced27f4}{sillburp}} (T\+\_\+field, TOC\+\_\+prev, density, lithology, porosity, dt, reaction\+\_\+energies, TOCo=None, oil\+\_\+production\+\_\+rate=0, progress\+\_\+of\+\_\+reactions=np.\+nan, rate\+\_\+of\+\_\+reactions=np.\+nan, weights=None)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{class_tu_l_i_p_1_1emit_a958838eb097f94cd141d0cd9a0768a6b}\index{TuLIP.emit@{TuLIP.emit}!analytical\_Ro@{analytical\_Ro}}
+\index{analytical\_Ro@{analytical\_Ro}!TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection{\texorpdfstring{analytical\_Ro()}{analytical\_Ro()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1emit_a958838eb097f94cd141d0cd9a0768a6b} 
+Tu\+LIP.\+emit.\+analytical\+\_\+\+Ro (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{dT}{, }\item[{}]{density}{, }\item[{}]{lithology}{, }\item[{}]{porosity}{, }\item[{}]{I\+\_\+prev}{, }\item[{}]{TOC\+\_\+prev}{, }\item[{}]{dt}{, }\item[{}]{TOCo}{, }\item[{}]{W}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Untested function for the analytical solution of the Easy Ro model
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1emit_aaa0c22818e5d04e46d665e430a23c3e0}\index{TuLIP.emit@{TuLIP.emit}!analyticalRo\_I@{analyticalRo\_I}}
+\index{analyticalRo\_I@{analyticalRo\_I}!TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection{\texorpdfstring{analyticalRo\_I()}{analyticalRo\_I()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1emit_aaa0c22818e5d04e46d665e430a23c3e0} 
+Tu\+LIP.\+emit.\+analytical\+Ro\+\_\+I (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Initialization of I for the analytical solution of the EasyRo model
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1emit_a92c6a341c1055ec9dffb8bd45bebe2fb}\index{TuLIP.emit@{TuLIP.emit}!get\_breakdown\_CO2@{get\_breakdown\_CO2}}
+\index{get\_breakdown\_CO2@{get\_breakdown\_CO2}!TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection{\texorpdfstring{get\_breakdown\_CO2()}{get\_breakdown\_CO2()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1emit_a92c6a341c1055ec9dffb8bd45bebe2fb} 
+Tu\+LIP.\+emit.\+get\+\_\+breakdown\+\_\+\+CO2 (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{lithology}{, }\item[{}]{density}{, }\item[{}]{breakdown\+CO2}{, }\item[{}]{dy}{, }\item[{}]{dt}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Calculate the amount of CO2 exsolved from the breakdown of carbonate rocks
+T_field: 2D array representing the temperature field.
+lithology: 2D array indicating the type of rock at each location.
+density: 2D array of rock densities.
+breakdownCO2: 2D array of initial CO2 breakdown values.
+dy: Scalar representing the vertical distance between layers.
+dt: Scalar representing the time step.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1emit_adc20ca097b82026b9abba81428284284}\index{TuLIP.emit@{TuLIP.emit}!get\_init\_CO2\_percentages@{get\_init\_CO2\_percentages}}
+\index{get\_init\_CO2\_percentages@{get\_init\_CO2\_percentages}!TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection{\texorpdfstring{get\_init\_CO2\_percentages()}{get\_init\_CO2\_percentages()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1emit_adc20ca097b82026b9abba81428284284} 
+Tu\+LIP.\+emit.\+get\+\_\+init\+\_\+\+CO2\+\_\+percentages (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{lithology}{, }\item[{}]{density}{, }\item[{}]{dy}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}The get_init_CO2_percentages method calculates the initial exsolved CO2 percentages for different lithologies based on temperature and pressure conditions 
+i.e., ensuring the CO2 is in equilibrium with the PT conditions. 
+It uses interpolation to estimate CO2 values from pre-loaded data for specific rock types.
+T_field: 2D array representing the temperature field.
+lithology: 2D array indicating the type of rock at each location.
+density: 2D array of rock densities.
+dy: Scalar representing the vertical distance between layers.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1emit_ac2ee01506239050d4bb4eb308a8e18dd}\index{TuLIP.emit@{TuLIP.emit}!get\_sillburp\_reaction\_energies@{get\_sillburp\_reaction\_energies}}
+\index{get\_sillburp\_reaction\_energies@{get\_sillburp\_reaction\_energies}!TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection{\texorpdfstring{get\_sillburp\_reaction\_energies()}{get\_sillburp\_reaction\_energies()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1emit_ac2ee01506239050d4bb4eb308a8e18dd} 
+Tu\+LIP.\+emit.\+get\+\_\+sillburp\+\_\+reaction\+\_\+energies (\begin{DoxyParamCaption}{}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function to create the reaction energies required for sillburp model for thermogenic carbon emissions. 
+These generate normal distributions of activation energies for each component (Jonees et al. 2019)
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1emit_a7a58edac69db1034f9e6f9932ced27f4}\index{TuLIP.emit@{TuLIP.emit}!sillburp@{sillburp}}
+\index{sillburp@{sillburp}!TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection{\texorpdfstring{sillburp()}{sillburp()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1emit_a7a58edac69db1034f9e6f9932ced27f4} 
+Tu\+LIP.\+emit.\+sillburp (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{TOC\+\_\+prev}{, }\item[{}]{density}{, }\item[{}]{lithology}{, }\item[{}]{porosity}{, }\item[{}]{dt}{, }\item[{}]{reaction\+\_\+energies}{, }\item[{}]{TOCo}{ = {\ttfamily None}, }\item[{}]{oil\+\_\+production\+\_\+rate}{ = {\ttfamily 0}, }\item[{}]{progress\+\_\+of\+\_\+reactions}{ = {\ttfamily np.nan}, }\item[{}]{rate\+\_\+of\+\_\+reactions}{ = {\ttfamily np.nan}, }\item[{}]{weights}{ = {\ttfamily None}}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Python implementation of the sillburp model of Jones et al. (2019)
+T_field - Temperature field array
+TOC_prev - Total organic content at the previous time step. If the first time step, leave TOCo blank and make this the TOC content
+density - Density array of the slice
+lithology - Lithology array of the slice
+porosity - Porosity field of the slice
+dt - Time step
+reaction_energies - Reaction energy arrays. These are most easily generated from the get_sillburp_reaction_energies() function. The model is designed to be used with these energies
+TOCo - Total organic carbon content of the slice at the initial time
+oil_production_rate - Rate of oil production as calculated by this model
+progress_reactions - The progress of reactions at the current time step. Leave blank at the initial time step
+rate_of_reactions - The rate of reaction progress at the current time step
+weights - Array containing the distribution of different components of reaction groups - The order of weights is ['LABILE', 'REFRACTORY', 'VITRINITE', 'OIL']
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1emit_ad033525e1b86acc07a6e91aed8773206}\index{TuLIP.emit@{TuLIP.emit}!SILLi\_emissions@{SILLi\_emissions}}
+\index{SILLi\_emissions@{SILLi\_emissions}!TuLIP.emit@{TuLIP.emit}}
+\doxysubsubsection{\texorpdfstring{SILLi\_emissions()}{SILLi\_emissions()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1emit_ad033525e1b86acc07a6e91aed8773206} 
+Tu\+LIP.\+emit.\+SILLi\+\_\+emissions (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{density}{, }\item[{}]{lithology}{, }\item[{}]{porosity}{, }\item[{}]{TOC\+\_\+prev}{, }\item[{}]{dt}{, }\item[{}]{TOCo}{ = {\ttfamily np.nan}, }\item[{}]{W}{ = {\ttfamily np.nan}}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Python implementation of SILLi (Iyer et al. 2018) based on the EasyRo% method of Sweeney and Burnham (1990)
+T_field - temperature field (array)
+dT = Rate of cooloing array
+density - Rock density array
+lithology - Lithology array
+porosity - porosity array
+\end{DoxyVerb}
+ 
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+Tu\+LIP.\+py\end{DoxyCompactItemize}

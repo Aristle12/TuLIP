@@ -1,0 +1,112 @@
+\chapter{\texorpdfstring{$<$}{<}img src="{}https\+://github.\+com/\+Aristle12/\+Tu\+LIP/blob/\+Tu\+LIPClass/flower\+\_\+668095.\+png"{} width="{}30"{} height="{}30"{}\texorpdfstring{$>$}{>} Tu\+LIP}
+\hypertarget{md__r_e_a_d_m_e}{}\label{md__r_e_a_d_m_e}\index{$<$img src="{}https://github.com/Aristle12/TuLIP/blob/TuLIPClass/flower\_668095.png"{} width="{}30"{} height="{}30"{}$>$ TuLIP@{$<$img src=""https://github.com/Aristle12/TuLIP/blob/TuLIPClass/flower\_668095.png"" width=""30"" height=""30""$>$ TuLIP}}
+\label{md__r_e_a_d_m_e_autotoc_md0}%
+\Hypertarget{md__r_e_a_d_m_e_autotoc_md0}%
+
+
+Thermally understanding Large Igneous Provinces (Tu\+LIP)\hypertarget{md__r_e_a_d_m_e_autotoc_md1}{}\doxysection{\texorpdfstring{Description}{Description}}\label{md__r_e_a_d_m_e_autotoc_md1}
+This project combines heat transfer solvers with functions for emplacing sills in geological models. The solvers handle steady-\/state and time-\/varying heat diffusion in anisotropic media, while the sill emplacement functions allow for the simulation of magmatic intrusions. The project is implemented in Python and utilizes libraries such as Num\+Py, Sci\+Py, Pandas, and Py\+Pardiso for efficient computation. Documentation is outdated and funky. Currently working on updating the documentaiton!!\hypertarget{md__r_e_a_d_m_e_autotoc_md2}{}\doxysection{\texorpdfstring{Table of Contents}{Table of Contents}}\label{md__r_e_a_d_m_e_autotoc_md2}
+
+\begin{DoxyItemize}
+\item Installation
+\item Usage
+\begin{DoxyItemize}
+\item Heat Transfer Solvers
+\item Sill Emplacement Functions
+\end{DoxyItemize}
+\item Contributing
+\item License
+\item Contact
+\end{DoxyItemize}\hypertarget{md__r_e_a_d_m_e_autotoc_md3}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md__r_e_a_d_m_e_autotoc_md3}
+
+\begin{DoxyEnumerate}
+\item Clone the repo 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{git\ clone\ https://github.com/Aristle12/TuLIP.git}
+
+\end{DoxyCode}
+
+\item Install required packages 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{pip\ install\ numpy\ scipy\ pandas\ pypardiso\ numba}
+
+\end{DoxyCode}
+
+\end{DoxyEnumerate}\hypertarget{md__r_e_a_d_m_e_autotoc_md4}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md__r_e_a_d_m_e_autotoc_md4}
+\hypertarget{md__r_e_a_d_m_e_autotoc_md5}{}\doxysubsection{\texorpdfstring{Heat Transfer Solvers}{Heat Transfer Solvers}}\label{md__r_e_a_d_m_e_autotoc_md5}
+\hypertarget{md__r_e_a_d_m_e_autotoc_md6}{}\doxysubsubsection{\texorpdfstring{Example Usage}{Example Usage}}\label{md__r_e_a_d_m_e_autotoc_md6}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{import}\ numpy\ \textcolor{keyword}{as}\ np}
+\DoxyCodeLine{\textcolor{keyword}{from}\ heat\_flux\ \textcolor{keyword}{import}\ heat\_flux}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{\#\ Define\ parameters}}
+\DoxyCodeLine{a\ =\ 10\ \ \textcolor{comment}{\#\ number\ of\ rows}}
+\DoxyCodeLine{b\ =\ 10\ \ \textcolor{comment}{\#\ number\ of\ columns}}
+\DoxyCodeLine{dx\ =\ 1\ \ \textcolor{comment}{\#\ spacing\ in\ x\ direction}}
+\DoxyCodeLine{dy\ =\ 1\ \ \textcolor{comment}{\#\ spacing\ in\ y\ direction}}
+\DoxyCodeLine{k\ =\ np.ones((a,\ b))\ \ \textcolor{comment}{\#\ diffusivity\ field}}
+\DoxyCodeLine{Tnow\ =\ np.zeros((a,\ b))\ \ \textcolor{comment}{\#\ initial\ temperature\ field}}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{\#\ Solve\ for\ steady-\/state\ heat\ flux}}
+\DoxyCodeLine{Tf\ =\ heat\_flux(k,\ a,\ b,\ dx,\ dy,\ Tnow,\ method=\textcolor{stringliteral}{'straight'})}
+\DoxyCodeLine{print(Tf)}
+
+\end{DoxyCode}
+\hypertarget{md__r_e_a_d_m_e_autotoc_md7}{}\doxysubsubsection{\texorpdfstring{Available Solvers}{Available Solvers}}\label{md__r_e_a_d_m_e_autotoc_md7}
+
+\begin{DoxyItemize}
+\item {\ttfamily heat\+\_\+flux}\+: Solves the steady-\/state heat flux equation.
+\item {\ttfamily perm\+\_\+smoothed\+\_\+solve}\+: Solves the time-\/varying heat diffusion equation using an averaged permeability field.
+\item {\ttfamily perm\+\_\+chain\+\_\+solve}\+: Solves the time-\/varying heat diffusion equation using the chain rule.
+\item {\ttfamily conv\+\_\+chain\+\_\+solve}\+: Solves the heat diffusion equation using the convolution method with the chain rule.
+\item {\ttfamily conv\+\_\+smooth\+\_\+solve}\+: Solves the heat diffusion equation using the convolution method with smoothed permeability.
+\item {\ttfamily diff\+\_\+solve}\+: Switch function to call particular solver and pass parameters.
+\end{DoxyItemize}\hypertarget{md__r_e_a_d_m_e_autotoc_md8}{}\doxysubsection{\texorpdfstring{Sill Emplacement Functions}{Sill Emplacement Functions}}\label{md__r_e_a_d_m_e_autotoc_md8}
+\hypertarget{md__r_e_a_d_m_e_autotoc_md9}{}\doxysubsubsection{\texorpdfstring{Example Usage}{Example Usage}}\label{md__r_e_a_d_m_e_autotoc_md9}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{import}\ numpy\ \textcolor{keyword}{as}\ np}
+\DoxyCodeLine{\textcolor{keyword}{from}\ sill\_emplacement\ \textcolor{keyword}{import}\ single\_sill}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{\#\ Define\ parameters}}
+\DoxyCodeLine{T\_field\ =\ np.zeros((10,\ 10))\ \ \textcolor{comment}{\#\ temperature\ field}}
+\DoxyCodeLine{x\_space\ =\ 5\ \ \textcolor{comment}{\#\ x-\/coordinate\ for\ sill\ center}}
+\DoxyCodeLine{height\ =\ 5\ \ \textcolor{comment}{\#\ y-\/coordinate\ for\ sill\ center}}
+\DoxyCodeLine{width\ =\ 4\ \ \textcolor{comment}{\#\ width\ of\ the\ sill}}
+\DoxyCodeLine{thick\ =\ 2\ \ \textcolor{comment}{\#\ thickness\ of\ the\ sill}}
+\DoxyCodeLine{T\_mag\ =\ 1000\ \ \textcolor{comment}{\#\ temperature\ of\ the\ sill}}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{\#\ Emplace\ a\ single\ sill}}
+\DoxyCodeLine{T\_field\ =\ single\_sill(T\_field,\ x\_space,\ height,\ width,\ thick,\ T\_mag)}
+\DoxyCodeLine{print(T\_field)}
+
+\end{DoxyCode}
+\hypertarget{md__r_e_a_d_m_e_autotoc_md10}{}\doxysubsubsection{\texorpdfstring{Available Functions}{Available Functions}}\label{md__r_e_a_d_m_e_autotoc_md10}
+
+\begin{DoxyItemize}
+\item {\ttfamily to\+\_\+emplace}\+: Determines if a temperature is above a threshold for emplacement.
+\item {\ttfamily single\+\_\+sill}\+: Emplaces a simple rectangular sill without a dike tail.
+\item {\ttfamily circle\+\_\+sill}\+: Emplaces a simple circular sill without a dike tail.
+\item {\ttfamily randn\+\_\+heights}\+: Generates random emplacement heights over a normal distribution.
+\item {\ttfamily x\+\_\+spacings}\+: Generates random x-\/coordinate spacings over a normal distribution.
+\item {\ttfamily uniform\+\_\+heights}\+: Generates random heights spacing from a uniform distribution.
+\item {\ttfamily uniform\+\_\+x}\+: Generates random x-\/coordinate spacings from a uniform distribution.
+\item {\ttfamily empirical\+\_\+\+CDF}\+: Generates random numbers from a specific empirical distribution.
+\item {\ttfamily get\+\_\+scaled\+\_\+dims}\+: Linearly scaled dimensions with height plus noise.
+\item {\ttfamily randn\+\_\+dims}\+: Random normal distribution of dimensions for aspect ratio and shape.
+\item {\ttfamily uniform\+\_\+dims}\+: Random uniform distribution of dimensions for aspect ratio and shape.
+\item {\ttfamily mult\+\_\+sill}\+: Emplaces multiple sills with various shapes and options.
+\item {\ttfamily get\+\_\+H}\+: Calculates external heat sources generated through latent heat of crystallization and radioactive heat generation.
+\item {\ttfamily get\+\_\+diffusivity}\+: Calculates diffusivity based on temperature and lithology.
+\item {\ttfamily sill\+\_\+3\+Dcube}\+: Generates sills in 3D space for flux control.
+\item {\ttfamily emplace\+\_\+3\+Dsill}\+: Emplaces a sill into a 2D slice from a 3D sill array.
+\item {\ttfamily lithology\+\_\+3\+Dsill}\+: Tracks lithology changes in a 2D array due to sill emplacement.
+\item {\ttfamily cmb\+\_\+3\+Dsill}\+: Updates the crust-\/mantle boundary due to sill emplacement.
+\end{DoxyItemize}\hypertarget{md__r_e_a_d_m_e_autotoc_md11}{}\doxysection{\texorpdfstring{License}{License}}\label{md__r_e_a_d_m_e_autotoc_md11}
+This project is licensed under the MIT License -\/ see the \mbox{[}LICENSE\mbox{]}(LICENSE) file for details.\hypertarget{md__r_e_a_d_m_e_autotoc_md12}{}\doxysection{\texorpdfstring{Contact}{Contact}}\label{md__r_e_a_d_m_e_autotoc_md12}
+Your Name -\/ \href{https://github.com/Aristle12}{\texttt{ @\+Aristle12}} -\/ \href{mailto:aristle.jm@psu.edu}{\texttt{ aristle.\+jm@psu.\+edu}}
+
+Project Link\+: \href{https://github.com/Aristle12/TuLIP.git}{\texttt{ https\+://github.\+com/\+Aristle12/\+Tu\+LIP.\+git}}
+
+\href{https://www.freepik.com/icons/tulip-flower}{\texttt{ Icon by Stockio}} 

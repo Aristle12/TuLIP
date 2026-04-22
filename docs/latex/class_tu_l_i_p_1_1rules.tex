@@ -1,0 +1,382 @@
+\doxysection{Tu\+LIP.\+rules Class Reference}
+\hypertarget{class_tu_l_i_p_1_1rules}{}\label{class_tu_l_i_p_1_1rules}\index{TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1rules_a5a025731030c372cd61eeaebcfd197d7}\label{class_tu_l_i_p_1_1rules_a5a025731030c372cd61eeaebcfd197d7} 
+{\bfseries \+\_\+\+\_\+init\+\_\+\+\_\+} (self)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_ab26e33473096f6f17434d8509100dca9}{randn\+\_\+heights}} (self, n\+\_\+sills, l\+\_\+sill, h\+\_\+sill, sd, dy)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a6d58dc01462a5511ba94dfec6fcef8d1}{x\+\_\+spacings}} (self, n\+\_\+sills, x\+\_\+min, x\+\_\+max, sd, dx)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_afed7d9b191c437c56620999f9058af85}{mult\+\_\+sill}} (self, T\+\_\+field, majr, minr, height, x\+\_\+space, dx, dy, rock=np.\+array(\mbox{[}$\,$\mbox{]}), emplace\+\_\+rock=\textquotesingle{}basalt\textquotesingle{}, T\+\_\+mag=1000, shape=\textquotesingle{}elli\textquotesingle{}, dike\+\_\+empl=True, push=False)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_aa7a12e0d652ce92385d2f9fcb3cb5614}{sill\+\_\+3\+Dcube}} (self, x, y, z, dx, dy, n\+\_\+sills, x\+\_\+coords, y\+\_\+coords, z\+\_\+coords, maj\+\_\+dims, min\+\_\+dims, empl\+\_\+times, shape=\textquotesingle{}elli\textquotesingle{}, dike\+\_\+tail=False, orientations=True, dike\+\_\+width=None)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_adc00f2830b87dfe8b2ce7c4c93a9747e}{emplace\+\_\+3\+Dsill}} (self, T\+\_\+field, sillcube, n\+\_\+rep, T\+\_\+mag, z\+\_\+index, curr\+\_\+empl\+\_\+time)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a5001c3035ea557072ee3e28751f8bb19}{sill3\+D\+\_\+pushy\+\_\+emplacement}} (self, props\+\_\+array, props\+\_\+dict, sillsquare, n\+\_\+rep, mag\+\_\+props\+\_\+dict, curr\+\_\+empl\+\_\+time)
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_aecd4bfd0c4ce2bd6b3ed139b731082fe}{to\+\_\+emplace}} (t\+\_\+now, t\+\_\+thresh)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_afdde8f0b2e7f14d1567b3d9145b2dd42}{build\+\_\+lith\+\_\+dict}} (lithology)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a88374bbea308a7a77973482dbc53c6a3}{build\+\_\+prop\+\_\+dict}} (prop, lithology)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_adb38e9ee6c7c45598b09a9def6b37c26}{single\+\_\+sill}} (T\+\_\+field, x\+\_\+space, height, width, thick, T\+\_\+mag)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a401680d1f4b96d124f59bba7830610ec}{circle\+\_\+sill}} (T\+\_\+field, x\+\_\+space, height, r, T\+\_\+mag, a, b, dx, dy)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_ab5c050ad35bcd6107fe3d6f2392f669d}{uniform\+\_\+heights}} (n\+\_\+sills, l\+\_\+sill, h\+\_\+sill, dy)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a701904ab6361220eea3d3a46700aa4f5}{uniform\+\_\+x}} (n\+\_\+sills, x\+\_\+min, x\+\_\+max, dx)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a607c3f7e38cb9730cb02f3acf12f8c46}{empirical\+\_\+\+CDF}} (n\+\_\+sills, xarray, cdf)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a9531ffe2ad43d45b7c291121e9be3a10}{get\+\_\+scaled\+\_\+dims}} (min\+\_\+min, min\+\_\+max, mar, sar, heights, n\+\_\+sills)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a182ff67ab968390e30f022c800fee0a9}{randn\+\_\+dims}} (min\+\_\+min, min\+\_\+max, sd\+\_\+min, mar, sar, n\+\_\+sills)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a7ec19442a4b2ca69d449dcd8fb7c27c4}{uniform\+\_\+dims}} (min\+\_\+min, min\+\_\+max, min\+\_\+ar, max\+\_\+ar, n\+\_\+sills)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_ae9023903657f53f9ed2781b4b67b6d47}{value\+\_\+pusher}} (array, new\+\_\+value, push\+\_\+index, push\+\_\+value)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a5b0a2aa4899b0cb038ec6876db190502}{prop\+\_\+updater}} (lithology, dict prop\+\_\+dict, str property)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a913ca23df5426b62a07b4751f556333b}{value\+\_\+pusher2D}} (array, new\+\_\+value, row\+\_\+index, push\+\_\+amount)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a761baf21dfd672a7a494876852f2eb92}{index\+\_\+finder}} (array, string)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a905359a4ba1dd3b9335209ccc3bfa177}{get\+\_\+chemH}} (T\+\_\+field, rho, CU, CTh, CK, T\+\_\+sol, dike\+\_\+net, a, b)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_ad87e552057ddbf40df142693412ca454}{rotate\+\_\+nodes}} (coords\+\_\+array, theta, center=(0, 0))
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1rules_a97e7f91dad02bc44fb3ac8aa2a5672b0}{lithology\+\_\+3\+Dsill}} (rock, sillcube, nrep, z\+\_\+index, rock\+\_\+type=\textquotesingle{}basalt\textquotesingle{})
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{class_tu_l_i_p_1_1rules_afdde8f0b2e7f14d1567b3d9145b2dd42}\index{TuLIP.rules@{TuLIP.rules}!build\_lith\_dict@{build\_lith\_dict}}
+\index{build\_lith\_dict@{build\_lith\_dict}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{build\_lith\_dict()}{build\_lith\_dict()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_afdde8f0b2e7f14d1567b3d9145b2dd42} 
+Tu\+LIP.\+rules.\+build\+\_\+lith\+\_\+dict (\begin{DoxyParamCaption}\item[{}]{lithology}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function to build lithology dictionary (str to int) based on the lithology array provided. Values are assigned in order of appearance of new rock types
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a88374bbea308a7a77973482dbc53c6a3}\index{TuLIP.rules@{TuLIP.rules}!build\_prop\_dict@{build\_prop\_dict}}
+\index{build\_prop\_dict@{build\_prop\_dict}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{build\_prop\_dict()}{build\_prop\_dict()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a88374bbea308a7a77973482dbc53c6a3} 
+Tu\+LIP.\+rules.\+build\+\_\+prop\+\_\+dict (\begin{DoxyParamCaption}\item[{}]{prop}{, }\item[{}]{lithology}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function to build dictionary assigning the invariant properties with lithology based on the two arrays provided
+prop - 2D array containing the values of the particular proerty
+lithology - 2D array containing the rock at each position
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a401680d1f4b96d124f59bba7830610ec}\index{TuLIP.rules@{TuLIP.rules}!circle\_sill@{circle\_sill}}
+\index{circle\_sill@{circle\_sill}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{circle\_sill()}{circle\_sill()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a401680d1f4b96d124f59bba7830610ec} 
+Tu\+LIP.\+rules.\+circle\+\_\+sill (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{x\+\_\+space}{, }\item[{}]{height}{, }\item[{}]{r}{, }\item[{}]{T\+\_\+mag}{, }\item[{}]{a}{, }\item[{}]{b}{, }\item[{}]{dx}{, }\item[{}]{dy}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Emplacing a simple circular sill without the dike tail
+T_field: 2D numpy array representing the temperature field.
+x_space: x-coordinate for the center of the sill in nodes.
+height: y-coordinate for the center of the sil in nodes.
+r: radius of the sill in nodes.
+T_mag: temperature magnitude of the sill.
+a: number of nodes in the y-direction.
+b: number of nodes in the x-direction.
+dx: spacing in the x-direction in m.
+dy: spacing in the y-direction in m.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a607c3f7e38cb9730cb02f3acf12f8c46}\index{TuLIP.rules@{TuLIP.rules}!empirical\_CDF@{empirical\_CDF}}
+\index{empirical\_CDF@{empirical\_CDF}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{empirical\_CDF()}{empirical\_CDF()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a607c3f7e38cb9730cb02f3acf12f8c46} 
+Tu\+LIP.\+rules.\+empirical\+\_\+\+CDF (\begin{DoxyParamCaption}\item[{}]{n\+\_\+sills}{, }\item[{}]{xarray}{, }\item[{}]{cdf}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function to give random numbers from a specific empirical distribution
+n_sills - number of sills needed int
+xarray - array of domain for empirical CDF
+cdf - array of CDF for the x array
+Returns distribution in units of inputs
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_adc00f2830b87dfe8b2ce7c4c93a9747e}\index{TuLIP.rules@{TuLIP.rules}!emplace\_3Dsill@{emplace\_3Dsill}}
+\index{emplace\_3Dsill@{emplace\_3Dsill}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{emplace\_3Dsill()}{emplace\_3Dsill()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_adc00f2830b87dfe8b2ce7c4c93a9747e} 
+Tu\+LIP.\+rules.\+emplace\+\_\+3\+Dsill (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{T\+\_\+field}{, }\item[{}]{sillcube}{, }\item[{}]{n\+\_\+rep}{, }\item[{}]{T\+\_\+mag}{, }\item[{}]{z\+\_\+index}{, }\item[{}]{curr\+\_\+empl\+\_\+time}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function to empalce a sill into the 2D slice T_field
+T_field = 2D temperature array
+sillcube = 3D sill array
+n_rep = the number of the sill being emplaced
+z_index = The 2D slice from the 3D sill array being considered
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a905359a4ba1dd3b9335209ccc3bfa177}\index{TuLIP.rules@{TuLIP.rules}!get\_chemH@{get\_chemH}}
+\index{get\_chemH@{get\_chemH}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{get\_chemH()}{get\_chemH()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a905359a4ba1dd3b9335209ccc3bfa177} 
+Tu\+LIP.\+rules.\+get\+\_\+chemH (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{rho}{, }\item[{}]{CU}{, }\item[{}]{CTh}{, }\item[{}]{CK}{, }\item[{}]{T\+\_\+sol}{, }\item[{}]{dike\+\_\+net}{, }\item[{}]{a}{, }\item[{}]{b}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Untested function to calculate external heat sources generated through latent heat of crystallization and radiactive heat generation from Rybach and Cermack (1982) based on geochemistry
+T_field = Temp field, int
+rho = Density kg/m3
+CU, CTh = U, Th concentrations in ppm, array
+CK = K conc in wt %, array
+T_sol = Solidus temperature
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a9531ffe2ad43d45b7c291121e9be3a10}\index{TuLIP.rules@{TuLIP.rules}!get\_scaled\_dims@{get\_scaled\_dims}}
+\index{get\_scaled\_dims@{get\_scaled\_dims}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{get\_scaled\_dims()}{get\_scaled\_dims()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a9531ffe2ad43d45b7c291121e9be3a10} 
+Tu\+LIP.\+rules.\+get\+\_\+scaled\+\_\+dims (\begin{DoxyParamCaption}\item[{}]{min\+\_\+min}{, }\item[{}]{min\+\_\+max}{, }\item[{}]{mar}{, }\item[{}]{sar}{, }\item[{}]{heights}{, }\item[{}]{n\+\_\+sills}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Linearly scaled with height (inversely) plus noise for both aspect ratio and shape
+Returns the width and height respectively in the number of nodes
+min_min = Minimum value for the thickness (m)
+min_max = Maximum value for the thickness (m)
+mar = Mean aspect ratio (Width/Thickness)
+sar = Standard deviation for the distribution of the aspect ratios
+n_sills = Number of sills
+dx = Node spacing in the x-direction
+dy = Node spacing in the y-direction
+Returns dims in length units
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a761baf21dfd672a7a494876852f2eb92}\index{TuLIP.rules@{TuLIP.rules}!index\_finder@{index\_finder}}
+\index{index\_finder@{index\_finder}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{index\_finder()}{index\_finder()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a761baf21dfd672a7a494876852f2eb92} 
+Tu\+LIP.\+rules.\+index\+\_\+finder (\begin{DoxyParamCaption}\item[{}]{array}{, }\item[{}]{string}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function to check and return the indices of an array that contains the specified string
+array: A numpy array of strings or elements that can be converted to strings. Prefered dtype is object.
+string: A string to search for within each element of the array.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a97e7f91dad02bc44fb3ac8aa2a5672b0}\index{TuLIP.rules@{TuLIP.rules}!lithology\_3Dsill@{lithology\_3Dsill}}
+\index{lithology\_3Dsill@{lithology\_3Dsill}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{lithology\_3Dsill()}{lithology\_3Dsill()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a97e7f91dad02bc44fb3ac8aa2a5672b0} 
+Tu\+LIP.\+rules.\+lithology\+\_\+3\+Dsill (\begin{DoxyParamCaption}\item[{}]{rock}{, }\item[{}]{sillcube}{, }\item[{}]{nrep}{, }\item[{}]{z\+\_\+index}{, }\item[{}]{rock\+\_\+type}{ = {\ttfamily \textquotesingle{}basalt\textquotesingle{}}}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function to keep track of lithology changes in the 2D array
+rock = 2D lithology array
+sillcube = 3D sill array
+nrep = number of the sill being emplaced
+z_index = The 2D slice from the 3D sill array being considered
+rock_type = the type of rock formed by the magma
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_afed7d9b191c437c56620999f9058af85}\index{TuLIP.rules@{TuLIP.rules}!mult\_sill@{mult\_sill}}
+\index{mult\_sill@{mult\_sill}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{mult\_sill()}{mult\_sill()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_afed7d9b191c437c56620999f9058af85} 
+Tu\+LIP.\+rules.\+mult\+\_\+sill (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{T\+\_\+field}{, }\item[{}]{majr}{, }\item[{}]{minr}{, }\item[{}]{height}{, }\item[{}]{x\+\_\+space}{, }\item[{}]{dx}{, }\item[{}]{dy}{, }\item[{}]{rock}{ = {\ttfamily np.array(\mbox{[}\mbox{]})}, }\item[{}]{emplace\+\_\+rock}{ = {\ttfamily \textquotesingle{}basalt\textquotesingle{}}, }\item[{}]{T\+\_\+mag}{ = {\ttfamily 1000}, }\item[{}]{shape}{ = {\ttfamily \textquotesingle{}elli\textquotesingle{}}, }\item[{}]{dike\+\_\+empl}{ = {\ttfamily True}, }\item[{}]{push}{ = {\ttfamily False}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Emplace sills in a 2D temperature array and optionallu update the lithology array with the sills. 
+Optionally push the rocks downward, or overwrite the rocks in the field.
+T_field: A 2D numpy array representing the temperature field.
+majr: Major axis length of the sill.
+minr: Minor axis length of the sill.
+height: Y-coordinate for the center of the sill.
+x_space: X-coordinate for the center of the sill.
+dx: Spacing in the x-direction.
+dy: Spacing in the y-direction.
+rock: Optional 2D numpy array representing rock types.
+emplace_rock: Type of rock to emplace, default is 'basalt'.
+T_mag: Temperature magnitude of the sill.
+shape: Shape of the sill, either 'rect' or 'elli'.
+dike_empl: Boolean indicating if a dike tail should be emplaced.
+push: Boolean indicating if the sill should be pushed into the field.
+Returns the temperature field and an array indicating where the sill was emplaced and optionally the lithology array
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a5b0a2aa4899b0cb038ec6876db190502}\index{TuLIP.rules@{TuLIP.rules}!prop\_updater@{prop\_updater}}
+\index{prop\_updater@{prop\_updater}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{prop\_updater()}{prop\_updater()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a5b0a2aa4899b0cb038ec6876db190502} 
+Tu\+LIP.\+rules.\+prop\+\_\+updater (\begin{DoxyParamCaption}\item[{}]{lithology}{, }\item[{dict}]{prop\+\_\+dict}{, }\item[{str}]{property}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}This function updates the associated rock properties once everything has shifted.
+lithology: A 2D numpy array representing different rock types.
+lith_dict: A dictionary mapping integer keys to rock type names.
+prop_dict: A dictionary mapping rock type names to their properties.
+property: A string indicating the specific property to update.
+Returns a 2D array.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a182ff67ab968390e30f022c800fee0a9}\index{TuLIP.rules@{TuLIP.rules}!randn\_dims@{randn\_dims}}
+\index{randn\_dims@{randn\_dims}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{randn\_dims()}{randn\_dims()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a182ff67ab968390e30f022c800fee0a9} 
+Tu\+LIP.\+rules.\+randn\+\_\+dims (\begin{DoxyParamCaption}\item[{}]{min\+\_\+min}{, }\item[{}]{min\+\_\+max}{, }\item[{}]{sd\+\_\+min}{, }\item[{}]{mar}{, }\item[{}]{sar}{, }\item[{}]{n\+\_\+sills}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Random normal distribution of dims for aspect ratio and shape
+min_min = Minimum value for the thickness (m)
+min_max = Maximum value for the thickness (m)
+mar = Mean aspect ratio (Width/Thickness)
+sar = Standard deviation for the distribution of the aspect ratios
+n_sills = Number of sills
+Returns dims in length units
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_ab26e33473096f6f17434d8509100dca9}\index{TuLIP.rules@{TuLIP.rules}!randn\_heights@{randn\_heights}}
+\index{randn\_heights@{randn\_heights}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{randn\_heights()}{randn\_heights()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_ab26e33473096f6f17434d8509100dca9} 
+Tu\+LIP.\+rules.\+randn\+\_\+heights (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{n\+\_\+sills}{, }\item[{}]{l\+\_\+sill}{, }\item[{}]{h\+\_\+sill}{, }\item[{}]{sd}{, }\item[{}]{dy}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Get random emplacement heights over a normal distribution within the specified range. Output is in nodes.
+n_sills - number of sills int
+l_sills - Depth of lowest sill emplacement range (m) int
+h_sills - Depth of shallowest depth emplacement range (m) int
+sd = Standard Deviation of the heights distribution
+dy - Grid spacing in the y direction (m) int
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_ad87e552057ddbf40df142693412ca454}\index{TuLIP.rules@{TuLIP.rules}!rotate\_nodes@{rotate\_nodes}}
+\index{rotate\_nodes@{rotate\_nodes}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{rotate\_nodes()}{rotate\_nodes()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_ad87e552057ddbf40df142693412ca454} 
+Tu\+LIP.\+rules.\+rotate\+\_\+nodes (\begin{DoxyParamCaption}\item[{}]{coords\+\_\+array}{, }\item[{}]{theta}{, }\item[{}]{center}{ = {\ttfamily (0,0)}}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Rotate the given coordinates by specified angle clockwise
+coords_array: array containing the row and column indices\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a5001c3035ea557072ee3e28751f8bb19}\index{TuLIP.rules@{TuLIP.rules}!sill3D\_pushy\_emplacement@{sill3D\_pushy\_emplacement}}
+\index{sill3D\_pushy\_emplacement@{sill3D\_pushy\_emplacement}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{sill3D\_pushy\_emplacement()}{sill3D\_pushy\_emplacement()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a5001c3035ea557072ee3e28751f8bb19} 
+Tu\+LIP.\+rules.\+sill3\+D\+\_\+pushy\+\_\+emplacement (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{props\+\_\+array}{, }\item[{}]{props\+\_\+dict}{, }\item[{}]{sillsquare}{, }\item[{}]{n\+\_\+rep}{, }\item[{}]{mag\+\_\+props\+\_\+dict}{, }\item[{}]{curr\+\_\+empl\+\_\+time}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function used to modify a 3D properties array including temperature by emplacing a sill and shifting existing values downwards. 
+It identifies the emplacement location using a string identifier, calculates the necessary shifts, and updates the properties array accordingly.
+props_array: A 3D NumPy array containing property values.
+props_dict: A dictionary mapping property names to their indices in props_array.
+sillsquare: A 2D NumPy array containing string identifiers for emplacement.
+n_rep: An integer representing the sill number.
+mag_props_dict: A dictionary mapping property names to new values for emplacement.
+curr_empl_time: An integer representing the current emplacement time.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_aa7a12e0d652ce92385d2f9fcb3cb5614}\index{TuLIP.rules@{TuLIP.rules}!sill\_3Dcube@{sill\_3Dcube}}
+\index{sill\_3Dcube@{sill\_3Dcube}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{sill\_3Dcube()}{sill\_3Dcube()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_aa7a12e0d652ce92385d2f9fcb3cb5614} 
+Tu\+LIP.\+rules.\+sill\+\_\+3\+Dcube (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{x}{, }\item[{}]{y}{, }\item[{}]{z}{, }\item[{}]{dx}{, }\item[{}]{dy}{, }\item[{}]{n\+\_\+sills}{, }\item[{}]{x\+\_\+coords}{, }\item[{}]{y\+\_\+coords}{, }\item[{}]{z\+\_\+coords}{, }\item[{}]{maj\+\_\+dims}{, }\item[{}]{min\+\_\+dims}{, }\item[{}]{empl\+\_\+times}{, }\item[{}]{shape}{ = {\ttfamily \textquotesingle{}elli\textquotesingle{}}, }\item[{}]{dike\+\_\+tail}{ = {\ttfamily False}, }\item[{}]{orientations}{ = {\ttfamily True}, }\item[{}]{dike\+\_\+width}{ = {\ttfamily None}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function to generate sills in 3D space to employ fluxes as a control for sill emplacement.
+Choose any 1 slice for a 2D cooling model, or multiple slices for multiple cooling models
+x, y, z = width, height and third dimension extension of the crustal slice (m)
+n_sills = Number of sills to be emplaced
+dx, dy = Node spacing
+x_coords = x coordinates for the center of the sills
+y_coords = y coordinates for the center of the sills
+z_coords = z coordinates for the center of the sills
+maj_dims, minor dims = dimensions of the 2D sills. Implicit assumption of circularity in the z-direction is present in the code (m)
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_adb38e9ee6c7c45598b09a9def6b37c26}\index{TuLIP.rules@{TuLIP.rules}!single\_sill@{single\_sill}}
+\index{single\_sill@{single\_sill}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{single\_sill()}{single\_sill()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_adb38e9ee6c7c45598b09a9def6b37c26} 
+Tu\+LIP.\+rules.\+single\+\_\+sill (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{x\+\_\+space}{, }\item[{}]{height}{, }\item[{}]{width}{, }\item[{}]{thick}{, }\item[{}]{T\+\_\+mag}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Emplacing a simple rectangular sill without a dike tail
+T_field: A 2D numpy array representing the temperature field.
+x_space: The x-coordinate for the center of the sill in nodes.
+height: The y-coordinate for the center of the sill in nodes.
+width: The width of the sill in nodes.
+thick: The thickness of the sill in nodes.
+T_mag: The temperature of the intruding magma.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_aecd4bfd0c4ce2bd6b3ed139b731082fe}\index{TuLIP.rules@{TuLIP.rules}!to\_emplace@{to\_emplace}}
+\index{to\_emplace@{to\_emplace}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{to\_emplace()}{to\_emplace()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_aecd4bfd0c4ce2bd6b3ed139b731082fe} 
+Tu\+LIP.\+rules.\+to\+\_\+emplace (\begin{DoxyParamCaption}\item[{}]{t\+\_\+now}{, }\item[{}]{t\+\_\+thresh}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Boolean function that decides whether or not to emplace sills based on if the time since the last sill was emplaced exceeds the threshold
+t_now - time since last sill was emplaced
+t_thresh - threhold time for sill emplacement
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a7ec19442a4b2ca69d449dcd8fb7c27c4}\index{TuLIP.rules@{TuLIP.rules}!uniform\_dims@{uniform\_dims}}
+\index{uniform\_dims@{uniform\_dims}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{uniform\_dims()}{uniform\_dims()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a7ec19442a4b2ca69d449dcd8fb7c27c4} 
+Tu\+LIP.\+rules.\+uniform\+\_\+dims (\begin{DoxyParamCaption}\item[{}]{min\+\_\+min}{, }\item[{}]{min\+\_\+max}{, }\item[{}]{min\+\_\+ar}{, }\item[{}]{max\+\_\+ar}{, }\item[{}]{n\+\_\+sills}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Random uniform distribution of dims for aspect ratio and shape
+min_min = Minimum value for the thickness (m)
+min_max = Maximum value for the thickness (m)
+min_ar = Minimum aspect ratio (Width/Thickness)
+max_ar =  Maximum aspect ratio
+n_sills = Number of sills
+Returns dims in length units
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_ab5c050ad35bcd6107fe3d6f2392f669d}\index{TuLIP.rules@{TuLIP.rules}!uniform\_heights@{uniform\_heights}}
+\index{uniform\_heights@{uniform\_heights}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{uniform\_heights()}{uniform\_heights()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_ab5c050ad35bcd6107fe3d6f2392f669d} 
+Tu\+LIP.\+rules.\+uniform\+\_\+heights (\begin{DoxyParamCaption}\item[{}]{n\+\_\+sills}{, }\item[{}]{l\+\_\+sill}{, }\item[{}]{h\+\_\+sill}{, }\item[{}]{dy}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Get heights spacing for sill emplacement randomly picked from a uniform distribution
+n_sills: Number of heights to generate.
+l_sill: Lower bound of the height range in m.
+h_sill: Upper bound of the height range in m.
+dy: Grid spacing in the y-direction.
+Returns emplacement depths in node spacings
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a701904ab6361220eea3d3a46700aa4f5}\index{TuLIP.rules@{TuLIP.rules}!uniform\_x@{uniform\_x}}
+\index{uniform\_x@{uniform\_x}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{uniform\_x()}{uniform\_x()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a701904ab6361220eea3d3a46700aa4f5} 
+Tu\+LIP.\+rules.\+uniform\+\_\+x (\begin{DoxyParamCaption}\item[{}]{n\+\_\+sills}{, }\item[{}]{x\+\_\+min}{, }\item[{}]{x\+\_\+max}{, }\item[{}]{dx}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Nodes for x-coordinate space chosen as a random normal distribution
+n_sills: Number of x-coordinate nodes to generate.
+x_min: Minimum value of the x-coordinate range.
+x_max: Maximum value of the x-coordinate range.
+dx: Grid spacing in the x-direction.
+Returns x-coordinates in node spacings
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_ae9023903657f53f9ed2781b4b67b6d47}\index{TuLIP.rules@{TuLIP.rules}!value\_pusher@{value\_pusher}}
+\index{value\_pusher@{value\_pusher}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{value\_pusher()}{value\_pusher()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_ae9023903657f53f9ed2781b4b67b6d47} 
+Tu\+LIP.\+rules.\+value\+\_\+pusher (\begin{DoxyParamCaption}\item[{}]{array}{, }\item[{}]{new\+\_\+value}{, }\item[{}]{push\+\_\+index}{, }\item[{}]{push\+\_\+value}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Insert values in specified index and pushed the values down by a specified amount. 
+This function works, but is a less efficient version of rules.value_pusher2D
+array: A 2D numpy array to be modified.
+new_value: The value to be inserted into the array.
+push_index: A tuple indicating the (x, y) index where the new value will be inserted.
+push_value: An integer indicating how many positions to shift the existing values downwards.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a913ca23df5426b62a07b4751f556333b}\index{TuLIP.rules@{TuLIP.rules}!value\_pusher2D@{value\_pusher2D}}
+\index{value\_pusher2D@{value\_pusher2D}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{value\_pusher2D()}{value\_pusher2D()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a913ca23df5426b62a07b4751f556333b} 
+Tu\+LIP.\+rules.\+value\+\_\+pusher2D (\begin{DoxyParamCaption}\item[{}]{array}{, }\item[{}]{new\+\_\+value}{, }\item[{}]{row\+\_\+index}{, }\item[{}]{push\+\_\+amount}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Modify a 2D numpy array by inserting a new value at specified row indices and shifting existing values downwards by a specified amount for each column.
+array: A 2D numpy array to be modified.
+new_value: The value to be inserted into the array.
+row_index: A list of row indices for each column where the new value will be inserted.
+push_amount: A list of integers indicating how many positions to shift the existing values downwards for each column.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1rules_a6d58dc01462a5511ba94dfec6fcef8d1}\index{TuLIP.rules@{TuLIP.rules}!x\_spacings@{x\_spacings}}
+\index{x\_spacings@{x\_spacings}!TuLIP.rules@{TuLIP.rules}}
+\doxysubsubsection{\texorpdfstring{x\_spacings()}{x\_spacings()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1rules_a6d58dc01462a5511ba94dfec6fcef8d1} 
+Tu\+LIP.\+rules.\+x\+\_\+spacings (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{n\+\_\+sills}{, }\item[{}]{x\+\_\+min}{, }\item[{}]{x\+\_\+max}{, }\item[{}]{sd}{, }\item[{}]{dx}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Nodes for x-coordinate space chosen as a random normal distribution
+n_sills - number of sills int
+x_min - The lower range (left side) (m) int
+x_max - The upper range (right side) (m) int
+sd - Standard deviation of the distribution. For the entire distribution to fit within the range, a maximum of 10% of the distribution is recommended. 
+\end{DoxyVerb}
+ 
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+Tu\+LIP.\+py\end{DoxyCompactItemize}
