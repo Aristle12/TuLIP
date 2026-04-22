@@ -1,0 +1,412 @@
+\doxysection{Tu\+LIP.\+sill\+\_\+controls Class Reference}
+\hypertarget{class_tu_l_i_p_1_1sill__controls}{}\label{class_tu_l_i_p_1_1sill__controls}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a02f8f1b59c486b3929e193ad62df4eb8}{\+\_\+\+\_\+init\+\_\+\+\_\+}} (self, x, y, dx, dy, T\+\_\+liquidus=1250, T\+\_\+solidus=800, include\+\_\+external\+\_\+heat=True, k\+\_\+const=True, kc\+\_\+val=7.\+884e7, cp=1, cp\+\_\+const=True, calculate\+\_\+closest\+\_\+sill=False, calculate\+\_\+all\+\_\+sills\+\_\+distances=False, calculate\+\_\+at\+\_\+all\+\_\+times=False, rock\+\_\+prop\+\_\+dict=None, magma\+\_\+prop\+\_\+dict=None, lith\+\_\+plot\+\_\+dict=None, sill\+\_\+cube\+\_\+dir=\textquotesingle{}sillcubes/\textquotesingle{}, k\+\_\+func=None, cp\+\_\+func=None, melt\+\_\+rock=\textquotesingle{}basalt\textquotesingle{}, melt\+\_\+fraction\+\_\+function=None, melt\+\_\+function\+\_\+args=None)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a62680807968b48817b0cfcbde5a06de2}{generate\+\_\+sill\+\_\+2\+D\+\_\+slices}} (self, fluxy\+\_\+list, iter\+\_\+list, z\+\_\+index\+\_\+list, lat\+\_\+range=None, file\+\_\+dir=None)
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_af5c177167c917a3164230b989dee25fe}\label{class_tu_l_i_p_1_1sill__controls_af5c177167c917a3164230b989dee25fe} 
+{\bfseries sill\+\_\+controls\+\_\+get\+\_\+k} (self, T\+\_\+field, rock, density, dy, return\+\_\+all=False)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a5a05fc0c9b2aa5ed60164cdd0c645f7f}{get\+\_\+physical\+\_\+properties}} (self, rock, rock\+\_\+prop\+\_\+dict)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a6296e0f4c7c42a3d15bede9c875362f0}{build\+\_\+sillcube}} (self, z, dt, thickness\+\_\+range, aspect\+\_\+ratio, depth\+\_\+range, z\+\_\+range, lat\+\_\+range, phase\+\_\+times, tot\+\_\+volume, flux, n\+\_\+sills, shape=\textquotesingle{}elli\textquotesingle{}, depth\+\_\+function=None, lat\+\_\+function=None, dims\+\_\+function=None, emplace\+\_\+dike=False, orientations=None)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_acbae07f48bffbc76774a41ece661ce9b}{get\+\_\+silli\+\_\+initial\+\_\+thermogenic\+\_\+state}} (self, props\+\_\+array, dt, method, time=np.\+nan, lith\+\_\+plot\+\_\+dict=None, rock\+\_\+prop\+\_\+dict=None)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a12093379efd75fbf8369467486126d03}{get\+\_\+sillburp\+\_\+initial\+\_\+thermogenic\+\_\+state}} (self, props\+\_\+array, dt, method, sillburp\+\_\+weights=None, time=np.\+nan, lith\+\_\+plot\+\_\+dict=None, rock\+\_\+prop\+\_\+dict=None)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_ae2562211689a32dda9ccd7ac00b3cc44}{emplace\+\_\+sills}} (self, props\+\_\+array, n\+\_\+sills, cool\+\_\+method, time\+\_\+steps, current\+\_\+time, sillsquare, carbon\+\_\+model\+\_\+params, empl\+\_\+times, volume\+\_\+params, z\+\_\+index, saving\+\_\+factor=None, save\+\_\+dir=None, model=None, dt=None, q=np.\+nan, rock\+\_\+prop\+\_\+dict=None, lith\+\_\+plot\+\_\+dict=None, \mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a4eb7490cbcd7cdee699003a2c62b81b8}{prop\+\_\+dict}}=None, magma\+\_\+prop\+\_\+dict=None)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_af153b4aa108aa902f93d6fb2ed7b0f1c}{load\+\_\+objlist\+\_\+from\+\_\+hd5f\+\_\+into\+\_\+class}} (self, file\+Name)
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a03a17f331b9f6b532749c6d4e9954d0a}\label{class_tu_l_i_p_1_1sill__controls_a03a17f331b9f6b532749c6d4e9954d0a} 
+{\bfseries plot\+\_\+matrix} (self, matrix=None, bool save\+\_\+me=False, vmax\+\_\+perct=99, vmin\+\_\+perct=1, cmap=\textquotesingle{}Reds\textquotesingle{})
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Static Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_adce810b1589f036e9ec7f89edebc284b}{func\+\_\+assigner}} (func, \texorpdfstring{$\ast$}{*}args, \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}kwargs)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_af2bec4b0631e65029e09f6d4f2fd710f}{check\+\_\+closest\+\_\+sill\+\_\+temp}} (T\+\_\+field, sills\+\_\+array, curr\+\_\+sill, dx, time, T\+\_\+solidus, no\+\_\+sill=\textquotesingle{}\textquotesingle{}, calculate\+\_\+all=False, save\+\_\+file=None)
+\item 
+\mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a821717e8fadd00f5369ae3d4bf976491}{store\+\_\+objlist\+\_\+as\+\_\+hd5f}} (file\+Name, cls)
+\begin{DoxyCompactList}\small\item\em STORAGE IN HDF5. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ac668c774613375cc95dc2df4ef1b008f}\label{class_tu_l_i_p_1_1sill__controls_ac668c774613375cc95dc2df4ef1b008f} 
+{\bfseries x} = x
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a7634f205ba3290fa89d45f28992ac393}\label{class_tu_l_i_p_1_1sill__controls_a7634f205ba3290fa89d45f28992ac393} 
+{\bfseries y} = y
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a7336adabe6edcf4d8435a487ead71c40}\label{class_tu_l_i_p_1_1sill__controls_a7336adabe6edcf4d8435a487ead71c40} 
+{\bfseries dx} = dx
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a9ce1994f2a0f2ac8118c1831d78c27c9}\label{class_tu_l_i_p_1_1sill__controls_a9ce1994f2a0f2ac8118c1831d78c27c9} 
+{\bfseries dy} = dy
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_af5c3fe4af32966936dd4a768552c0150}\label{class_tu_l_i_p_1_1sill__controls_af5c3fe4af32966936dd4a768552c0150} 
+{\bfseries k\+\_\+const} = k\+\_\+const
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a7ad00db25055779f49b62ee749b48190}\label{class_tu_l_i_p_1_1sill__controls_a7ad00db25055779f49b62ee749b48190} 
+{\bfseries thermal\+\_\+conductivity} = np.\+ones((a,b))\texorpdfstring{$\ast$}{*}kc\+\_\+val
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a746b673df0fbab5e3248a8aa628540e9}\label{class_tu_l_i_p_1_1sill__controls_a746b673df0fbab5e3248a8aa628540e9} 
+{\bfseries calculate\+\_\+closest\+\_\+sill} = calculate\+\_\+closest\+\_\+sill
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a2be9d48337e099a412fa0b1643c5cedf}\label{class_tu_l_i_p_1_1sill__controls_a2be9d48337e099a412fa0b1643c5cedf} 
+{\bfseries calculate\+\_\+all\+\_\+sill\+\_\+distances} = calculate\+\_\+all\+\_\+sills\+\_\+distances
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ae814f7a09159615e8db605238d105bdb}\label{class_tu_l_i_p_1_1sill__controls_ae814f7a09159615e8db605238d105bdb} 
+{\bfseries calculate\+\_\+at\+\_\+all\+\_\+times} = calculate\+\_\+at\+\_\+all\+\_\+times
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_afb6ff50b58126bc2ad09ee082b964f1f}\label{class_tu_l_i_p_1_1sill__controls_afb6ff50b58126bc2ad09ee082b964f1f} 
+{\bfseries include\+\_\+heat} = include\+\_\+external\+\_\+heat
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a31ea1fd2694569a480e0ba8ade1bbcd4}\label{class_tu_l_i_p_1_1sill__controls_a31ea1fd2694569a480e0ba8ade1bbcd4} 
+{\bfseries cool} = \mbox{\hyperlink{class_tu_l_i_p_1_1cool}{cool}}()
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ab580a809f1fc8dc6ad925f4ff1886540}\label{class_tu_l_i_p_1_1sill__controls_ab580a809f1fc8dc6ad925f4ff1886540} 
+{\bfseries rool} = \mbox{\hyperlink{class_tu_l_i_p_1_1rules}{rules}}()
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a7851db896ea7bc7b87895bc11ca3cf0a}\label{class_tu_l_i_p_1_1sill__controls_a7851db896ea7bc7b87895bc11ca3cf0a} 
+{\bfseries k\+\_\+func} = self.\+cool.\+get\+\_\+conductivity
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a8aaef5eba3daaae245d693c3d734eec3}\label{class_tu_l_i_p_1_1sill__controls_a8aaef5eba3daaae245d693c3d734eec3} 
+{\bfseries cp\+\_\+func} = self.\+cool.\+get\+\_\+specific\+\_\+heat
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a48d0c91b6c3fabec2a0efb4f3c203d52}\label{class_tu_l_i_p_1_1sill__controls_a48d0c91b6c3fabec2a0efb4f3c203d52} 
+{\bfseries cp\+\_\+const} = cp\+\_\+const
+\item 
+dict \mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a4eb7490cbcd7cdee699003a2c62b81b8}{prop\+\_\+dict}}
+\begin{DoxyCompactList}\small\item\em Setting up the properties dictionary to translate properties to indices for 3D array\#\#\#. \end{DoxyCompactList}\item 
+dict \mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_a373ebe5d1748ab23fd871b8f621b3415}{rev\+\_\+prop\+\_\+dict}}
+\item 
+dict \mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_ab6f2628981634715afd5fc941c47368a}{magma\+\_\+prop\+\_\+dict}}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a8ad6636b94d578d54c3236c03569c88d}\label{class_tu_l_i_p_1_1sill__controls_a8ad6636b94d578d54c3236c03569c88d} 
+dict {\bfseries rock\+\_\+prop\+\_\+dict}
+\item 
+dict \mbox{\hyperlink{class_tu_l_i_p_1_1sill__controls_ac4a8c4a3acd532fa3b8101ab34fc6f07}{lith\+\_\+plot\+\_\+dict}}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a7c190c6ce123e3161cb29bdea9f60e44}\label{class_tu_l_i_p_1_1sill__controls_a7c190c6ce123e3161cb29bdea9f60e44} 
+{\bfseries sill\+\_\+cube\+\_\+dir} = sill\+\_\+cube\+\_\+dir
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_aa2cff94bf7c12cf2fb142345169cfe82}\label{class_tu_l_i_p_1_1sill__controls_aa2cff94bf7c12cf2fb142345169cfe82} 
+dict {\bfseries Temp\+\_\+index} = self.\+prop\+\_\+dict\mbox{[}\textquotesingle{}Temperature\textquotesingle{}\mbox{]}
+\begin{DoxyCompactList}\small\item\em Assigning some useful variables for usage later. \end{DoxyCompactList}\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ad78ed8c4bf661a7c482fa448446a541f}\label{class_tu_l_i_p_1_1sill__controls_ad78ed8c4bf661a7c482fa448446a541f} 
+dict {\bfseries rock\+\_\+index} = self.\+prop\+\_\+dict\mbox{[}\textquotesingle{}Lithology\textquotesingle{}\mbox{]}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a15db890deaa138a7f1ee6d6e7f249ba2}\label{class_tu_l_i_p_1_1sill__controls_a15db890deaa138a7f1ee6d6e7f249ba2} 
+dict {\bfseries poros\+\_\+index} = self.\+prop\+\_\+dict\mbox{[}\textquotesingle{}Porosity\textquotesingle{}\mbox{]}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a3629aab8f953c674e4576ef980d4b695}\label{class_tu_l_i_p_1_1sill__controls_a3629aab8f953c674e4576ef980d4b695} 
+dict {\bfseries dense\+\_\+index} = self.\+prop\+\_\+dict\mbox{[}\textquotesingle{}Density\textquotesingle{}\mbox{]}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ad458fd3e9b094d2a8b90a3acafe57724}\label{class_tu_l_i_p_1_1sill__controls_ad458fd3e9b094d2a8b90a3acafe57724} 
+dict {\bfseries TOC\+\_\+index} = self.\+prop\+\_\+dict\mbox{[}\textquotesingle{}TOC\textquotesingle{}\mbox{]}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a2195059bf48e113a845af999cb0ad8b8}\label{class_tu_l_i_p_1_1sill__controls_a2195059bf48e113a845af999cb0ad8b8} 
+dict {\bfseries sph\+\_\+index} = self.\+prop\+\_\+dict\mbox{[}\textquotesingle{}Specific Heat\textquotesingle{}\mbox{]}
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a573ccec7e0bcc236af9eb132fbfff943}\label{class_tu_l_i_p_1_1sill__controls_a573ccec7e0bcc236af9eb132fbfff943} 
+{\bfseries T\+\_\+liquidus} = T\+\_\+liquidus
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_af3f9a892fa9b4d77be6f09d26bd17f30}\label{class_tu_l_i_p_1_1sill__controls_af3f9a892fa9b4d77be6f09d26bd17f30} 
+{\bfseries T\+\_\+solidus} = T\+\_\+solidus
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a56f331817c85b3df7b570051d9f8f79d}\label{class_tu_l_i_p_1_1sill__controls_a56f331817c85b3df7b570051d9f8f79d} 
+{\bfseries melt} = melt\+\_\+rock
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a2bfd909f27ee43d63d4719e51cfd4306}\label{class_tu_l_i_p_1_1sill__controls_a2bfd909f27ee43d63d4719e51cfd4306} 
+{\bfseries melt\+\_\+fraction\+\_\+function} = melt\+\_\+fraction\+\_\+function
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ae9571ca69f0b8fac80ae3efce4fb58ff}\label{class_tu_l_i_p_1_1sill__controls_ae9571ca69f0b8fac80ae3efce4fb58ff} 
+{\bfseries args} = melt\+\_\+function\+\_\+args
+\item 
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_adb8ac2604f8ac9b84c690882eb45868a}\label{class_tu_l_i_p_1_1sill__controls_adb8ac2604f8ac9b84c690882eb45868a} 
+{\bfseries k}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a02f8f1b59c486b3929e193ad62df4eb8}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!\_\_init\_\_@{\_\_init\_\_}}
+\index{\_\_init\_\_@{\_\_init\_\_}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{\_\_init\_\_()}{\_\_init\_\_()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a02f8f1b59c486b3929e193ad62df4eb8} 
+Tu\+LIP.\+sill\+\_\+controls.\+\_\+\+\_\+init\+\_\+\+\_\+ (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{x}{, }\item[{}]{y}{, }\item[{}]{dx}{, }\item[{}]{dy}{, }\item[{}]{T\+\_\+liquidus}{ = {\ttfamily 1250}, }\item[{}]{T\+\_\+solidus}{ = {\ttfamily 800}, }\item[{}]{include\+\_\+external\+\_\+heat}{ = {\ttfamily True}, }\item[{}]{k\+\_\+const}{ = {\ttfamily True}, }\item[{}]{kc\+\_\+val}{ = {\ttfamily 7.884e7}, }\item[{}]{cp}{ = {\ttfamily 1}, }\item[{}]{cp\+\_\+const}{ = {\ttfamily True}, }\item[{}]{calculate\+\_\+closest\+\_\+sill}{ = {\ttfamily False}, }\item[{}]{calculate\+\_\+all\+\_\+sills\+\_\+distances}{ = {\ttfamily False}, }\item[{}]{calculate\+\_\+at\+\_\+all\+\_\+times}{ = {\ttfamily False}, }\item[{}]{rock\+\_\+prop\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{magma\+\_\+prop\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{lith\+\_\+plot\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{sill\+\_\+cube\+\_\+dir}{ = {\ttfamily \textquotesingle{}sillcubes/\textquotesingle{}}, }\item[{}]{k\+\_\+func}{ = {\ttfamily None}, }\item[{}]{cp\+\_\+func}{ = {\ttfamily None}, }\item[{}]{melt\+\_\+rock}{ = {\ttfamily \textquotesingle{}basalt\textquotesingle{}}, }\item[{}]{melt\+\_\+fraction\+\_\+function}{ = {\ttfamily None}, }\item[{}]{melt\+\_\+function\+\_\+args}{ = {\ttfamily None}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}x - Horizontal extent of the crust m
+y - Vertical extent of the crust m
+T_liquidus - Liquidus of thr magma
+T_solidus - Solidus of the magma
+kc_val = Thermal conductivity W/mK
+cp = Initial specific heat capacity value for initialization 
+calculate_closest_sill = False (is done at the time of sill emplacement)
+calculate_all_sills_distances = False (is not used if calculate_closest_sill = False)
+calculate_at_all_times = False (calculate this at each timestep in the simulation)
+rock_prop_dict - Properties dictionary of ythe rocks in the crust
+magma_prop_dict - Properties dictionary of the magma
+Properties to include in the rock properties dictionary - Each dictionary entry should be the name of the rock, with further dictionary entries including the density, porosity, and total organic content (labelled as TOC)
+lith_plot_dict - Translation of rock valuies from strings to arbitrary integers for plotting purposes.
+\end{DoxyVerb}
+ 
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a6296e0f4c7c42a3d15bede9c875362f0}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!build\_sillcube@{build\_sillcube}}
+\index{build\_sillcube@{build\_sillcube}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{build\_sillcube()}{build\_sillcube()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a6296e0f4c7c42a3d15bede9c875362f0} 
+Tu\+LIP.\+sill\+\_\+controls.\+build\+\_\+sillcube (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{z}{, }\item[{}]{dt}{, }\item[{}]{thickness\+\_\+range}{, }\item[{}]{aspect\+\_\+ratio}{, }\item[{}]{depth\+\_\+range}{, }\item[{}]{z\+\_\+range}{, }\item[{}]{lat\+\_\+range}{, }\item[{}]{phase\+\_\+times}{, }\item[{}]{tot\+\_\+volume}{, }\item[{}]{flux}{, }\item[{}]{n\+\_\+sills}{, }\item[{}]{shape}{ = {\ttfamily \textquotesingle{}elli\textquotesingle{}}, }\item[{}]{depth\+\_\+function}{ = {\ttfamily None}, }\item[{}]{lat\+\_\+function}{ = {\ttfamily None}, }\item[{}]{dims\+\_\+function}{ = {\ttfamily None}, }\item[{}]{emplace\+\_\+dike}{ = {\ttfamily False}, }\item[{}]{orientations}{ = {\ttfamily None}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}generates a 3D representation of sills in a geological model. It calculates emplacement heights, lateral spacings, and dimensions of sills based on specified distributions and parameters. 
+The method calculates the emplacement times for each sill based on specified flux rates, considering thermal maturation and cooling phases, and returns the constructed sill cube along with relevant parameters.
+Inputs - 
+z: The third dimension extension of the crustal slice.
+dt: Time step for the simulation.
+thickness_range: Range for sill thickness.
+aspect_ratio: Mean and standard deviation for aspect ratio.
+depth_range: Range for sill emplacement depth - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required 
+z_range: Range for z-coordinate - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
+lat_range: Range for lateral coordinates - 1D array with 2 elements for normal and uniform distributions. For an emperical distribution, a 2D array with the arrays of values and the corresponding cumulative distribution values are required
+phase_times: Times for thermal maturation and cooling.
+tot_volume: Total volume of sills to be emplaced.
+flux: Emplacement flux.
+n_sills: Number of sills to be emplaced.
+shape: Shape of the sills, default is 'elli'.
+depth_function, lat_function, dims_function: Functions to determine distributions.
+Returns - 
+sillcube: A 3D numpy array representing the sill emplacement.
+n_sills: The number of sills emplaced.
+params: An array containing emplacement times, heights, lateral spacings, widths, and thicknesses.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_af2bec4b0631e65029e09f6d4f2fd710f}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!check\_closest\_sill\_temp@{check\_closest\_sill\_temp}}
+\index{check\_closest\_sill\_temp@{check\_closest\_sill\_temp}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{check\_closest\_sill\_temp()}{check\_closest\_sill\_temp()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_af2bec4b0631e65029e09f6d4f2fd710f} 
+Tu\+LIP.\+sill\+\_\+controls.\+check\+\_\+closest\+\_\+sill\+\_\+temp (\begin{DoxyParamCaption}\item[{}]{T\+\_\+field}{, }\item[{}]{sills\+\_\+array}{, }\item[{}]{curr\+\_\+sill}{, }\item[{}]{dx}{, }\item[{}]{time}{, }\item[{}]{T\+\_\+solidus}{, }\item[{}]{no\+\_\+sill}{ = {\ttfamily \textquotesingle{}\textquotesingle{}}, }\item[{}]{calculate\+\_\+all}{ = {\ttfamily False}, }\item[{}]{save\+\_\+file}{ = {\ttfamily None}}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function that calculates the closest sill to a given sill based on temperature data and spatial arrangement. 
+It uses a KDTree to find the nearest sill that is hotter than a specified solidus temperature and optionally saves the results to a CSV file.
+T_field: 2D numpy array representing temperature values.
+sills_array: 2D numpy array representing sill identifiers.
+curr_sill: Integer representing the current sill identifier.
+T_solidus: Float representing the solidus temperature threshold (default is 800).
+no_sill: Value representing no sill in the array (default is an empty string).
+calculate_all: Boolean indicating whether to calculate for all sills (default is False).
+save_file: String representing the file path to save results (default is None).
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_ae2562211689a32dda9ccd7ac00b3cc44}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!emplace\_sills@{emplace\_sills}}
+\index{emplace\_sills@{emplace\_sills}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{emplace\_sills()}{emplace\_sills()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_ae2562211689a32dda9ccd7ac00b3cc44} 
+Tu\+LIP.\+sill\+\_\+controls.\+emplace\+\_\+sills (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{props\+\_\+array}{, }\item[{}]{n\+\_\+sills}{, }\item[{}]{cool\+\_\+method}{, }\item[{}]{time\+\_\+steps}{, }\item[{}]{current\+\_\+time}{, }\item[{}]{sillsquare}{, }\item[{}]{carbon\+\_\+model\+\_\+params}{, }\item[{}]{empl\+\_\+times}{, }\item[{}]{volume\+\_\+params}{, }\item[{}]{z\+\_\+index}{, }\item[{}]{saving\+\_\+factor}{ = {\ttfamily None}, }\item[{}]{save\+\_\+dir}{ = {\ttfamily None}, }\item[{}]{model}{ = {\ttfamily None}, }\item[{}]{dt}{ = {\ttfamily None}, }\item[{}]{q}{ = {\ttfamily np.nan}, }\item[{}]{rock\+\_\+prop\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{lith\+\_\+plot\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{prop\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{magma\+\_\+prop\+\_\+dict}{ = {\ttfamily None}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function to simulate cooling and associated thermogenic carbon release (optional) and save the properties at the specified intervals optionally
+Inputs - 
+props_array: 3D numpy array of geological properties.
+n_sills: Number of sills to emplace.
+cool_method: Method for cooling calculation.
+time_steps: Array of time steps for simulation.
+current_time: Current simulation time.
+sillsquare: 2D array representing sill geometry.
+carbon_model_params: Parameters for carbon emission models.
+emplacement_params: Parameters for sill emplacement.
+volume_params: Volume and flux parameters.
+z_index: Index for vertical dimension.
+saving_factor: How often should the properties be saved i.e. 1 in how many time steps 
+save_dir: Directory to save the results in. 
+model: Which carbon model to use silli or sillburp?
+dt - Time step, 
+q - Bottom heat flux, 
+H - External heat
+rock_prop_dict, lith_plot_dict, prop_dict, magma_prop_dict: Optional dictionary parameters.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_adce810b1589f036e9ec7f89edebc284b}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!func\_assigner@{func\_assigner}}
+\index{func\_assigner@{func\_assigner}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{func\_assigner()}{func\_assigner()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_adce810b1589f036e9ec7f89edebc284b} 
+Tu\+LIP.\+sill\+\_\+controls.\+func\+\_\+assigner (\begin{DoxyParamCaption}\item[{}]{func}{, }\item[{\texorpdfstring{$\ast$}{*}}]{args}{, }\item[{\texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{kwargs}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+\begin{DoxyVerb}Function that dynamically calls a given function with specified positional and keyword arguments, returning the result of the function call.
+func: The function to be called.
+*args: Positional arguments to be passed to the function.
+**kwargs: Keyword arguments to be passed to the function.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_a62680807968b48817b0cfcbde5a06de2}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!generate\_sill\_2D\_slices@{generate\_sill\_2D\_slices}}
+\index{generate\_sill\_2D\_slices@{generate\_sill\_2D\_slices}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{generate\_sill\_2D\_slices()}{generate\_sill\_2D\_slices()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a62680807968b48817b0cfcbde5a06de2} 
+Tu\+LIP.\+sill\+\_\+controls.\+generate\+\_\+sill\+\_\+2\+D\+\_\+slices (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{fluxy\+\_\+list}{, }\item[{}]{iter\+\_\+list}{, }\item[{}]{z\+\_\+index\+\_\+list}{, }\item[{}]{lat\+\_\+range}{ = {\ttfamily None}, }\item[{}]{file\+\_\+dir}{ = {\ttfamily None}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function to generate 2D slices from the 3D cube
+fluxy_list - List of fluxes
+iter_list - Integer list of volumes of sills from the n_sills file
+z_index_list - List of z indices of the cubes to extract
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_a5a05fc0c9b2aa5ed60164cdd0c645f7f}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!get\_physical\_properties@{get\_physical\_properties}}
+\index{get\_physical\_properties@{get\_physical\_properties}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{get\_physical\_properties()}{get\_physical\_properties()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a5a05fc0c9b2aa5ed60164cdd0c645f7f} 
+Tu\+LIP.\+sill\+\_\+controls.\+get\+\_\+physical\+\_\+properties (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{rock}{, }\item[{}]{rock\+\_\+prop\+\_\+dict}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function to return arrays of physical properties of density, porosity, and TOC based on rock type at a given node
+rock: A 2D numpy array representing the types of rocks at different nodes.
+rock_prop_dict: An optional dictionary mapping rock types to their properties.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_a12093379efd75fbf8369467486126d03}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!get\_sillburp\_initial\_thermogenic\_state@{get\_sillburp\_initial\_thermogenic\_state}}
+\index{get\_sillburp\_initial\_thermogenic\_state@{get\_sillburp\_initial\_thermogenic\_state}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{get\_sillburp\_initial\_thermogenic\_state()}{get\_sillburp\_initial\_thermogenic\_state()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a12093379efd75fbf8369467486126d03} 
+Tu\+LIP.\+sill\+\_\+controls.\+get\+\_\+sillburp\+\_\+initial\+\_\+thermogenic\+\_\+state (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{props\+\_\+array}{, }\item[{}]{dt}{, }\item[{}]{method}{, }\item[{}]{sillburp\+\_\+weights}{ = {\ttfamily None}, }\item[{}]{time}{ = {\ttfamily np.nan}, }\item[{}]{lith\+\_\+plot\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{rock\+\_\+prop\+\_\+dict}{ = {\ttfamily None}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function to get the background CO2 release for the sillburp model over the thermal maturation time before the emplacement fo sills begins
+Inputs - 
+props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
+dt: A scalar representing the time step for the simulation.
+method: A string indicating the method used for solving the diffusion equation.
+sillburp_weights: Optional weights for the sillburp model.
+time: Optional scalar for the total simulation time.
+lith_plot_dict: Optional dictionary mapping lithology names to indices.
+rock_prop_dict: Optional dictionary mapping rock types to their properties.
+
+Returns - 
+current_time: The current simulation time.
+tot_RCO2: A list of total CO2 emissions over time.
+props_array: The updated properties array.
+RCO2: CO2 emissions from the sillburp model.
+Rom: Rate of organic matter conversion.
+progress_of_reactions: Progress of reactions in the sillburp model.
+oil_production_rate: Rate of oil production.
+curr_TOC: Current TOC values.
+rate_of_reactions: Rate of reactions.
+sillburp_weights: Weights used in the sillburp model.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_acbae07f48bffbc76774a41ece661ce9b}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!get\_silli\_initial\_thermogenic\_state@{get\_silli\_initial\_thermogenic\_state}}
+\index{get\_silli\_initial\_thermogenic\_state@{get\_silli\_initial\_thermogenic\_state}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{get\_silli\_initial\_thermogenic\_state()}{get\_silli\_initial\_thermogenic\_state()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_acbae07f48bffbc76774a41ece661ce9b} 
+Tu\+LIP.\+sill\+\_\+controls.\+get\+\_\+silli\+\_\+initial\+\_\+thermogenic\+\_\+state (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{props\+\_\+array}{, }\item[{}]{dt}{, }\item[{}]{method}{, }\item[{}]{time}{ = {\ttfamily np.nan}, }\item[{}]{lith\+\_\+plot\+\_\+dict}{ = {\ttfamily None}, }\item[{}]{rock\+\_\+prop\+\_\+dict}{ = {\ttfamily None}}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Function to get the background CO2 release for the silli model over the thermal maturation time before the emplacement fo sills begins
+Inputs - 
+props_array: A 3D numpy array containing properties like temperature, lithology, porosity, density, and TOC.
+dt: A scalar representing the time step for the simulation.
+method: A string indicating the method used for solving the diffusion equation.
+time: Optional scalar for the total simulation time.
+lith_plot_dict: Optional dictionary mapping lithology names to indices.
+rock_prop_dict: Optional dictionary mapping rock types to their properties.
+
+Returns - 
+current_time: The current simulation time.
+tot_RCO2: A list of total CO2 emissions over time.
+props_array: The updated properties array.
+RCO2_silli: CO2 emissions from SILLi.
+Rom_silli: Rate of organic matter conversion.
+percRo_silli: Vitrinite reflectance percentage.
+curr_TOC_silli: Current TOC values.
+W_silli: Weight fractions of remaining reactants.
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_af153b4aa108aa902f93d6fb2ed7b0f1c}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!load\_objlist\_from\_hd5f\_into\_class@{load\_objlist\_from\_hd5f\_into\_class}}
+\index{load\_objlist\_from\_hd5f\_into\_class@{load\_objlist\_from\_hd5f\_into\_class}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{load\_objlist\_from\_hd5f\_into\_class()}{load\_objlist\_from\_hd5f\_into\_class()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_af153b4aa108aa902f93d6fb2ed7b0f1c} 
+Tu\+LIP.\+sill\+\_\+controls.\+load\+\_\+objlist\+\_\+from\+\_\+hd5f\+\_\+into\+\_\+class (\begin{DoxyParamCaption}\item[{}]{self}{, }\item[{}]{file\+Name}{}\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Load class parameters from a saved HDF5 file
+\end{DoxyVerb}
+ \Hypertarget{class_tu_l_i_p_1_1sill__controls_a821717e8fadd00f5369ae3d4bf976491}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!store\_objlist\_as\_hd5f@{store\_objlist\_as\_hd5f}}
+\index{store\_objlist\_as\_hd5f@{store\_objlist\_as\_hd5f}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{store\_objlist\_as\_hd5f()}{store\_objlist\_as\_hd5f()}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a821717e8fadd00f5369ae3d4bf976491} 
+Tu\+LIP.\+sill\+\_\+controls.\+store\+\_\+objlist\+\_\+as\+\_\+hd5f (\begin{DoxyParamCaption}\item[{}]{file\+Name}{, }\item[{}]{cls}{}\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+STORAGE IN HDF5. 
+
+\begin{DoxyVerb}Function to save class parameters into an HDF5 file
+\end{DoxyVerb}
+ 
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ac4a8c4a3acd532fa3b8101ab34fc6f07}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!lith\_plot\_dict@{lith\_plot\_dict}}
+\index{lith\_plot\_dict@{lith\_plot\_dict}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{lith\_plot\_dict}{lith\_plot\_dict}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_ac4a8c4a3acd532fa3b8101ab34fc6f07} 
+dict Tu\+LIP.\+sill\+\_\+controls.\+lith\+\_\+plot\+\_\+dict}
+
+{\bfseries Initial value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{=\ \ \{\textcolor{stringliteral}{'granite'}:0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'shale'}:1,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'sandstone'}:2,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'peridotite'}:3,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'basalt'}:4,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'peridotite'}:\ 5,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ self.magma\_prop\_dict[\textcolor{stringliteral}{'Lithology'}]:6\}}
+
+\end{DoxyCode}
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_ab6f2628981634715afd5fc941c47368a}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!magma\_prop\_dict@{magma\_prop\_dict}}
+\index{magma\_prop\_dict@{magma\_prop\_dict}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{magma\_prop\_dict}{magma\_prop\_dict}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_ab6f2628981634715afd5fc941c47368a} 
+dict Tu\+LIP.\+sill\+\_\+controls.\+magma\+\_\+prop\+\_\+dict}
+
+{\bfseries Initial value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{=\ \ \{\textcolor{stringliteral}{'Temperature'}:\ 1100,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Lithology'}:\ \textcolor{stringliteral}{'basalt\_melt'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Porosity'}:\ 0,\ \textcolor{comment}{\#Porosity\ of\ the\ rock\ for\ calculation\ of\ carbon\ emissions}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Density'}:\ 2850,\ \textcolor{comment}{\#kg/m3}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Specific\ Heat'}:\ 850,\ }
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Latent\ Heat'}:\ 4e5,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'TOC'}:0\}}
+
+\end{DoxyCode}
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a4eb7490cbcd7cdee699003a2c62b81b8}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!prop\_dict@{prop\_dict}}
+\index{prop\_dict@{prop\_dict}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{prop\_dict}{prop\_dict}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a4eb7490cbcd7cdee699003a2c62b81b8} 
+dict Tu\+LIP.\+sill\+\_\+controls.\+prop\+\_\+dict}
+
+{\bfseries Initial value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{=\ \ \{\textcolor{stringliteral}{'Temperature'}:0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Lithology'}:1,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Porosity'}:2,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Density'}:3,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'TOC'}:4,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{'Specific\ Heat'}:5\}}
+
+\end{DoxyCode}
+
+
+Setting up the properties dictionary to translate properties to indices for 3D array\#\#\#. 
+
+\Hypertarget{class_tu_l_i_p_1_1sill__controls_a373ebe5d1748ab23fd871b8f621b3415}\index{TuLIP.sill\_controls@{TuLIP.sill\_controls}!rev\_prop\_dict@{rev\_prop\_dict}}
+\index{rev\_prop\_dict@{rev\_prop\_dict}!TuLIP.sill\_controls@{TuLIP.sill\_controls}}
+\doxysubsubsection{\texorpdfstring{rev\_prop\_dict}{rev\_prop\_dict}}
+{\footnotesize\ttfamily \label{class_tu_l_i_p_1_1sill__controls_a373ebe5d1748ab23fd871b8f621b3415} 
+dict Tu\+LIP.\+sill\+\_\+controls.\+rev\+\_\+prop\+\_\+dict}
+
+{\bfseries Initial value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{=\ \ \{0:\textcolor{stringliteral}{'Temperature'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 1:\textcolor{stringliteral}{'Lithology'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 2:\textcolor{stringliteral}{'Porosity'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 3:\textcolor{stringliteral}{'Density'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 4:\textcolor{stringliteral}{'TOC'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 5:\textcolor{stringliteral}{'Specific\ Heat'}\}}
+
+\end{DoxyCode}
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+Tu\+LIP.\+py\end{DoxyCompactItemize}

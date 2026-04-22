@@ -4,6 +4,8 @@ import pyvista as pv
 import pandas as pd
 import os
 from tqdm import trange, tqdm
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 def truncate(number):
         # Convert the number to a string
