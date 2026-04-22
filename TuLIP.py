@@ -483,9 +483,6 @@ class cool:
                 raise ValueError(f'method must be one of straight, Jacobian, GS or cheat, but is {method}')
 
 
-
-
-
     def perm_smoothed_solve(self, k, a, b, dx, dy, dt, Tnow, q, Af, H):
         """
         Explicit solver for anisotropic, time-varying diffusivity using Averaged Permeability.
@@ -537,7 +534,7 @@ class cool:
             
         if build_matrix:
             #Generate the weight matrix if the thermal diffusivity is not constant and needs to be changed at every time step
-            kiph, kimh, kjph, kjmh = cool.avg_perm(k)
+            kiph, kimh, kjph, kjmh = self.avg_perm(k)
             
             # Vectorized Matrix Build
             main_diag = np.ones((a, b))
@@ -558,30 +555,27 @@ class cool:
             H_rad_in = H_rad[1:-1, 1:-1]
             H_lat_in = H_lat[1:-1, 1:-1]
             
-            # Main Diag
-            # Term: Sum of outgoing fluxes (dividing by H_lat for effective heat capacity scaling)
-            # Main Diag
-            # Term: Sum of outgoing fluxes (dividing by H_lat for effective heat capacity scaling)
+            # Term: Sum of outgoing fluxes
             # Row neighbors (kiph, kimh) -> Y-direction -> Cy
             # Col neighbors (kjph, kjmh) -> X-direction -> Cx
             term = (kiph_in + kimh_in) * cy + (kjph_in + kjmh_in) * cx
-            main_diag[1:-1, 1:-1] = (1 - term + H_rad_in) / H_lat_in
+            main_diag[1:-1, 1:-1] = 1 - (term / H_lat_in)
             
             # Off Diags for Fortran Flattening (Column-Major):
             # +/- 1 indices correspond to same Column, adjacent Row -> Y-axis neighbors (Depth) -> Uses cy
             # +/- a indices correspond to same Row, adjacent Column -> X-axis neighbors (Width) -> Uses cx
             
             # pa (k=a): Right neighbor in Matrix (Column + 1) -> X-axis neighbors -> Cx
-            pa_diag[1:-1, 1:-1] = kiph_in * cx
+            pa_diag[1:-1, 1:-1] = (kjph_in * cx) / H_lat_in
             
             # ma (k=-a): Left neighbor in Matrix (Column - 1) -> X-axis neighbors -> Cx
-            ma_diag[1:-1, 1:-1] = kimh_in * cx
+            ma_diag[1:-1, 1:-1] = (kjmh_in * cx) / H_lat_in
             
             # p1 (k=1): Bottom neighbor (Row + 1) -> Y-axis neighbors (Depth) -> Cy
-            p1_diag[1:-1, 1:-1] = kjph_in * cy
+            p1_diag[1:-1, 1:-1] = (kiph_in * cy) / H_lat_in
             
             # m1 (k=-1): Top neighbor (Row - 1) -> Y-axis neighbors (Depth) -> Cy
-            m1_diag[1:-1, 1:-1] = kjmh_in * cy
+            m1_diag[1:-1, 1:-1] = (kimh_in * cy) / H_lat_in
             
             # Flatten
             md = main_diag.flatten(order='F')
@@ -600,6 +594,7 @@ class cool:
         bee = Tnow.reshape((a*b), order = 'F')
         Tret = np.array(Af.dot(bee)) #Perform the matrix multiplication
         Tret = Tret.reshape((a,b), order = 'F')
+        Tret[1:-1, 1:-1] += (H_rad[1:-1, 1:-1] * dt) / H_lat[1:-1, 1:-1]
         Tret[:,0] = Tret[:,2]
         Tret[:,-1] = Tret[:,-3]
         if ~np.isnan(q).any():
@@ -641,8 +636,8 @@ class cool:
         """
         H_rad = H[0]
         H_lat = H[1] #This is the latent heat solution that should be divided and not the actual latent heat of crystalization. See get_latH for details
-        k = k/H_lat
-        
+        # Initialize matrix build flag
+
         build_matrix = False
         if isinstance(Af, (float, int)) and np.isnan(Af):
             build_matrix = True
@@ -677,10 +672,9 @@ class cool:
             # Note: k is already k/H_lat.
             # Row (Y) -> cy. Col (X) -> cx.
             term = 2*k_in*cy + 2*k_in*cx
-            main_diag[1:-1, 1:-1] = (1 - term + H_rad_in) / H_lat_in
+            main_diag[1:-1, 1:-1] = 1 - (term / H_lat_in)
             
             # Gradient terms
-            # Gradients
             # k_row_grad (Axis 0 - Y) -> Uses dy
             k_ip1 = k[2:, 1:-1]
             k_im1 = k[:-2, 1:-1]
@@ -693,15 +687,12 @@ class cool:
             
             # Diagonals
             # p1/m1: Row Neighbors (Axis 0, Y) -> Use cy
-            p1_diag[1:-1, 1:-1] = (k_in/(dy**2) + k_row_grad) * dt
-            m1_diag[1:-1, 1:-1] = (k_in/(dy**2) - k_row_grad) * dt
+            p1_diag[1:-1, 1:-1] = ((k_in/(dy**2) + k_row_grad) * dt) / H_lat_in
+            m1_diag[1:-1, 1:-1] = ((k_in/(dy**2) - k_row_grad) * dt) / H_lat_in
             
             # pa/ma: Col Neighbors (Axis 1, X) -> Use cx
-            pa_diag[1:-1, 1:-1] = (k_in/(dx**2) + k_col_grad) * dt
-            ma_diag[1:-1, 1:-1] = (k_in/(dx**2) - k_col_grad) * dt
-            
-            # Main Diag
-            main_diag[1:-1, 1:-1] = - (2*k_in*cy + 2*k_in*cx) + 1
+            pa_diag[1:-1, 1:-1] = ((k_in/(dx**2) + k_col_grad) * dt) / H_lat_in
+            ma_diag[1:-1, 1:-1] = ((k_in/(dx**2) - k_col_grad) * dt) / H_lat_in
             
             # Flatten
             md = main_diag.flatten(order='F')
@@ -720,6 +711,7 @@ class cool:
         bee = Tnow.reshape((a*b), order = 'F')
         Tret = np.array(Af.dot(bee)) #Perform matrix multiplication
         Tret = Tret.reshape((a,b), order = 'F')
+        Tret[1:-1, 1:-1] += (H_rad[1:-1, 1:-1] * dt) / H_lat[1:-1, 1:-1]
         Tret[:,0] = Tret[:,2]
         Tret[:,-1] = Tret[:,-3]
         if ~np.isnan(q).any():
@@ -773,27 +765,29 @@ class cool:
         k_cent = k[1:-1, 1:-1]
         H_rad_in = H_rad[1:-1, 1:-1]
         
-        # Gradients
+        H_lat_in = H_lat[1:-1, 1:-1]
+        k_cent_eff = k_cent / H_lat_in
+
         # Gradients
         # Row Gradient (dK/dy) -> Axis 0 -> Y
-        dk_dy = (k[2:, 1:-1] - k[:-2, 1:-1]) / (4 * dy**2) * dt
+        dk_dy = (k[2:, 1:-1] - k[:-2, 1:-1]) / (4 * dy**2) * dt / H_lat_in
         
         # Column Gradient (dK/dx) -> Axis 1 -> X
-        dk_dx = (k[1:-1, 2:] - k[1:-1, :-2]) / (4 * dx**2) * dt
+        dk_dx = (k[1:-1, 2:] - k[1:-1, :-2]) / (4 * dx**2) * dt / H_lat_in
         
         # Coefficients
         # Main term: 1 - 2*k*cy - 2*k*cx
         
-        term_main = 1.0 - (2 * k_cent * cy + 2 * k_cent * cx)
+        term_main = 1.0 - (2 * k_cent_eff * cy + 2 * k_cent_eff * cx)
         
         # Neighbors
         # Row (i+/-1, Y): (k/dy2 +/- dk/dy ) * dt
-        c_ip1 = (k_cent * cy) + dk_dy
-        c_im1 = (k_cent * cy) - dk_dy
+        c_ip1 = (k_cent_eff * cy) + dk_dy
+        c_im1 = (k_cent_eff * cy) - dk_dy
         
         # Col (j+/-1, X): (k/dx2 +/- dk/dx ) * dt
-        c_jp1 = (k_cent * cx) + dk_dx
-        c_jm1 = (k_cent * cx) - dk_dx
+        c_jp1 = (k_cent_eff * cx) + dk_dx
+        c_jm1 = (k_cent_eff * cx) - dk_dx
         
         # Update Interior
         Tnow = np.copy(Tf)
@@ -803,7 +797,7 @@ class cool:
             c_im1 * T_im1 +
             c_jp1 * T_jp1 +
             c_jm1 * T_jm1 +
-            H_rad_in
+            (H_rad_in * dt) / H_lat_in
         )
         
         # Boundaries
@@ -859,11 +853,9 @@ class cool:
         """
         H_rad = H[0]
         H_lat = H[1]
-        kiph, kimh, kjph, kjmh = cool.avg_perm(k)
-        kiph = kiph/H_lat
-        kimh = kimh/H_lat
-        kjph = kjph/H_lat
-        kjmh = kjmh/H_lat
+        # --- 1. GET DIFFUSIVITIES ---
+        kiph, kimh, kjph, kjmh = self.avg_perm(k)
+        
         Tnow = np.array(Tf)
 
         # Pre-calculate constants
@@ -882,14 +874,14 @@ class cool:
         kjph_s = kjph[1:-1, 1:-1]
         kjmh_s = kjmh[1:-1, 1:-1]
 
-        Tnow[1:-1, 1:-1] = (
-        (1 - (kiph_s + kimh_s) * Cy - (kjph_s + kjmh_s) * Cx) * T_C
+        Tnow[1:-1, 1:-1] = T_C + (
+        -(kiph_s + kimh_s) * Cy * T_C - (kjph_s + kjmh_s) * Cx * T_C
         + (kiph_s * Cy) * T_S
         + (kimh_s * Cy) * T_N
         + (kjph_s * Cx) * T_E
         + (kjmh_s * Cx) * T_W
-        + H_rad[1:-1, 1:-1]*dt
-        )/H_lat[1:-1, 1:-1]
+        + (H_rad[1:-1, 1:-1] * dt)
+        ) / H_lat[1:-1, 1:-1]
     
         # --- Apply Boundary Conditions (also vectorized) ---
         T_surf = Tf[0,0]
@@ -960,7 +952,11 @@ class cool:
         H_lat = np.array(H[1], dtype = float)
         
         # --- 1. GET DIFFUSIVITIES ---
-        kiph, kimh, kjph, kjmh = cool.avg_perm(k)/H_lat
+        kiph, kimh, kjph, kjmh = self.avg_perm(k)
+        kiph = kiph / H_lat
+        kimh = kimh / H_lat
+        kjph = kjph / H_lat
+        kjmh = kjmh / H_lat
         
         # Normalize Source Term (consistent with Explicit solver)
         # Explicit solver: Main term divided by H_lat. H_rad*dt also divided by H_lat.
@@ -1183,8 +1179,7 @@ class cool:
              Tnow[-1, :] = Tnow[-2, :] + (q * dy / k[-1, :])
              
         return Tnow
-
-
+    
     @staticmethod
     def func_assigner(func, *args, **kwargs):
         """
@@ -4406,8 +4401,8 @@ class sill_controls:
             is_magma = rock==self.magma_prop_dict['Lithology']
             mask = np.logical_and(T_field<self.T_solidus, is_magma)
             rock[mask] = self.melt
-            #if (T_field[rock==self.magma_prop_dict['Lithology']]<self.T_solidus).any():
-            #pdb.set_trace()
+            if (T_field[rock==self.magma_prop_dict['Lithology']]<self.T_solidus).any():
+                pdb.set_trace()
             if np.max(T_field)>1.05*1100:
                 warnings.warn(f'Too much latent heat: {np.min(H_lat)}. Maximum temperature is now {np.max(T_field)}', RuntimeWarning)
 
@@ -4447,6 +4442,9 @@ class sill_controls:
                 props_array, row_start, col_pushed = self.rool.sill3D_pushy_emplacement(props_array, prop_dict, sillsquare, curr_sill, magma_prop_dict, empl_times[curr_sill])
                 rock = props_array[self.rock_index]
                 TOC1 = self.rool.prop_updater(rock, rock_prop_dict, 'TOC')
+                    #if (props_array[self.Temp_index][props_array[self.rock_index] == magma_prop_dict['Lithology']] < self.T_solidus).any():
+                        #print(f'Warning: Magma temperature is {props_array[props_array[self.rock_index]==magma_prop_dict['Lithology']].max()}')
+                        #pdb.set_trace()
                 if model=='silli':
                     curr_TOC_silli = props_array[self.TOC_index]
                 elif model=='sillburp':
