@@ -105,6 +105,51 @@ print(T_field)
 - `cmb_3Dsill`: Updates the crust-mantle boundary due to sill emplacement.
 
 
+### Simulation Controller (sill_controls)
+
+The `sill_controls` class orchestrates the model setup, execution, and property management. It serves as the interface between the thermal solvers, the geometric rules, and the simulation state.
+
+#### Example Usage
+
+```python
+from TuLIP import sill_controls
+
+# Initialize controls with required dimensions
+sc = sill_controls(x=300000, y=12000, dx=50, dy=50,
+                   T_liquidus=1200, sill_cube_dir='my_simulation/')
+```
+
+#### Class Arguments
+
+**Required Arguments:**
+
+*   `x` (float): Horizontal extent of the crust (meters).
+*   `y` (float): Vertical thickness of the crust (meters).
+*   `dx` (float): Grid spacing in the x-direction (meters).
+*   `dy` (float): Grid spacing in the y-direction (meters).
+
+**Optional Arguments:**
+
+*   `T_liquidus` (float, default=`1250`): Magma liquidus temperature (C).
+*   `T_solidus` (float, default=`800`): Magma solidus temperature (C).
+*   `include_external_heat` (bool, default=`True`): If True, explicitly calculates latent and radiogenic heat contributions.
+*   `k_const` (bool, default=`True`): If True, uses a constant thermal conductivity specified by `kc_val`.
+*   `kc_val` (float, default=`7.884e7`): Constant thermal conductivity value (used if `k_const=True`).
+*   `cp` (float, default=`1`): Initial specific heat capacity reference value.
+*   `cp_const` (bool, default=`True`): If True, uses constant specific heat or simple lookup.
+*   `calculate_closest_sill` (bool, default=`False`): If True, calculates distance to the nearest already emplaced sill (for thermal interaction rules).
+*   `calculate_all_sills_distances` (bool, default=`False`): If True, calculates distances to ALL sills (computationally expensive).
+*   `calculate_at_all_times` (bool, default=`False`): If True, re-calculates spatial metrics at every time step.
+*   `rock_prop_dict` (dict, default=`None`): Custom dictionary mapping rock names (str) to properties (Density, Porosity, TOC, Specific Heat).
+*   `magma_prop_dict` (dict, default=`None`): Custom dictionary for magma properties (keys: Temperature, Lithology, Porosity, Density, Specific Heat, Latent Heat, TOC).
+*   `lith_plot_dict` (dict, default=`None`): Dictionary mapping lithologies to integer codes for plotting/VTK export.
+*   `sill_cube_dir` (str, default=`'sillcubes/'`): Output directory for saving simulation results and intermediate files.
+*   `k_func` (callable, default=`None`): Custom function `f(T, ...)` to calculate thermal conductivity dynamically.
+*   `cp_func` (callable, default=`None`): Custom function `f(T, ...)` to calculate specific heat dynamically.
+*   `melt_rock` (str, default=`'basalt'`): The name of the host rock type that undergoes melting (used for phase changes).
+*   `melt_fraction_function` (callable, default=`None`): Custom function to calculate melt fraction vs temperature.
+*   `melt_function_args` (dict, default=`None`): Arguments to pass to the melt fraction function.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
