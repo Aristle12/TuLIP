@@ -1343,8 +1343,11 @@ class cool:
             args = (T_solidus, T_liquidus)
         if curve_func is None:
             curve_func = cool.calcF
-        phi_cr = elementwise_grad(curve_func)
+        if not hasattr(cool, '_phi_cr_cache'):
+            cool._phi_cr_cache = elementwise_grad(curve_func)
+        phi_cr = cool._phi_cr_cache
         phi_vals = phi_cr(T_field[lithology==melt], *args)
+        phi_vals = np.array(phi_vals, dtype=float)
         if np.isnan(phi_vals).any():
            raise ValueError('Invalid value (NaN) encountered in melt fraction function. You should either change the melt fraction function or the liquidus temperature to solve this issue...')
         H_lat[lithology==melt] = (1 + (phi_vals*L/specific_heat))
