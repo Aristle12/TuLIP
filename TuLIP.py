@@ -1355,7 +1355,7 @@ class cool:
         return H_lat
     
     @staticmethod
-    def convert_latH_to_J(H_lat, specific_heat, cooling_rate):
+    def convert_latH_to_J(H_lat, specific_heat, density, cooling_rate):
         '''
         Function to get actual latent heat if needed
         '''
@@ -4192,7 +4192,7 @@ class sill_controls:
         T_field = np.array(props_array[self.Temp_index], dtype = float)
 
         k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, dy, return_all=True)
-        if dt>np.round((min(dx,dy)**2)/(5*np.max(k)),3):
+        if dt>np.round((min(dx,dy)**2)/(np.max(k)),3):
             print(f'Warning: Given time step {dt} is larger than stable. Changing method from {method} to adi')
             print(f'Maximum thermal conductivity is {np.max(k)} for rock type {props_array[self.rock_index][np.where(k==np.max(k))[0][0]][0]}')
             method = 'adi'
@@ -4200,10 +4200,6 @@ class sill_controls:
         dV = dx*dx*dy
         t = 0
         a, b = props_array[0].shape
-        specific_heat = np.vectorize(
-            lambda rt: self.rock_prop_dict[rt]['Specific Heat'], 
-            otypes=[float]  # Ensure output is float
-        )(rock)
         if self.include_heat:
                 if self.melt_fraction_function is None:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
@@ -4246,8 +4242,8 @@ class sill_controls:
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                     props_array[self.TOC_index] = curr_TOC
-                    RCO2 = RCO2*density*dV/100
-                    breakdown_CO2 = breakdown_CO2*density*dV/100
+                    RCO2 = RCO2*dV
+                    breakdown_CO2 = breakdown_CO2*dV
                     tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
                     if iter>0:
                         diff = tot_RCO2[-2]-tot_RCO2[-1]
@@ -4257,27 +4253,22 @@ class sill_controls:
                     pbar.update(1)
                     pbar.set_postfix({"Change": diff})
         else:
-            print('Entered  else loop')
             t_steps = np.arange(0, time, dt)
             tot_RCO2 = []
             for l in trange(0, len(t_steps)):
                 T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
                 props_array[self.Temp_index] = T_field
-                curr_TOC_silli = np.array(props_array[self.TOC_index], dtype = float)
+                curr_TOC = np.array(props_array[self.TOC_index], dtype = float)
                 TOC = np.array(self.rool.prop_updater(rock, rock_prop_dict, 'TOC'), dtype = float)
                 if l==0:
-                    print('First time step')
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
-                    print('Carbon burped')
                     if (rock=='limestone').any():
                         breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
                 else:
-                    print('Other steps')
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
-                    print('Carbon burped')
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
-                props_array[self.TOC_index] = curr_TOC_silli
+                props_array[self.TOC_index] = curr_TOC
                 RCO2 = RCO2*dV
                 breakdown_CO2 = breakdown_CO2*dV
                 tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
@@ -4286,6 +4277,7 @@ class sill_controls:
         props_array[self.dense_index] = density
         props_array[self.rock_index] = rock
         props_array[self.poros_index] = porosity
+        props_array[self.TOC_index] = curr_TOC
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
     def emplace_sills(self,props_array, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
