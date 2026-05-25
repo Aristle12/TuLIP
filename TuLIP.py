@@ -1304,7 +1304,7 @@ class cool:
 
 
     @staticmethod
-    def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, L = 4e5, T_liquidus=1100, T_solidus=800, curve_func = None, args = None):
+    def get_latH(T_field, lithology, melt='basalt', specific_heat = 850, L = 4e5, T_liquidus=1100, T_solidus=800, density = 2800, curve_func = None, args = None):
         """
         Calculates the Effective Specific Heat term to account for Latent Heat of Crystallization.
         
@@ -1343,8 +1343,11 @@ class cool:
             args = (T_solidus, T_liquidus)
         if curve_func is None:
             curve_func = cool.calcF
-        phi_cr = elementwise_grad(curve_func)
+        if not hasattr(cool, '_phi_cr_cache'):
+            cool._phi_cr_cache = elementwise_grad(curve_func)
+        phi_cr = cool._phi_cr_cache
         phi_vals = phi_cr(T_field[lithology==melt], *args)
+        phi_vals = np.array(phi_vals, dtype=float)
         if np.isnan(phi_vals).any():
            raise ValueError('Invalid value (NaN) encountered in melt fraction function. You should either change the melt fraction function or the liquidus temperature to solve this issue...')
         H_lat[lithology==melt] = (1 + (phi_vals*L/specific_heat))
@@ -1352,7 +1355,7 @@ class cool:
         return H_lat
     
     @staticmethod
-    def convert_latH_to_J(H_lat, specific_heat, cooling_rate):
+    def convert_latH_to_J(H_lat, specific_heat, density, cooling_rate):
         '''
         Function to get actual latent heat if needed
         '''
@@ -1360,11 +1363,11 @@ class cool:
         for i in range(a):
             for j in range(b):
                 if H_lat[i,j]!=0:
-                    H_lat[i,j] = (1-H_lat[i,j]*cooling_rate)*specific_heat
+                    H_lat[i,j] = (1-H_lat[i,j]*cooling_rate)
         return H_lat
     
     @staticmethod
-    def get_radH(T_field, rho, dx):
+    def get_radH(T_field, rho, dx, specific_heat = 850):
         '''
         Function to get radioactive heat release
         T_field: A 2D numpy array representing the temperature field.
@@ -1380,7 +1383,7 @@ class cool:
         for i in range(a):
             for j in range(b):
                 H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
-        return H
+        return H/rho/specific_heat
     
     @staticmethod
     def get_conductivity(T_field, rock, density, dy):
@@ -1783,7 +1786,8 @@ def _SILLi_core(T_field, W, calc_parser, dt, E, f, A, R):
         for i in range(a):
             for j in range(b):
                 val_w = w_slice[i, j] * exp_kdt[i, j]
-                if val_w < 0.0: val_w = 0.0
+                if val_w < 0.0: 
+                    val_w = 0.0
                 w_slice[i, j] = val_w
                 
                 # fl contribution
@@ -4057,12 +4061,12 @@ class sill_controls:
         if self.include_heat:
                 if self.melt_fraction_function is None:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)
+                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, density = self.magma_prop_dict['Density'], curve_func=self.melt_fraction_function)
                     H = np.array([H_rad, H_lat])
                     #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)                    
+                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, density = self.magma_prop_dict['Density'], curve_func=self.melt_fraction_function)                    
                     H = np.array([H_rad, H_lat])
         else:
             H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
@@ -4086,7 +4090,7 @@ class sill_controls:
             t+=dt
             tot_RCO2 = []
             dV = dx*dx*dy
-            tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
+            tot_RCO2.append(np.sum(RCO2_silli)*dV+np.sum(breakdown_CO2)*dV)
             iter_thresh = int(1e7//dt)
             current_time = 0
             with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
@@ -4098,8 +4102,8 @@ class sill_controls:
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                     props_array[self.TOC_index] = curr_TOC_silli
-                    RCO2_silli = RCO2_silli*density*dV/100
-                    breakdown_CO2 = breakdown_CO2*density*dV/100
+                    RCO2_silli = RCO2_silli*dV
+                    breakdown_CO2 = breakdown_CO2*dV
                     tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
                     if iter>0:
                         diff = tot_RCO2[-2]-tot_RCO2[-1]
@@ -4136,8 +4140,8 @@ class sill_controls:
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                 props_array[self.TOC_index] = curr_TOC_silli
-                RCO2_silli = RCO2_silli*density*dV/100
-                breakdown_CO2 = breakdown_CO2*density*dV/100
+                RCO2_silli = RCO2_silli*dV
+                breakdown_CO2 = breakdown_CO2*dV
                 tot_RCO2.append(np.sum(RCO2_silli)+np.sum(breakdown_CO2))
                 current_time = t_steps[l]
         props_array[self.Temp_index] = T_field
@@ -4188,7 +4192,7 @@ class sill_controls:
         T_field = np.array(props_array[self.Temp_index], dtype = float)
 
         k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, dy, return_all=True)
-        if dt>np.round((min(dx,dy)**2)/(5*np.max(k)),3):
+        if dt>np.round((min(dx,dy)**2)/(np.max(k)),3):
             print(f'Warning: Given time step {dt} is larger than stable. Changing method from {method} to adi')
             print(f'Maximum thermal conductivity is {np.max(k)} for rock type {props_array[self.rock_index][np.where(k==np.max(k))[0][0]][0]}')
             method = 'adi'
@@ -4196,19 +4200,15 @@ class sill_controls:
         dV = dx*dx*dy
         t = 0
         a, b = props_array[0].shape
-        specific_heat = np.vectorize(
-            lambda rt: self.rock_prop_dict[rt]['Specific Heat'], 
-            otypes=[float]  # Ensure output is float
-        )(rock)
         if self.include_heat:
                 if self.melt_fraction_function is None:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)
+                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus,density = self.magma_prop_dict['Density'], curve_func=self.melt_fraction_function)
                     H = np.array([H_rad, H_lat])
                     #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
                     H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)                    
+                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], self.magma_prop_dict['Specific Heat'], self.magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, density = self.magma_prop_dict['Density'], curve_func=self.melt_fraction_function)                    
                     H = np.array([H_rad, H_lat])
         else:
             H_rad = self.cool.get_radH(T_field, density,dx)/density/specific_heat
@@ -4231,8 +4231,8 @@ class sill_controls:
             t+=dt
             tot_RCO2 = []
             iter_thresh = int(1e7//dt)
-            RCO2 = RCO2*density*dV/100
-            breakdown_CO2 = breakdown_CO2*density*dV/100 if (rock=='limestone').any() else np.zeros_like(T_field)
+            RCO2 = RCO2*dV
+            breakdown_CO2 = breakdown_CO2*dV if (rock=='limestone' or rock=='marl' or rock=='doolostone' or rock=='evaporite').any() else np.zeros_like(T_field)
             tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
             current_time = 0
             with tqdm(total = iter_thresh, desc = 'Processing') as pbar:
@@ -4242,8 +4242,8 @@ class sill_controls:
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
                     props_array[self.TOC_index] = curr_TOC
-                    RCO2 = RCO2*density*dV/100
-                    breakdown_CO2 = breakdown_CO2*density*dV/100
+                    RCO2 = RCO2*dV
+                    breakdown_CO2 = breakdown_CO2*dV
                     tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
                     if iter>0:
                         diff = tot_RCO2[-2]-tot_RCO2[-1]
@@ -4253,35 +4253,31 @@ class sill_controls:
                     pbar.update(1)
                     pbar.set_postfix({"Change": diff})
         else:
-            print('Entered  else loop')
             t_steps = np.arange(0, time, dt)
             tot_RCO2 = []
             for l in trange(0, len(t_steps)):
                 T_field = self.cool.diff_solve(k, a, b, dx, dy, dt, T_field, np.nan, method, H)
                 props_array[self.Temp_index] = T_field
-                curr_TOC_silli = np.array(props_array[self.TOC_index], dtype = float)
+                curr_TOC = np.array(props_array[self.TOC_index], dtype = float)
                 TOC = np.array(self.rool.prop_updater(rock, rock_prop_dict, 'TOC'), dtype = float)
                 if l==0:
-                    print('First time step')
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
-                    print('Carbon burped')
                     if (rock=='limestone').any():
                         breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
                 else:
-                    print('Other steps')
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
-                    print('Carbon burped')
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
-                props_array[self.TOC_index] = curr_TOC_silli
-                RCO2 = RCO2*density*dV/100
-                breakdown_CO2 = breakdown_CO2*density*dV/100
+                props_array[self.TOC_index] = curr_TOC
+                RCO2 = RCO2*dV
+                breakdown_CO2 = breakdown_CO2*dV
                 tot_RCO2.append(np.sum(RCO2)+np.sum(breakdown_CO2))
                 current_time = t_steps[l]
         props_array[self.Temp_index] = T_field
         props_array[self.dense_index] = density
         props_array[self.rock_index] = rock
         props_array[self.poros_index] = porosity
+        props_array[self.TOC_index] = curr_TOC
         return current_time, tot_RCO2, props_array, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights
 
     def emplace_sills(self,props_array, n_sills, cool_method, time_steps, current_time, sillsquare, carbon_model_params, empl_times, volume_params, z_index, saving_factor = None, save_dir = None, model=None,dt = None, q= np.nan, rock_prop_dict = None, lith_plot_dict = None, prop_dict = None, magma_prop_dict = None):
@@ -4336,6 +4332,10 @@ class sill_controls:
             dts = np.append(dts[0],dts)
         else:
             dts = np.repeat(dt,len(time_steps))
+        if save_dir is None:
+            save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
+        os.makedirs(save_dir, exist_ok = True)
+        pd.DataFrame({'dt':dts}).to_csv(save_dir+'/dts.csv')
         rock = np.array(props_array[self.rock_index])
         density = np.array(props_array[self.dense_index], dtype = float)
         porosity = np.array(props_array[self.poros_index], dtype = float) 
@@ -4362,9 +4362,7 @@ class sill_controls:
         tot_volume = volume_params[1]
         props_array_vtk = pv.ImageData(dimensions = [props_array.shape[2], props_array.shape[1],1])
         
-        if save_dir is None:
-            save_dir = 'sillcubes/'+str(format(flux, '.3e'))+'/'+str(format(tot_volume, '.3e'))+'/'+str(z_index)
-        os.makedirs(save_dir, exist_ok = True)
+        
         sillnet = np.zeros((a,b), dtype = object)
         sillnet[:] = ''
         if self.calculate_closest_sill and not self.calculate_at_all_times:
@@ -4389,12 +4387,12 @@ class sill_controls:
             if self.include_heat:
                 if self.melt_fraction_function is None:
                     H_rad = np.array(self.cool.get_radH(T_field, density,dx)/density/specific_heat, dtype = float)
-                    H_lat = np.array(self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function), dtype = float)
+                    H_lat = np.array(self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, density = magma_prop_dict['Density'], curve_func=self.melt_fraction_function), dtype = float)
                     H = np.array([H_rad, H_lat])
                     #H = H/self.magma_prop_dict['Density']/magma_prop_dict['Specific Heat']
                 else:
                     H_rad = np.array(self.cool.get_radH(T_field, density,dx)/density/specific_heat, dtype = float)
-                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, curve_func=self.melt_fraction_function)                    
+                    H_lat = self.cool.get_latH(T_field, rock, self.magma_prop_dict['Lithology'], magma_prop_dict['Specific Heat'], magma_prop_dict['Latent Heat'], self.T_liquidus, self.T_solidus, density - magma_prop_dict['Density'], curve_func=self.melt_fraction_function)                    
                     H = np.array([H_rad, H_lat])
             else:
                 H_rad = np.array(self.cool.get_radH(T_field, density,dx)/density/specific_heat, dtype = float)
