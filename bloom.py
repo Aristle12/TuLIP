@@ -111,7 +111,7 @@ def scale_emissions(z_indexs, dx, dy, load_dir):
             empl_end_time.append(float(time.iloc[empl_index].item())-curr_time)
             
             dts = np.append(dts, [dts[-1]])
-            tot_RCO2 = np.array(times['tot_RCO2']-times['tot_RCO2'][0])
+            tot_RCO2 = np.array(times['tot_RCO2'])#-times['tot_RCO2'][0])
             index_CO2_cum = np.cumsum(tot_RCO2)*dts
             index_CO2 = index_CO2_cum[-1]
             empl_CO2 = index_CO2_cum[empl_index]
