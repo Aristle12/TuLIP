@@ -182,34 +182,6 @@ def cooler(iter, z_index, flux, lat_range = None, sc=None,diff_val=31.536,temp_g
     if rock_prop_dict is None:
         rock_prop_dict = sc.rock_prop_dict
 
-
-    props_array_vtk = pv.read(file_path_dir+'initial_silli_state_properties.vtk')
-    props_array = props_array_vtk.point_data['data'].reshape(props_array_vtk.dimensions)
-    props_array = np.array(props_array, dtype = object)
-    props_array[sc.Temp_index] = np.array(props_array[sc.Temp_index], dtype = float)
-
-    props_array[sc.dense_index] = np.array(props_array[sc.dense_index], dtype = float)
-    props_array[sc.poros_index] = np.array(props_array[sc.poros_index], dtype = float)
-    props_array[sc.TOC_index] = np.array(props_array[sc.TOC_index], dtype = float)
-    try:
-        props_array[sc.sph_index] = np.array(props_array[sc.sph_index], dtype = float)
-    except:
-        print("Properties Array does not have a specific heat index. Creating one from properties dictionary...")
-        specific_heat = np.vectorize(
-                        lambda rt: rock_prop_dict[rt]['Specific Heat'], 
-                        otypes=[float]  # Ensure output is float
-                    )(props_array[sc.rock_index])
-        #specific_heat = np.zeros((a,b), dtype = float)
-        #for i in range(a):
-        #    for j in range(b):
-        #        specific_heat[i,j] = rock_prop_dict[props_array[sc.rock_index][i,j]]['Specific Heat']
-        #        if specific_heat[i,j] == "None":
-        #            raise ValueError("specific_heat is None")
-        try:
-            props_array[sc.sph_index] = specific_heat
-        except:
-            print("Exception occurred and properties array needs to have sepcific heat index added. Adding...")
-            props_array =  np.append(props_array, specific_heat[np.newaxis,:,:], axis = 0)
     W_vtk = pv.read(file_path_dir+'W_data.vtk')
     W_silli = W_vtk.point_data['data'].reshape(W_vtk.dimensions)
 

@@ -2252,7 +2252,7 @@ class emit:
             TOC = TOCo * (1-products_progress) * calc_parser
             dTOC = (TOC_prev - TOC)/dt
             Rom = (1 - porosity) * density * dTOC
-            RCO2 = Rom * 3.67
+            RCO2 = Rom * 3.67/100
         else:
             if weights.shape!=products_progress.shape:
                 raise IndexError(f'Shape of weights must be {products_progress.shape}')
@@ -3273,7 +3273,8 @@ class sill_controls:
                         'Density': 2850, #kg/m3
                         'Specific Heat': 850, 
                         'Latent Heat': 4e5,
-                        'TOC':0} #wt%
+                        'TOC':0,
+                        'Latent Heat Org': 0} #wt%
         else:
             self.magma_prop_dict = magma_prop_dict
 
@@ -3283,43 +3284,50 @@ class sill_controls:
                     'Porosity':0.1,
                     'Density':2500,
                     'TOC':2,
-                    'Specific Heat': 820
+                    'Specific Heat': 820,
+                    'Latent Heat Org': -3.76e5
                 },
                 "sandstone":{
                     'Porosity':0.2,
                     'Density':2600,
                     'TOC':2.5,
-                    'Specific Heat': 800
+                    'Specific Heat': 800,
+                    'Latent Heat Org': -3.76e5
                 },
                 "limestone":{
                     'Porosity':0.2,
                     'Density':2600,
                     'TOC':2.5,
-                    'Specific Heat': 800
+                    'Specific Heat': 800,
+                    'Latent Heat Org': -3.76e5
                 },
                 "granite":{
                     'Porosity':0.05,
                     'Density':2700,
                     'TOC':0,
-                    'Specific Heat': 800
+                    'Specific Heat': 800,
+                    'Latent Heat Org': 0
                 },
                 "basalt":{
                     'Porosity': 0.0,
                     'Density': 2850, #kg/m3
                     'TOC':0,
-                    'Specific Heat': 850
+                    'Specific Heat': 850,
+                    'Latent Heat Org': 0
                 },
                 "peridotite":{
                     'Porosity': 0.05,
                     'Density': 3100, #kg/m3
                     'TOC':0,
-                    'Specific Heat': 1200
+                    'Specific Heat': 1200,
+                    'Latent Heat Org': 0
                 },
                 self.magma_prop_dict['Lithology']:{
                     'Porosity':self.magma_prop_dict['Porosity'],
                     'Density':self.magma_prop_dict['Density'],
                     'TOC':self.magma_prop_dict['TOC'],
-                    'Specific Heat': self.magma_prop_dict['Specific Heat']
+                    'Specific Heat': self.magma_prop_dict['Specific Heat'],
+                    'Latent Heat Org': 0
                 }
             }
         else:
@@ -4385,13 +4393,14 @@ class sill_controls:
         a,b = T_field.shape
         k = self.sill_controls_get_k(T_field, rock, density, dy)
         breakdown_CO2 = np.zeros_like(T_field)
+        not_sills_mask = np.array(rock!=self.magma_prop_dict['Lithology'], dtype = int)
         if model=='silli':
             tot_RCO2, props_array_unused, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = carbon_model_params
-            H_org = self.cool.get_org_latH(L_org, Rom_silli)
+            H_org = self.cool.get_org_latH(L_org, Rom_silli)*not_sills_mask
         elif model =='sillburp':
            tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights = carbon_model_params
            reaction_energies = emit.get_sillburp_reaction_energies()
-           H_org = self.cool.get_org_latH(L_org, Rom)
+           H_org = self.cool.get_org_latH(L_org, Rom)*not_sills_mask
         elif model==None:
             H_org = np.zeros_like(T_field)
         else:
@@ -4461,13 +4470,13 @@ class sill_controls:
                 if l!=saving_time_step_index:
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC1, W_silli)
                     RCO2_model = RCO2_silli*dV
-                    H_org = self.cool.get_org_latH(L_org, Rom_silli)
+                    H_org = self.cool.get_org_latH(L_org, Rom_silli)*not_sills_mask
                     
             elif model=='sillburp':
                 if l!=saving_time_step_index:
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC1, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
                     RCO2_model = RCO2*dV
-                    H_org = self.cool.get_org_latH(L_org, Rom)
+                    H_org = self.cool.get_org_latH(L_org, Rom)*not_sills_mask
             if (rock=='limestone').any():    
                 breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
             if l!=saving_time_step_index:

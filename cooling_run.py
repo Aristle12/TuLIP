@@ -19,7 +19,8 @@ magma_prop_dict = {'Temperature': 1100,
                         'Density': 2850, #kg/m3
                         'Specific Heat': 850, 
                         'Latent Heat': 4e5,
-                        'TOC':0} #wt%
+                        'TOC':0,
+                        'Latent Heat Org': 0} #wt%
 magma_prop_dict2 = {'Temperature': 1100,
                         'Lithology': 'basalt_melt',
                         'Porosity': 0, #Porosity of the rock for calculation of carbon emissions
@@ -46,37 +47,43 @@ rock_prop_dict = {
                     'Porosity':0.1,
                     'Density':2500,
                     'TOC':2,
-                    'Specific Heat': 800
+                    'Specific Heat': 800,
+                    'Latent Heat Org': -3.76e5
                 },
                 "sandstone":{
                     'Porosity':0.2,
                     'Density':2600,
                     'TOC':2.5,
-                    'Specific Heat': 800
+                    'Specific Heat': 800,
+                    'Latent Heat Org': -3.76e5
                 },
                 "limestone":{
                     'Porosity':0.2,
                     'Density':2600,
                     'TOC':2.5,
-                    'Specific Heat': 800
+                    'Specific Heat': 800,
+                    'Latent Heat Org': -3.76e5
                 },
                 "granite":{
                     'Porosity':0.05,
                     'Density':2700,
                     'TOC':0,
-                    'Specific Heat': 800
+                    'Specific Heat': 800,
+                    'Latent Heat Org': 0
                 },
                 "basalt":{
                     'Porosity': 0.0,
                     'Density': 2850, #kg/m3
                     'TOC':0,
-                    'Specific Heat': 850
+                    'Specific Heat': 850,
+                    'Latent Heat Org': 0
                 },
                 "peridotite":{
                     'Porosity': 0.05,
                     'Density': 3100, #kg/m3
                     'TOC':0,
-                    'Specific Heat': 1200
+                    'Specific Heat': 1200,
+                    'Latent Heat Org': 0
                 }
             }
 
@@ -85,9 +92,9 @@ footnote1 = 'LH_2'
 footnote2 = 'noLH_2'
 footnote3 = 'noLHCP2_2'
 post_cooling_time = 30000 #years
-fluxy_list = [int(3e9), int(3e8), int(3e7), int(3*(10**7.5)), int(3*(10**8.5))]#, int(3*10**(8.5))]# int(3e8), int(3e7), int(3*10**(7.5))]
+fluxy_list = [int(3e9)]#, int(3e8), int(3e7), int(3*(10**7.5)), int(3*(10**8.5))]#, int(3*10**(8.5))]# int(3e8), int(3e7), int(3*10**(7.5))]
 #lat_ranges = np.array([0.45, 0.4, 0.35, 0.25, 0.2])
-iter_list = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+iter_list = [0]#, 1, 2, 3, 4, 5, 6, 7, 8]
 z_index_list = [160, 191,  278, 284, 300, 303, 493, 506, 515]
 z_index_list2 = [191, 284, 300, 493, 506]
 pairs = itertools.product(iter_list, z_index_list2, fluxy_list)

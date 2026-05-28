@@ -117,11 +117,16 @@ tiled_TOC = np.tile(curr_TOC_silli,(1,slice))
 tiled_props_array[sc.Temp_index] = np.tile(T_field,(1,slice))
 tiled_props_array[sc.TOC_index] = np.tile(curr_TOC_silli,(1,slice))
 
-tot_RCO2 = tot_RCO2*slice
+tot_RCO2 = np.array(tot_RCO2)*slice
 
-plt.imshow(tiled_props_array[sc.Temp_index])
+plt.imshow(np.array(tiled_props_array[sc.Temp_index], dtype = float))
 plt.colorbar(orientation = 'horizontal')
 plt.show()
+
+plt.imshow(np.array(tiled_props_array[sc.TOC_index], dtype = float))
+plt.colorbar(orientation = 'horizontal')
+plt.show()
+
 tiled_W = np.empty((W_silli.shape[0],a,bee))
 for i in range(W_silli.shape[0]):
     tiled_W[i] = np.tile(W_silli[i],(1,slice))
