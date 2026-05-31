@@ -1370,7 +1370,7 @@ class cool:
         H_org : numpy.ndarray
             Latent heat of organic matter
         '''
-        H_org = L*R_om
+        H_org = (L*R_om)/100.0
         return H_org
 
     @staticmethod
@@ -1402,7 +1402,11 @@ class cool:
         for i in range(a):
             for j in range(b):
                 H[i,j] = Ho*rho[i,j]*np.exp(-depth[i]/Lc)
-        return H/rho/specific_heat
+        
+        # Multiply by seconds per year to convert from C/s to C/yr
+        # so it is correctly integrated with dt in years
+        seconds_per_yr = 31536000.0
+        return (H/rho/specific_heat) * seconds_per_yr
     
     @staticmethod
     def get_conductivity(T_field, rock, density, dy):
@@ -1712,28 +1716,29 @@ def _sillburp_core(T_field, progress_of_reactions, rate_of_reactions,
                     for ib in range(b):
                         # S_over_k = oil_accum / (rate * n_approx)
                         rate = reaction_rates[k, ia, ib]
-                        denom = rate * n_approx
-                        
-                        s_k = 0.0
-                        if denom != 0.0:
-                            s_k = oil_production_rate_accum[ia, ib] / denom
                         
                         if do_mask[k, ia, ib]:
                             p_old = P_old_slice[k, ia, ib]
                             exp_term = exp_rate_dt[k, ia, ib]
                             
-                            # P_new = 1 - S/k - (1 - P_old - S/k) * exp
-                            term_inner = 1.0 - p_old - s_k
-                            val = 1.0 - s_k - term_inner * exp_term
+                            if rate * dt_sec < 1e-7:
+                                # Taylor expansion for extremely small rates to prevent S/k singularity
+                                S = oil_production_rate_accum[ia, ib] / n_approx
+                                P_new = p_old + rate * dt_sec * (1.0 - p_old) - S * dt_sec
+                            else:
+                                denom = rate * n_approx
+                                s_k = oil_production_rate_accum[ia, ib] / denom
+                                term_inner = 1.0 - p_old - s_k
+                                P_new = 1.0 - s_k - term_inner * exp_term
                             
-                            if val > 1.0: val = 1.0
-                            P_new = val
+                            if P_new > 1.0: P_new = 1.0
+                            if P_new < 0.0: P_new = 0.0
                             
                             # Update Progress
                             progress_of_reactions[i_reac, k, ia, ib] = P_new
                             
                             # Update Rate
-                            R_new = (1.0 - p_old - s_k) * (1.0 - exp_term) / dt
+                            R_new = (P_new - p_old) / dt
                             rate_of_reactions[i_reac, k, ia, ib] = R_new
 
     return progress_of_reactions, rate_of_reactions, oil_production_rate_accum
