@@ -4534,7 +4534,7 @@ class sill_controls:
                         for huh in range(progress_of_reactions.shape[0]):
                             for bruh in range(progress_of_reactions.shape[1]):
                                 progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
-                                progress_of_reactions[huh][bruh] = self.rool.value_pusher2D(progress_of_reactions[huh][bruh],1, row_start, col_pushed)
+                                rate_of_reactions[huh][bruh] = self.rool.value_pusher2D(rate_of_reactions[huh][bruh],1, row_start, col_pushed)
                         col_pushed = np.zeros_like(row_start)
                 if (curr_sill+1)<n_sills:
                     curr_sill +=1
