@@ -4560,9 +4560,13 @@ class sill_controls:
                             props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                             props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
                             props_array_vtk.point_data['Specific Heat'] = np.array(props_array[self.sph_index], dtype = float).flatten()
-                            props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
-                            props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
-                            props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                            if model=='silli':
+                                props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
+                                props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
+                                props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                            elif model=='sillburp':
+                                props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2, dtype = float).flatten()
+                                props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom, dtype = float).flatten()
                             props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                         else:
                             if l%saving_factor[1]==0:
@@ -4573,10 +4577,14 @@ class sill_controls:
                                 props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                                 props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
                                 props_array_vtk.point_data['Specific Heat'] = np.array(props_array[self.sph_index], dtype = float).flatten()
-                                props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
-                                props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
-                                props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
-                                props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
+                                if model=='silli':
+                                    props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
+                                    props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
+                                    props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                                elif model=='sillburp':
+                                    props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2, dtype = float).flatten()
+                                    props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom, dtype = float).flatten()
+                                    props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                 elif len(saving_factor)==1:
                     if l%saving_factor[0]==0:
                         print('Saving cube')
@@ -4587,9 +4595,14 @@ class sill_controls:
                         props_array_vtk.point_data['TOC'] = np.array(props_array[self.TOC_index], dtype = float).flatten()
                         props_array_vtk.point_data['Lithology'] = np.array(props_array[self.rock_index]).flatten()
                         props_array_vtk.point_data['Specific Heat'] = np.array(props_array[self.sph_index], dtype = float).flatten()
-                        props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
-                        props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
-                        props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                        if model=='silli':
+                            props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2_silli, dtype = float).flatten()
+                            props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom_silli, dtype = float).flatten()
+                            props_array_vtk.point_data['Vitrinite reflectance'] = np.array(percRo_silli, dtype = float).flatten()
+                        elif model=='sillburp':
+                            props_array_vtk.point_data['Rate of CO2'] = np.array(RCO2, dtype = float).flatten()
+                            props_array_vtk.point_data['Rate of organic matter'] = np.array(Rom, dtype = float).flatten()
+                            props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                         props_array_vtk.save(save_dir+'/'+'Properties_'+str(l)+'.vtk')
                 else:
                     raise ValueError('saving_factor should have either one or two values')
