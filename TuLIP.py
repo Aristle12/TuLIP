@@ -4084,7 +4084,7 @@ class sill_controls:
         k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, self.dy,return_all=True)
         if dt>np.round((min(dx,dy)**2)/(np.max(k)),3):
             print(f'Warning: Given time step {dt} is larger than stable...')
-            dt = np.round((min(dx,dy)**2)/(2*np.max(k)),3)
+            dt = np.round((min(dx,dy)**2)/(4*np.max(k)),3)
             print(f'dt changed to {dt}')
             print(f'Maximum thermal conductivity is {np.max(k)} for rock type {props_array[self.rock_index][np.where(k==np.max(k))[0][0]][0]}')
             #method = 'adi'
@@ -4239,9 +4239,9 @@ class sill_controls:
 
         k, specific_heat, _ = self.sill_controls_get_k(T_field, rock, density, dy, return_all=True)
         if dt>np.round((min(dx,dy)**2)/(np.max(k)),3):
-            print(f'Warning: Given time step {dt} is larger than stable. Changing method from {method} to adi')
+            dt = np.round((min(dx,dy)**2)/(4*np.max(k)),3)
+            print(f'dt changed to {dt}')
             print(f'Maximum thermal conductivity is {np.max(k)} for rock type {props_array[self.rock_index][np.where(k==np.max(k))[0][0]][0]}')
-            method = 'adi'
         breakdown_CO2 = np.zeros_like(T_field)
         dV = dx*dx*dy
         t = 0
