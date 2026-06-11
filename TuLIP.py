@@ -3363,7 +3363,7 @@ class sill_controls:
         self.melt_fraction_function = melt_fraction_function
         self.args = melt_function_args
 
-    def generate_sill_2D_slices(self, fluxy_list,iter_list,z_index_list, lat_range = None, file_dir = None):
+    def generate_sill_2D_slices(self, fluxy_list,iter_list,z_index_list, lat_range = None, file_dir = None, clear_all = True):
         """
         Extracts 2D slices from pre-calculated 3D sill cubes for 2D simulation usage.
         
@@ -3388,8 +3388,9 @@ class sill_controls:
             os.makedirs(load_dir+'/slice_volumes', exist_ok=True)
             for filename in os.listdir(os.path.join(load_dir, 'slice_volumes')):
                 file_path = os.path.join(load_dir, 'slice_volumes', filename)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
+                if clear_all:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
             n_sills_dataframe = pd.read_csv(load_dir+'/n_sills.csv')
             for iters in iter_list:
                 volumes = float(n_sills_dataframe['volumes'][iters])
