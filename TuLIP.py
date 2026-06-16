@@ -2997,8 +2997,8 @@ class rules:
             dike_width = dx
 
         shift_nodes = np.max([int(np.round(dike_width/dx)), 1])
-        maj_dims = maj_dims/dx
-        min_dims = min_dims/dy
+        maj_dims = maj_dims/dx/2
+        min_dims = min_dims/dy/2
 
         if dike_tail:
             if orientations is None:
@@ -3960,7 +3960,7 @@ class sill_controls:
         cum_volume = []
 
         if shape == 'elli':
-            volume = (4*np.pi/3)*width*width*thickness
+            volume = (4*np.pi/3)*(width/2)*(width/2)*(thickness/2)
         elif shape=='rect':
             volume = width*width*thickness
 
