@@ -27,6 +27,10 @@ def validator (n_sills, emplace_params):
     return bool(int(n_sills) == len(emplace_params[0,:]))
 
 def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc = None, lat_range = None, thickness_range = None, aspect_ratio = None, depth_range = None, shape = None, depth_function = None, lat_function = None, dims_function = None, emplace_dike = False, orientations = None, k = 31.536):
+    if sc is None:
+        from TuLIP import sill_controls
+        sc = sill_controls(x=x, y=y, dx=dx, dy=dy)
+
     def int_maker(sillcube):
         for i in tqdm(range(sillcube.shape[0]), desc = "Creating ints"):
             layer = sillcube[i]
@@ -119,8 +123,18 @@ def cubemaker(tot_volume, flux, x, y, z, dx, dy, maturation_time, save_dir, sc =
     grid.dimensions = sillcube.shape
     grid.point_data["sillcube"] = sillcube.flatten(order="F")
     grid.save(save_dir+'/'+str(format(flux,'.3e'))+'/sillcube'+str(tot_volume)+'.vtk')
+    
+    # Explicitly clear and delete pyvista object to prevent VTK memory leaks
+    del grid
+
     emplace_frame = pd.DataFrame(np.transpose(emplacement_params), columns=['empl_times', 'empl_heights', 'x_space', 'width', 'thickness'])
     emplace_frame.to_csv(save_dir+'/'+str(format(flux,'.3e'))+'/emplacement_params'+str(tot_volume)+'.csv')
+    
+    # Delete massive arrays and force garbage collection for joblib workers
+    del sillcube
+    import gc
+    gc.collect()
+
     return n_sills_array
 
 
