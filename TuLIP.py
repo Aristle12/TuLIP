@@ -1370,7 +1370,7 @@ class cool:
         H_org : numpy.ndarray
             Latent heat of organic matter
         '''
-        H_org = (L*R_om)/100.0
+        H_org = (L*R_om)
         return H_org
 
     @staticmethod
@@ -1744,7 +1744,7 @@ def _sillburp_core(T_field, progress_of_reactions, rate_of_reactions,
     return progress_of_reactions, rate_of_reactions, oil_production_rate_accum
 
 @jit(nopython=True, cache=True)
-def _SILLi_core(T_field, W, calc_parser, dt, E, f, A, R):
+def _SILLi_core(T_field, W, dt, E, f, A, R):
     """
     JIT-compiled core logic for the SILLi (EasyRo) vitrinite reflectance model.
     
@@ -2029,9 +2029,6 @@ class emit:
         W : numpy.ndarray
             Updated state variable.
         """
-        calc_parser = (lithology=='shale') | (lithology=='sandstone')
-        break_parser = (lithology=='dolostone') | (lithology=='limestone') | (lithology=='marl') | (lithology=='evaporite')
-        calc_parser = calc_parser | break_parser
         a,b = T_field.shape
             
         A = np.float64(1e13)
@@ -2058,8 +2055,8 @@ class emit:
         percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
         TOC = TOCo*(1-Frac)*calc_parser
         dTOC = (TOC_prev-TOC)/dt
-        Rom = (1-porosity)*density*dTOC
-        RCO2 = Rom*3.67/100
+        Rom = (1-porosity)*density*dTOC/100
+        RCO2 = Rom*3.67
         return RCO2, Rom, percRo, TOC, W
 
     def analytical_Ro(T_field, dT, density, lithology, porosity, I_prev, TOC_prev, dt, TOCo, W):
@@ -2096,8 +2093,8 @@ class emit:
         percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
         TOC = TOCo*Frac*calc_parser
         dTOC = (TOC_prev-TOC)/dt
-        Rom = (1-porosity)*density*dTOC
-        RCO2 = Rom*3.67/100
+        Rom = (1-porosity)*density*dTOC/100
+        RCO2 = Rom*3.67
         return RCO2, Rom, percRo, I_curr, TOC
 
     def analyticalRo_I(T_field):
@@ -2256,8 +2253,8 @@ class emit:
             
             TOC = TOCo * (1-products_progress) * calc_parser
             dTOC = (TOC_prev - TOC)/dt
-            Rom = (1 - porosity) * density * dTOC
-            RCO2 = Rom * 3.67/100
+            Rom = (1 - porosity) * density * dTOC/100
+            RCO2 = Rom * 3.67
         else:
             if weights.shape!=products_progress.shape:
                 raise IndexError(f'Shape of weights must be {products_progress.shape}')
@@ -2267,8 +2264,8 @@ class emit:
             
             TOC = TOCo * (1-products_progress) * calc_parser
             dTOC = (TOC_prev - TOC)/dt
-            Rom = (1 - porosity) * density * dTOC
-            RCO2 = Rom * 3.67/100
+            Rom = (1 - porosity) * density * dTOC/100
+            RCO2 = Rom * 3.67
         
         return RCO2, Rom, progress_of_reactions, oil_production_rate, TOC, rate_of_reactions
 
