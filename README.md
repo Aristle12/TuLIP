@@ -39,4 +39,5 @@ TuLIP lets you set up a 2D crustal cross-section, populate it with layered rock 
 ---
 
 New to TuLIP? Visit the [TuLIP Documentation](https://tulip-14ca4526.mintlify.app/) to read the Quickstart and Core Concepts before customizing your own model.
+
 <a href="https://www.freepik.com/icons/tulip-flower">Icon by Stockio</a>
