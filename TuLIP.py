@@ -2049,11 +2049,11 @@ class emit:
         dt = float(dt)
         
         # Call JIT Core
-        Frac, W = _SILLi_core(T_field, W, calc_parser, dt, E, f, A, R)
+        Frac, W = _SILLi_core(T_field, W, dt, E, f, A, R)
         
         # Post-process results (Vectorized)
         percRo = np.exp(-1.6+3.7*Frac) #vitrinite reflectance
-        TOC = TOCo*(1-Frac)*calc_parser
+        TOC = TOCo*(1-Frac)
         dTOC = (TOC_prev-TOC)/dt
         Rom = (1-porosity)*density*dTOC/100
         RCO2 = Rom*3.67
