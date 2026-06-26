@@ -3833,7 +3833,7 @@ class sill_controls:
         dx = self.dx
         dy = self.dy
         dims_empirical = False
-        min_thickness = thickness_range[0] #m
+        min_thickness = thickness_range[0] if thickness_range[0]>(2*dx) else 2*dx #m
         max_thickness = thickness_range[1] #m
         if len(thickness_range)>2:
             sd_min = thickness_range[2]
