@@ -3833,7 +3833,7 @@ class sill_controls:
         dx = self.dx
         dy = self.dy
         dims_empirical = False
-        min_thickness = thickness_range[0] if thickness_range[0]>(2*dx) else 2*dx #m
+        min_thickness = thickness_range[0] #m
         max_thickness = thickness_range[1] #m
         if len(thickness_range)>2:
             sd_min = thickness_range[2]
@@ -4133,7 +4133,7 @@ class sill_controls:
                     props_array[self.Temp_index] = T_field
                     curr_TOC_silli = props_array[self.TOC_index]
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
-                    H_org = self.cool.get_org_latH(L_org, Rom_silli)*dV
+                    H_org = self.cool.get_org_latH(L_org, Rom_silli)
                     H[0] = H_rad+H_org/density/specific_heat
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
@@ -4171,7 +4171,7 @@ class sill_controls:
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, TOC, dt)
                     if (rock=='limestone').any():
                         breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
-                    H_org = self.cool.get_org_latH(L_org, Rom_silli)*dV
+                    H_org = self.cool.get_org_latH(L_org, Rom_silli)
                     H[0] = H_rad+H_org/density/specific_heat
                 else:
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC, W_silli)
@@ -4268,7 +4268,7 @@ class sill_controls:
             RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, TOC, density, rock, porosity, dt, reaction_energies, weights=sillburp_weights)
             if (rock=='limestone').any():
                 breakdown_CO2 = emit.get_init_CO2_percentages(T_field, rock, density, dy)
-            H_org = self.cool.get_org_latH(L_org, Rom)*dV
+            H_org = self.cool.get_org_latH(L_org, Rom)
             H[0] = H_rad+H_org/density/specific_heat
             props_array[self.TOC_index] = curr_TOC
             diff = 1e6
@@ -4287,7 +4287,7 @@ class sill_controls:
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
-                    H_org = self.cool.get_org_latH(L_org, Rom)*dV
+                    H_org = self.cool.get_org_latH(L_org, Rom)
                     H[0] = H_rad+H_org/density/specific_heat
                     props_array[self.TOC_index] = curr_TOC
                     RCO2 = RCO2*dV
@@ -4316,7 +4316,7 @@ class sill_controls:
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
                     if (rock=='limestone').any():    
                         breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
-                H_org = self.cool.get_org_latH(L_org, Rom)*dV
+                H_org = self.cool.get_org_latH(L_org, Rom)
                 H[0] = H_rad+H_org/density/specific_heat
                 props_array[self.TOC_index] = curr_TOC
                 RCO2 = RCO2*dV
@@ -4399,11 +4399,11 @@ class sill_controls:
         not_sills_mask = np.array(rock!=self.magma_prop_dict['Lithology'], dtype = int)
         if model=='silli':
             tot_RCO2, props_array_unused, RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = carbon_model_params
-            H_org = self.cool.get_org_latH(L_org, Rom_silli)*not_sills_mask*dV
+            H_org = self.cool.get_org_latH(L_org, Rom_silli)*not_sills_mask
         elif model =='sillburp':
            tot_RCO2, props_array_unused, RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions, sillburp_weights = carbon_model_params
            reaction_energies = emit.get_sillburp_reaction_energies()
-           H_org = self.cool.get_org_latH(L_org, Rom)*not_sills_mask*dV
+           H_org = self.cool.get_org_latH(L_org, Rom)*not_sills_mask
         elif model==None:
             H_org = np.zeros_like(T_field)
         else:
@@ -4473,13 +4473,13 @@ class sill_controls:
                 if l!=saving_time_step_index:
                     RCO2_silli, Rom_silli, percRo_silli, curr_TOC_silli, W_silli = emit.SILLi_emissions(T_field, density, rock, porosity, curr_TOC_silli, dt, TOC1, W_silli)
                     RCO2_model = RCO2_silli*dV
-                    H_org = self.cool.get_org_latH(L_org, Rom_silli)*not_sills_mask*dV
+                    H_org = self.cool.get_org_latH(L_org, Rom_silli)*not_sills_mask
                     
             elif model=='sillburp':
                 if l!=saving_time_step_index:
                     RCO2, Rom, progress_of_reactions, oil_production_rate, curr_TOC, rate_of_reactions = emit.sillburp(T_field, curr_TOC, density, rock, porosity, dt, reaction_energies, TOC1, oil_production_rate, progress_of_reactions, rate_of_reactions, weights=sillburp_weights)
                     RCO2_model = RCO2*dV
-                    H_org = self.cool.get_org_latH(L_org, Rom)*not_sills_mask*dV
+                    H_org = self.cool.get_org_latH(L_org, Rom)*not_sills_mask
             if (rock=='limestone').any():    
                 breakdown_CO2, _ = emit.get_breakdown_CO2(T_field, rock, density, breakdown_CO2, dy, dt)
             if l!=saving_time_step_index:
