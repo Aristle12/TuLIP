@@ -3,15 +3,15 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python
-  - haasad::pypardiso
+  - python=3.12
+  - pypardiso
   - matplotlib
   - pandas
   - numba
   - tqdm
   - h5py
   - jupyter
-  - anaconda::scikit-learn
+  - scikit-learn
   - pytest
   - seaborn
   - pyvista
@@ -21,4 +21,3 @@ dependencies:
   - ipykernel
   - autograd
   - conda-forge::coolprop
-prefix: /Users/aristle/anaconda3/envs/model
